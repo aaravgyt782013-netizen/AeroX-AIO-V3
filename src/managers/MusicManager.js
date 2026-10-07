@@ -87,9 +87,28 @@ export class MusicManager {
           `🎵 ${this.client.user.tag} music system is ready!`,
         );
 
-        this.lavalink.init(this.client.user);
+        await this.lavalink.init({
+          id: this.client.user.id,
+          username: this.client.user.username,
+        });
+
+        const connectedNodes =
+          this.lavalink.nodeManager?.leastUsedNodes("players") || [];
         this.initialized = true;
-        logger.success("MusicManager", "Initialized successfully");
+
+        if (connectedNodes.length > 0) {
+          logger.success(
+            "MusicManager",
+            "Initialized successfully with " +
+              connectedNodes.length +
+              " connected Lavalink node(s)",
+          );
+        } else {
+          logger.warn(
+            "MusicManager",
+            "Lavalink initialized, but no node is currently connected. Music searches will wait for a usable node.",
+          );
+        }
       });
     } catch (error) {
       logger.error("MusicManager", "Failed to initialize music system", error);
@@ -185,14 +204,25 @@ export class MusicManager {
     try {
       const { source = config.search?.defaultSources?.[0] || "ytsearch", requester } = options;
 
-      // FIX: guard against no connected nodes before searching
-      const nodes = this.lavalink.nodeManager.leastUsedNodes("memory");
-      if (!nodes || nodes.length === 0) {
-        logger.warn("MusicManager", "No Lavalink nodes available for search");
+      if (!this.lavalink.useable) {
+        logger.warn(
+          "MusicManager",
+          "No connected Lavalink node is available for search",
+        );
         return null;
       }
 
+      const nodes =
+        this.lavalink.nodeManager?.leastUsedNodes("players") || [];
       const node = nodes[0];
+
+      if (!node) {
+        logger.warn(
+          "MusicManager",
+          "Lavalink reports no connected node for search",
+        );
+        return null;
+      }
       let searchResult = await node.search({ query, source }, requester);
 
       // Public Lavalink nodes often have YouTube enabled but do not have
