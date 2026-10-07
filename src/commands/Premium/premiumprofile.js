@@ -1,0 +1,100 @@
+import { Command } from "#structures/classes/Command";
+import {
+  ContainerBuilder, TextDisplayBuilder, SeparatorBuilder,
+  SeparatorSpacingSize, SectionBuilder, ThumbnailBuilder, MessageFlags
+} from "discord.js";
+import { db } from "#database/DatabaseManager";
+import emoji from "#config/emoji";
+
+function validUrl(value) {
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" && u.hostname.length > 0;
+  } catch { return false; }
+}
+
+function validColor(value) {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+class PremiumProfileCommand extends Command {
+  constructor() {
+    super({
+      name: "premiumprofile",
+      description: "Customize AeroX's Premium profile for this server",
+      usage: "premiumprofile <view|name|avatar|banner|color|reset> [value]",
+      aliases: ["pprofile", "serverprofile"],
+      category: "Premium",
+      cooldown: 3,
+    });
+  }
+
+  async execute({ client, message, args }) {
+    const premium = db.isGuildPremium(message.guild.id);
+    if (!premium) {
+      return message.reply({
+        content: `${emoji.get("info")} This feature requires **Guild Premium**.`,
+      });
+    }
+
+    const action = (args[0] || "view").toLowerCase();
+    const profile = db.getGuildProfile(message.guild.id) || {};
+
+    if (action === "view") {
+      const name = profile.profile_name || message.guild.name + " • AeroX";
+      const color = profile.color || "#5865F2";
+      const container = new ContainerBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+          `${emoji.get("premium")} **${name}**\nPremium server profile for **${message.guild.name}**`
+        ))
+        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
+
+      const section = new SectionBuilder()
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+          `**Color:** \`${color}\`\n**Avatar:** ${profile.avatar_url ? "Configured" : "Default"}\n**Banner:** ${profile.banner_url ? "Configured" : "Not set"}`
+        ));
+      if (profile.avatar_url && validUrl(profile.avatar_url)) {
+        section.setThumbnailAccessory(new ThumbnailBuilder().setURL(profile.avatar_url));
+      }
+      container.addSectionComponents(section);
+
+      if (profile.banner_url && validUrl(profile.banner_url)) {
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`[Premium Banner](${profile.banner_url})`));
+      }
+
+      return message.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    }
+
+    if (!["name", "avatar", "banner", "color", "reset"].includes(action)) {
+      return message.reply({ content: `${emoji.get("cross")} Use: \`premiumprofile view|name|avatar|banner|color|reset\`` });
+    }
+
+    if (action === "reset") {
+      db.resetGuildProfile(message.guild.id);
+      try { await message.guild.members.me?.setNickname(null, "Premium profile reset"); } catch {}
+      return message.reply({ content: `${emoji.get("check")} Premium server profile reset.` });
+    }
+
+    const value = args.slice(1).join(" ").trim();
+    if (!value) return message.reply({ content: `${emoji.get("cross")} Please provide a value.` });
+
+    if (action === "name") {
+      if (value.length > 32) return message.reply({ content: `${emoji.get("cross")} Profile name must be 32 characters or fewer.` });
+      db.setGuildProfile(message.guild.id, { profile_name: value });
+      try { await message.guild.members.me?.setNickname(value, "Premium server profile"); } catch {}
+    } else if (action === "avatar") {
+      if (!validUrl(value)) return message.reply({ content: `${emoji.get("cross")} Avatar must be a valid HTTPS image URL.` });
+      db.setGuildProfile(message.guild.id, { avatar_url: value });
+    } else if (action === "banner") {
+      if (!validUrl(value)) return message.reply({ content: `${emoji.get("cross")} Banner must be a valid HTTPS image URL.` });
+      db.setGuildProfile(message.guild.id, { banner_url: value });
+    } else if (action === "color") {
+      if (!validColor(value)) return message.reply({ content: `${emoji.get("cross")} Color must look like \`#5865F2\`.` });
+      db.setGuildProfile(message.guild.id, { color: value });
+    }
+
+    return message.reply({ content: `${emoji.get("check")} Premium profile **${action}** updated successfully.` });
+  }
+}
+
+export default new PremiumProfileCommand();
