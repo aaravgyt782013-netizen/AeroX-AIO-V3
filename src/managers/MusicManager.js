@@ -183,6 +183,11 @@ export class MusicManager {
         return null;
       }
 
+      const musicSettings = db.guild.getMusicSettings(guildId);
+      player.set("autoplayEnabled", musicSettings.autoplay);
+      player.set("announceSongs", musicSettings.announceSongs);
+      player.set("djRole", musicSettings.djRole);
+
       if (!player.connected) {
         await player.connect();
       }
