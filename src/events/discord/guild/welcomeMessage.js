@@ -7,6 +7,17 @@ export default {
   async execute(member) {
     if (member.user.bot) return;
     try {
+      const autoroleId = db.guild?.getAutorole?.(member.guild.id);
+      if (autoroleId) {
+        const role = member.guild.roles.cache.get(autoroleId);
+        if (role && !role.managed && role.position < member.guild.members.me.roles.highest.position) {
+          await member.roles.add(role, "LightCore autorole").catch(() => null);
+        }
+      }
+    } catch (error) {
+      logger.error("AutoRole", "Failed to assign autorole:", error);
+    }
+    try {
       const setting = db.getWelcome(member.guild.id);
       if (!setting?.enabled) return;
 
