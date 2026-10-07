@@ -25,8 +25,22 @@ export class TempVoiceManager {
   }
   static async handleLeave(ch) {
     if(!ch || !this.isTemp(ch.id)) return;
-    // TempVoice rooms intentionally persist when empty. They are never deleted just because everyone leaves.
-    // The database record is kept so the room can be managed again when its owner returns.
+    // Delete the generated TempVoice as soon as the last member leaves.
+    // The join-to-create channel itself is never treated as a generated room.
+    if(ch.members?.size !== 0) return;
+
+    const channelId = ch.id;
+    db.guild.deleteTempVoiceChannel(channelId);
+
+    try {
+      if(ch.deletable) {
+        await ch.delete("LightCore TempVoice became empty");
+      }
+    } catch {
+      // If Discord rejects deletion, restore the DB record so the room can still be managed.
+      const owner = this.owner(channelId);
+      if(owner) db.guild.setTempVoiceChannel(channelId, ch.guild.id, owner);
+    }
   }
   static panel(ch,notice="") {
     const owner=this.owner(ch.id);
