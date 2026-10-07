@@ -1,8 +1,8 @@
-# AeroX AIO V3 - Ultimate Discord Bot
+# LightCore AIO V3 - Ultimate Discord Bot
 
-AeroX is a feature-rich Discord bot built with **discord.js v14**, featuring advanced hybrid sharding for scalability, high-quality music streaming via Lavalink, and a modular architecture.
+LightCore is a feature-rich Discord bot built with **discord.js v14**, featuring advanced hybrid sharding for scalability, high-quality music streaming via Lavalink, and a modular architecture.
 
-[![Support Server](https://img.shields.io/discord/1070267471958614057?color=7289da&label=Support%20Server&logo=discord)](https://discord.gg/aerox)
+[![Support Server](https://img.shields.io/discord/1070267471958614057?color=7289da&label=Support%20Server&logo=discord)](https://discord.gg/lightcore)
 
 ## 🚀 Features
 
@@ -47,11 +47,11 @@ This project is licensed under a custom agreement. It is free for **personal, no
 
 ## 🙌 Credits
 
-- **Developers**: Shinchan & **AeroX Development**
+- **Developers**: Shinchan & **LightCore Development**
 - **Base Code**: This project uses [Yukihana](https://github.com/bre4d777/Yukihana) by **bre4d777** as its foundation.
 
 ---
 
 ### 📞 Support
 
-Join our support server for help and updates: [discord.gg/aerox](https://discord.gg/aerox)
+Join our support server for help and updates: [discord.gg/lightcore](https://discord.gg/lightcore)
