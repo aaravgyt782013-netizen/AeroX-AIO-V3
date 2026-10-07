@@ -338,7 +338,7 @@ export default {
       const currentPrefix = guildPrefixes[0] || config.prefix;
       const guildIconUrl = message.guild.iconURL({ dynamic: true, size: 256 });
 
-      const homeContent = `> *Hey <@${message.author.id}>, I'm* __**AeroX**__ ${emoji.get("status")}\n` +
+      const homeContent = `> *Hey <@${message.author.id}>, I'm* __**LightCore**__ ${emoji.get("status")}\n` +
         `> *A **multipurpose** bot made to manage your server safely and smoothly with **moderation, music, ticket and more...** ${emoji.get("info")}*\n\n` +
         `*Type \`${currentPrefix}help\` to know more about my commands and more...*\n\n` +
         `**Server Prefix:** \`${currentPrefix}\``;
