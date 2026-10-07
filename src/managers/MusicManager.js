@@ -53,7 +53,7 @@ export class MusicManager {
           minAutoPlayMs: 10_000,
           applyVolumeAsFilter: false,
           clientBasedPositionUpdateInterval: 100,
-          defaultSearchPlatform: "spsearch",
+          defaultSearchPlatform: "ytmsearch",
           onDisconnect: {
             autoReconnect: true,
             destroyPlayer: false,
