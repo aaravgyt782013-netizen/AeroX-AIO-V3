@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, ChannelType } from "discord.js";
+import { PermissionFlagsBits, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { buildTicketEmbed } from "#utils/TicketEmbed";
@@ -134,7 +134,25 @@ export default {
 
       const target = message.guild.channels.cache.get(panelChannelId);
       const panelEmbed = buildTicketEmbed(style, { server: message.guild.name });
-      const sent = await target.send({ embeds: [panelEmbed] });
+      const rows = [];
+      if (selector === "dropdown") {
+        const page = categories.slice(0, 25);
+        rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+          .setCustomId("ticket_create_" + panelId + "_page_0")
+          .setPlaceholder(placeholder)
+          .addOptions(page.map((cat, i) => ({ label: cat.name.slice(0, 100), description: cat.description.slice(0, 100), value: String(i), emoji: cat.emoji || undefined })))));
+        if (categories.length > 25) rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_1").setLabel("Next").setStyle(ButtonStyle.Secondary)));
+      } else {
+        const buttons = categories.slice(0, 25).map((cat, i) => {
+          const styles = { primary: ButtonStyle.Primary, secondary: ButtonStyle.Secondary, success: ButtonStyle.Success, danger: ButtonStyle.Danger };
+          const b = new ButtonBuilder().setCustomId("ticket_create_" + panelId + "_" + i).setLabel(cat.name.slice(0, 80)).setStyle(styles[buttonStyle]);
+          if (cat.emoji) b.setEmoji(cat.emoji);
+          return b;
+        });
+        for (let i = 0; i < buttons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+        if (categories.length > 25) rows.push(new ActionRowBuilder().setComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_1").setLabel("Next").setStyle(ButtonStyle.Secondary)));
+      }
+      const sent = await target.send({ embeds: [panelEmbed], components: rows.slice(0, 5) });
       db.updateTicketPanel(message.guild.id, panelId, { panel_channel_id: target.id, panel_message_id: sent.id });
 
       return message.channel.send({ embeds: [buildTicketEmbed({
