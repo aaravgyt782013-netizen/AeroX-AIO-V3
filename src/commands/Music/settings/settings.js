@@ -77,7 +77,7 @@ class MusicSettingsCommand extends Command {
     const role=s.djRole ? "<@&"+s.djRole+">" : "Disabled (everyone can control)";
     const source=(s.source||"ytmsearch").replace("ytmsearch","YouTube Music").replace("ytsearch","YouTube").replace("spsearch","Spotify").replace("scsearch","SoundCloud");
     const c=new ContainerBuilder();
-    c.addTextDisplayComponents(new TextDisplayBuilder().setContent("🎵 **AeroX Music Settings**"));
+    c.addTextDisplayComponents(new TextDisplayBuilder().setContent("🎵 **LightCore Music Settings**"));
     c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
     c.addTextDisplayComponents(new TextDisplayBuilder().setContent(
       (changed ? "✅ **Settings updated.**\\n\\n" : "")+
