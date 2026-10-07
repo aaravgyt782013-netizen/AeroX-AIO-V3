@@ -42,7 +42,8 @@ export default {
         }
       }
 
-      const autoplayEnabled = player.get('autoplayEnabled') || false;
+      const configuredAutoplay = db.guild.getMusicSettings(player.guildId).autoplay;
+      const autoplayEnabled = player.get('autoplayEnabled') ?? configuredAutoplay;
       const lastTrack = player.get('lastPlayedTrack') || track;
 
       if (autoplayEnabled && lastTrack) {
