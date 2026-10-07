@@ -204,6 +204,85 @@ export class Guild extends Database {
     return this.all("SELECT * FROM guilds WHERE stay_247   =1 AND stay_247_voice_channel IS NOT NULL");
   }
 
+  initTempVoiceTables() {
+    const columns = [
+      ["tempvoice_join_channel","TEXT DEFAULT NULL"],
+      ["tempvoice_category","TEXT DEFAULT NULL"],
+      ["tempvoice_name","TEXT DEFAULT '🔊 {username}\'s Room'"],
+      ["tempvoice_limit","INTEGER DEFAULT 0"],
+      ["tempvoice_bitrate","INTEGER DEFAULT 64000"],
+      ["tempvoice_auto_delete","BOOLEAN DEFAULT TRUE"],
+      ["tempvoice_claim","BOOLEAN DEFAULT TRUE"],
+    ];
+    for (const [name, definition] of columns) {
+      try { this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition); } catch {}
+    }
+    this.exec(`CREATE TABLE IF NOT EXISTS tempvoice_channels (
+      channel_id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+  }
+
+  getTempVoiceSettings(guildId) {
+    this.ensureGuild(guildId);
+    this.initTempVoiceTables();
+    const g = this.getGuild(guildId);
+    return {
+      joinChannel: g.tempvoice_join_channel || null,
+      category: g.tempvoice_category || null,
+      name: g.tempvoice_name || "🔊 {username}'s Room",
+      limit: Number(g.tempvoice_limit || 0),
+      bitrate: Number(g.tempvoice_bitrate || 64000),
+      autoDelete: g.tempvoice_auto_delete !== 0 && g.tempvoice_auto_delete !== false,
+      claim: g.tempvoice_claim !== 0 && g.tempvoice_claim !== false,
+    };
+  }
+
+  setTempVoiceSettings(guildId, settings = {}) {
+    this.ensureGuild(guildId);
+    this.initTempVoiceTables();
+    const allowed = {
+      joinChannel:"tempvoice_join_channel", category:"tempvoice_category",
+      name:"tempvoice_name", limit:"tempvoice_limit", bitrate:"tempvoice_bitrate",
+      autoDelete:"tempvoice_auto_delete", claim:"tempvoice_claim"
+    };
+    const entries = Object.entries(settings)
+      .filter(([k]) => allowed[k])
+      .map(([k,v]) => [allowed[k], v]);
+    if (!entries.length) return null;
+    const set = entries.map(([k]) => k + " = ?").join(", ");
+    const values = entries.map(([,v]) => typeof v === "boolean" ? (v ? 1 : 0) : v);
+    values.push(guildId);
+    return this.exec("UPDATE guilds SET " + set + ", updated_at = CURRENT_TIMESTAMP WHERE id = ?", values);
+  }
+
+  getTempVoiceChannel(channelId) {
+    this.initTempVoiceTables();
+    return this.get("SELECT * FROM tempvoice_channels WHERE channel_id = ?", [channelId]);
+  }
+
+  getTempVoiceChannels(guildId) {
+    this.initTempVoiceTables();
+    return this.all("SELECT * FROM tempvoice_channels WHERE guild_id = ?", [guildId]);
+  }
+
+  setTempVoiceChannel(channelId, guildId, ownerId) {
+    this.initTempVoiceTables();
+    return this.exec("INSERT OR REPLACE INTO tempvoice_channels (channel_id, guild_id, owner_id) VALUES (?, ?, ?)", [channelId, guildId, ownerId]);
+  }
+
+  setTempVoiceOwner(channelId, ownerId) {
+    this.initTempVoiceTables();
+    return this.exec("UPDATE tempvoice_channels SET owner_id = ? WHERE channel_id = ?", [ownerId, channelId]);
+  }
+
+  deleteTempVoiceChannel(channelId) {
+    this.initTempVoiceTables();
+    return this.exec("DELETE FROM tempvoice_channels WHERE channel_id = ?", [channelId]);
+  }
+
   getMusicSettings(guildId) {
     const guild = this.ensureGuild(guildId);
     return {
