@@ -11,6 +11,7 @@ class PremiumUserCommand extends Command {
       aliases: ["mypremium", "premiumme"],
       category: "Premium",
       cooldown: 3,
+      userPrem: true,
     });
   }
 
