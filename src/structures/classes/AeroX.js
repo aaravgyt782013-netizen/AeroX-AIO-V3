@@ -88,7 +88,22 @@ export class AeroX extends Client {
 
                 this.commandHandler = new CommandHandler(this);
                 this.eventHandler = new EventLoader(this);
-                this.noPrefixUsers = new Set();
+
+                // Premium users automatically inherit no-prefix command access.
+                // Explicit owner-granted no-prefix users remain stored in the Set,
+                // while premium status is checked live so grants/revokes take effect
+                // immediately without requiring a restart.
+                const explicitNoPrefixUsers = new Set();
+                this.noPrefixUsers = new Proxy(explicitNoPrefixUsers, {
+                        get: (target, property, receiver) => {
+                                if (property === 'has') {
+                                        return userId =>
+                                                target.has(userId) ||
+                                                Boolean(this.db.premium?.isUserPremium?.(userId));
+                                }
+                                return Reflect.get(target, property, receiver);
+                        },
+                });
 
                 this.startTime = Date.now();
                 this.rest = new REST({ version: '10' }).setToken(config.token);
