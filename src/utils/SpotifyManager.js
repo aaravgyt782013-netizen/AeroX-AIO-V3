@@ -88,10 +88,10 @@ export class SpotifyManager {
 	parseSpotifyUrl(url) {
 		try {
 			const patterns = {
-				playlist: /spotify\.com\/playlist\/([\dA-Za-z]+)/,
-				user: /spotify\.com\/user\/([\dA-Za-z]+)/,
-				track: /spotify\.com\/track\/([\dA-Za-z]+)/,
-				album: /spotify\.com\/album\/([\dA-Za-z]+)/,
+				playlist: /spotify\.com\/(?:intl-[^/]+\/)?playlist\/([\dA-Za-z]+)/,
+				user: /spotify\.com\/(?:intl-[^/]+\/)?user\/([\dA-Za-z]+)/,
+				track: /spotify\.com\/(?:intl-[^/]+\/)?track\/([\dA-Za-z]+)/,
+				album: /spotify\.com\/(?:intl-[^/]+\/)?album\/([\dA-Za-z]+)/,
 			};
 
 			for (const [type, pattern] of Object.entries(patterns)) {
