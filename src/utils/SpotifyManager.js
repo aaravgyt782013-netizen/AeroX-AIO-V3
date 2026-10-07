@@ -283,22 +283,56 @@ export class SpotifyManager {
 
 	async searchTrack(client, query, requester) {
 		try {
-			if (!client?.music?.lavalink) {
+			if (!client?.music) {
 				logger.error('SpotifyManager', 'Music client not available');
 				return null;
 			}
 
-			const searchQuery = `${query}`;
-			const result = await client.music.search(searchQuery, {
-				source: 'spsearch',
+			const parsed = this.parseSpotifyUrl(query);
+			let spotifyTrack;
+
+			if (parsed?.type === 'track') {
+				spotifyTrack = await this.apiRequest(`/tracks/${parsed.id}?market=IN`);
+			} else {
+				const data = await this.apiRequest(
+					`/search?q=${encodeURIComponent(query)}&type=track&limit=1&market=IN`,
+				);
+				spotifyTrack = data?.tracks?.items?.[0] || null;
+			}
+
+			if (!spotifyTrack?.name) return null;
+
+			const artists = Array.isArray(spotifyTrack.artists)
+				? spotifyTrack.artists.map(artist => artist.name).join(' ')
+				: '';
+			const searchQuery = `${spotifyTrack.name} ${artists}`.trim();
+
+			// Resolve the Spotify catalog item to playable audio through Lavalink's
+			// YouTube Music search first, then normal YouTube search.
+			let result = await client.music.search(searchQuery, {
+				source: 'ytmsearch',
 				requester,
 			});
 
 			if (!result?.tracks?.length) {
-				return null;
+				result = await client.music.search(searchQuery, {
+					source: 'ytsearch',
+					requester,
+				});
 			}
 
-			return result.tracks[0];
+			const track = result?.tracks?.[0];
+			if (!track) return null;
+
+			// Keep Spotify metadata available to the player UI without requiring
+			// LavaSrc on the Lavalink node.
+			track.info = {
+				...track.info,
+				spotifyUrl: spotifyTrack.external_urls?.spotify || null,
+				spotifyArtworkUrl: spotifyTrack.album?.images?.[0]?.url || null,
+			};
+
+			return track;
 		} catch (error) {
 			logger.error('SpotifyManager', 'Error searching for track', error);
 			return null;
