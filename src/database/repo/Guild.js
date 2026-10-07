@@ -330,6 +330,21 @@ export class Guild extends Database {
     return this.exec("DELETE FROM tempvoice_channels WHERE channel_id = ?", [channelId]);
   }
 
+  initMusicSettings() {
+    const columns = [
+      ["dj_role", "TEXT DEFAULT NULL"],
+      ["autoplay", "BOOLEAN DEFAULT FALSE"],
+      ["announce_songs", "BOOLEAN DEFAULT TRUE"],
+      ["vote_skip", "BOOLEAN DEFAULT FALSE"],
+      ["request_channel", "TEXT DEFAULT NULL"],
+      ["music_source", "TEXT DEFAULT 'ytmsearch'"],
+      ["music_247", "BOOLEAN DEFAULT FALSE"],
+    ];
+    for (const [name, definition] of columns) {
+      try { this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition); } catch {}
+    }
+  }
+
   getMusicSettings(guildId) {
     const guild = this.ensureGuild(guildId);
     return {
