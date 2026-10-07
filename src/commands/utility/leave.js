@@ -53,10 +53,7 @@ class LeaveCommand extends Command {
       const text = args.slice(2).join(" ") || DEFAULT_MESSAGE;
       if (!channel) return message.reply(replyBox(emoji.get("cross") + " Mention a text channel or provide its ID."));
       db.setLeave(guildId, channel.id, text);
-      return message.reply(replyBox(emoji.get("check") + " Leave messages are enabled in <#" + channel.id + ">.
-
-**Message:**
-" + text));
+      return message.reply(replyBox(emoji.get("check") + " Leave messages are enabled in <#" + channel.id + ">.\n\n**Message:**\n" + text));
     }
 
     if (sub === "message") {
@@ -92,27 +89,17 @@ class LeaveCommand extends Command {
     }
 
     if (sub === "placeholders" || sub === "variables") {
-      return message.reply(replyBox("**Leave placeholders**
-
-" + automationPlaceholderHelp()));
+      return message.reply(replyBox("**Leave placeholders**\n\n" + automationPlaceholderHelp()));
     }
 
     const current = db.getLeave(guildId);
     if (!current || !current.enabled) {
-      return message.reply(replyBox(emoji.get("info") + " Leave messages are disabled.
-
-Use .leave setup #goodbye Goodbye {username}! to enable them."));
+      return message.reply(replyBox(emoji.get("info") + " Leave messages are disabled.\n\nUse .leave setup #goodbye Goodbye {username}! to enable them."));
     }
 
     return message.reply(replyBox(
-      "**Leave Setup**
-
-**Channel:** <#" + current.channel_id + ">
-**Message:**
-" + current.message +
-      "
-
-Use .leave test to preview it or .leave placeholders for variables."
+      "**Leave Setup**\n\n**Channel:** <#" + current.channel_id + ">\n**Message:**\n" + current.message +
+      "\n\nUse .leave test to preview it or .leave placeholders for variables."
     ));
   }
 
@@ -120,10 +107,7 @@ Use .leave test to preview it or .leave placeholders for variables."
     const channel = interaction.options.getChannel("channel");
     const text = interaction.options.getString("message");
     db.setLeave(interaction.guild.id, channel.id, text);
-    return interaction.reply(replyBox(emoji.get("check") + " Leave messages are enabled in <#" + channel.id + ">.
-
-**Message:**
-" + text));
+    return interaction.reply(replyBox(emoji.get("check") + " Leave messages are enabled in <#" + channel.id + ">.\n\n**Message:**\n" + text));
   }
 }
 
