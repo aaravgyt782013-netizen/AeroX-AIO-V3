@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
+import { config } from "#config/config";
 
 function validUrl(value) {
   try {
@@ -30,6 +31,10 @@ class PremiumProfileCommand extends Command {
   }
 
   async execute({ client, message, args }) {
+    if (!message.guild) {
+      return message.reply({ content: emoji.get("cross") + " This command can only be used inside a server." });
+    }
+
     const premium = db.isGuildPremium(message.guild.id);
     if (!premium) {
       return message.reply({
@@ -67,6 +72,16 @@ class PremiumProfileCommand extends Command {
 
     if (!["name", "avatar", "banner", "color", "reset"].includes(action)) {
       return message.reply({ content: `${emoji.get("cross")} Use: \`premiumprofile view|name|avatar|banner|color|reset\`` });
+    }
+
+    // Only the Discord server owner or a configured bot owner can modify
+    // the server's Premium profile (name, avatar, banner, color, or reset).
+    const isGuildOwner = message.guild.ownerId === message.author.id;
+    const isBotOwner = config.ownerIds?.includes(message.author.id);
+    if (!isGuildOwner && !isBotOwner) {
+      return message.reply({
+        content: emoji.get("cross") + " Only the **server owner** or **bot owner** can change the Premium server profile.",
+      });
     }
 
     if (action === "reset") {
