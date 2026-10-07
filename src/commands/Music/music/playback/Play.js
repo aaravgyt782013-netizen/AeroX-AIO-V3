@@ -848,17 +848,22 @@ class PlayCommand extends Command {
     try {
       const [ytResult, spResult] = await Promise.allSettled([
         client.music.search(query, { source: "ytsearch" }),
-        spotifyManager.searchTrack(client, query, null),
+        client.music.search(query, { source: "spsearch" }),
       ]);
 
       if (ytResult.status === "fulfilled" && ytResult.value?.tracks?.length) {
         results.youtube = ytResult.value.tracks[0];
       }
 
-      if (spResult.status === "fulfilled" && spResult.value) {
-        // spotifyManager.searchTrack() returns a resolved Lavalink track,
-        // not a Lavalink load-result wrapper.
-        results.spotify = spResult.value.tracks?.[0] || spResult.value;
+      if (spResult.status === "fulfilled" && spResult.value?.tracks?.length) {
+        results.spotify = spResult.value.tracks[0];
+      }
+
+      // If the Lavalink node does not provide Spotify/LavaSrc search, use
+      // Spotify Web API metadata and resolve the track through YouTube.
+      if (!results.spotify) {
+        const spotifyFallback = await spotifyManager.searchTrack(client, query, null).catch(() => null);
+        if (spotifyFallback) results.spotify = spotifyFallback;
       }
     } catch (error) {
       console.error("Error searching both sources:", error);
