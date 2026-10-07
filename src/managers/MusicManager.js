@@ -223,18 +223,23 @@ export class MusicManager {
         );
         return null;
       }
-      let searchResult = await node.search({ query, source }, requester);
+      let searchResult = await node.search({ query, source }, requester).catch((error) => {
+        logger.warn("MusicManager", `Search failed on ${source}: ${error.message}`);
+        return null;
+      });
 
-      // Public Lavalink nodes often have YouTube enabled but do not have
-      // every LavaSrc source enabled. Keep YouTube search working even when
-      // the preferred engine is unavailable.
+      // Public Lavalink nodes can expose YouTube through either ytsearch or
+      // ytmsearch. Try both before reporting no results.
       if ((!searchResult || !searchResult.tracks?.length) && source === "ytsearch") {
         searchResult = await node.search({ query, source: "ytmsearch" }, requester).catch(() => null);
       }
 
-      // Spotify search can be provided by LavaSrc, but it is not installed on
-      // every public node. Fall back to Spotify Web API metadata + a YouTube
-      // search so Spotify queries still resolve to playable audio.
+      if ((!searchResult || !searchResult.tracks?.length) && source === "ytmsearch") {
+        searchResult = await node.search({ query, source: "ytsearch" }, requester).catch(() => null);
+      }
+
+      // Prefer Lavalink/LavaSrc for Spotify. Only use Spotify Web API as a
+      // metadata fallback when the node cannot search Spotify itself.
       if ((!searchResult || !searchResult.tracks?.length) && source === "spsearch") {
         const spotifyTrack = await spotifyManager.searchTrack(this.client, query, requester);
         if (spotifyTrack) {
