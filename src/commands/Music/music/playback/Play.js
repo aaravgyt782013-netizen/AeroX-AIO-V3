@@ -20,6 +20,7 @@ import {
 import { PlayerManager } from "#managers/PlayerManager";
 import { db } from "#database/DatabaseManager";
 import { config } from "#config/config";
+import { spotifyManager } from "#utils/SpotifyManager";
 import emoji from "#config/emoji";
 
 class PlayCommand extends Command {
@@ -847,7 +848,7 @@ class PlayCommand extends Command {
     try {
       const [ytResult, spResult] = await Promise.allSettled([
         client.music.search(query, { source: "ytsearch" }),
-        client.music.search(query, { source: "spsearch" }),
+        spotifyManager.searchTrack(client, query, null),
       ]);
 
       if (ytResult.status === "fulfilled" && ytResult.value?.tracks?.length) {
@@ -1601,7 +1602,7 @@ class PlayCommand extends Command {
       jiosaavn: "jssearch",
       saavn: "jssearch",
     };
-    return sourceMap[source?.toLowerCase()] || "spsearch";
+    return sourceMap[source?.toLowerCase()] || "ytsearch";
   }
 
   _isUrl(string) {
