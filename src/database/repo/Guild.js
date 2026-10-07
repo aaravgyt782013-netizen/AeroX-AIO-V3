@@ -8,6 +8,7 @@ export class Guild extends Database {
     this.initTable();
     this.initRoleSettings();
     this.initLoggingSettings();
+    this.initMusicSettings();
   }
 
   initTable() {
