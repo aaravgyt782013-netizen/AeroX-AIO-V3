@@ -1,0 +1,5 @@
+import { Command } from "#structures/classes/Command";
+import { PermissionFlagsBits, EmbedBuilder } from "discord.js";
+import { LoggingManager, LOG_TYPES } from "#managers/LoggingManager";
+import { db } from "#database/DatabaseManager";
+class ShowLogs extends Command{constructor(){super({name:"showlogs",description:"Show all configured logging channels",usage:"showlogs",aliases:["logs","logging"],category:"Logging",cooldown:3,userPermissions:[PermissionFlagsBits.ManageGuild],permissions:[PermissionFlagsBits.ViewAuditLog]});}async execute({message}){const cfg=db.guild.getLogging(message.guild.id);if(!cfg.enabled)return message.reply("❌ Logging is disabled. Run `.logsetupauto` first.");const lines=Object.keys(LOG_TYPES).map(k=>"• **"+k+"** → "+(cfg.channels[k]?"<#"+cfg.channels[k]+">":"Not configured"));return message.reply({embeds:[new EmbedBuilder().setColor(0x5865F2).setTitle("📋 LightCore Logging").setDescription(lines.join("\n")).setTimestamp()]});}}export default new ShowLogs();
