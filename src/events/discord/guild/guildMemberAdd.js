@@ -1,9 +1,11 @@
 import { db } from "#database/DatabaseManager";
+import { LoggingManager } from "#managers/LoggingManager";
 import { logger } from "#utils/logger";
 
 export default {
   name: "guildMemberAdd",
   async execute(member, client) {
+    await LoggingManager.send(member.guild,"member",{emoji:"📥",title:"Member Joined",color:0x57F287,description:"<@"+member.id+"> joined the server.",fields:[{name:"Account",value:"<t:"+Math.floor(member.user.createdTimestamp/1000)+":R>",inline:true},{name:"Member Count",value:String(member.guild.memberCount),inline:true}]});
     if (member.user.bot) return;
 
     const guildId = member.guild.id;
