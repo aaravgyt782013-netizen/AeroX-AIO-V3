@@ -254,7 +254,7 @@ export class Guild extends Database {
     const columns = [
       ["tempvoice_join_channel","TEXT DEFAULT NULL"],
       ["tempvoice_category","TEXT DEFAULT NULL"],
-      ["tempvoice_name","TEXT DEFAULT '🔊 {username}\'s Room'"],
+      ["tempvoice_name","TEXT DEFAULT '🔊 {username}''s Room'"],
       ["tempvoice_limit","INTEGER DEFAULT 0"],
       ["tempvoice_bitrate","INTEGER DEFAULT 64000"],
       ["tempvoice_auto_delete","BOOLEAN DEFAULT TRUE"],
