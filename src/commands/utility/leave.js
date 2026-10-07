@@ -1,5 +1,5 @@
 import { Command } from "#structures/classes/Command";
-import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags } from "discord.js";
+import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags, EmbedBuilder } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/AutomationUtils";
@@ -7,10 +7,12 @@ import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/Autom
 const DEFAULT_MESSAGE = "Goodbye {username}! We will miss you from **{server}**.";
 
 function replyBox(content) {
-  return {
-    components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(content))],
-    flags: MessageFlags.IsComponentsV2,
-  };
+  const embed = new EmbedBuilder()
+    .setTitle("🚪 Leave Setup")
+    .setDescription(content)
+    .setColor(0x5865F2)
+    .setTimestamp();
+  return { embeds: [embed] };
 }
 
 function resolveChannel(message, raw) {
