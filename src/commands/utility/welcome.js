@@ -53,10 +53,7 @@ class WelcomeCommand extends Command {
       const text = args.slice(2).join(" ") || DEFAULT_MESSAGE;
       if (!channel) return message.reply(replyBox(emoji.get("cross") + " Mention a text channel or provide its ID."));
       db.setWelcome(guildId, channel.id, text);
-      return message.reply(replyBox(emoji.get("check") + " Welcome messages are enabled in <#" + channel.id + ">.
-
-**Message:**
-" + text));
+      return message.reply(replyBox(emoji.get("check") + " Welcome messages are enabled in <#" + channel.id + ">.\n\n**Message:**\n" + text));
     }
 
     if (sub === "message") {
@@ -92,27 +89,17 @@ class WelcomeCommand extends Command {
     }
 
     if (sub === "placeholders" || sub === "variables") {
-      return message.reply(replyBox("**Welcome placeholders**
-
-" + automationPlaceholderHelp()));
+      return message.reply(replyBox("**Welcome placeholders**\n\n" + automationPlaceholderHelp()));
     }
 
     const current = db.getWelcome(guildId);
     if (!current || !current.enabled) {
-      return message.reply(replyBox(emoji.get("info") + " Welcome messages are disabled.
-
-Use .welcome setup #welcome Welcome {user} to {server}! to enable them."));
+      return message.reply(replyBox(emoji.get("info") + " Welcome messages are disabled.\n\nUse .welcome setup #welcome Welcome {user} to {server}! to enable them."));
     }
 
     return message.reply(replyBox(
-      "**Welcome Setup**
-
-**Channel:** <#" + current.channel_id + ">
-**Message:**
-" + current.message +
-      "
-
-Use .welcome test to preview it or .welcome placeholders for variables."
+      "**Welcome Setup**\n\n**Channel:** <#" + current.channel_id + ">\n**Message:**\n" + current.message +
+      "\n\nUse .welcome test to preview it or .welcome placeholders for variables."
     ));
   }
 
@@ -120,10 +107,7 @@ Use .welcome test to preview it or .welcome placeholders for variables."
     const channel = interaction.options.getChannel("channel");
     const text = interaction.options.getString("message");
     db.setWelcome(interaction.guild.id, channel.id, text);
-    return interaction.reply(replyBox(emoji.get("check") + " Welcome messages are enabled in <#" + channel.id + ">.
-
-**Message:**
-" + text));
+    return interaction.reply(replyBox(emoji.get("check") + " Welcome messages are enabled in <#" + channel.id + ">.\n\n**Message:**\n" + text));
   }
 }
 
