@@ -1,0 +1,5 @@
+import { Command } from "#structures/classes/Command";
+import { PermissionFlagsBits } from "discord.js";
+const roleOf=(m,v)=>m.mentions.roles.first()||m.guild.roles.cache.get(String(v||"").replace(/[<@&>]/g,""));
+const memberOf=(m,v)=>m.mentions.members.first()||m.guild.members.cache.get(String(v||"").replace(/[<@!>]/g,""));
+class Unrole extends Command{constructor(){super({name:"unrole",description:"Remove a role from a member",usage:"unrole @user @role",aliases:["removerole","delrole"],category:"Moderation",userPermissions:[PermissionFlagsBits.ManageRoles],permissions:[PermissionFlagsBits.ManageRoles],cooldown:3});}async execute({message,args}){const m=memberOf(message,args[0]),r=roleOf(message,args[1]);if(!m||!r)return message.reply("❌ Usage: .unrole @user @role");if(r.managed||r.position>=message.guild.members.me.roles.highest.position)return message.reply("❌ I cannot manage that role.");if(!m.roles.cache.has(r.id))return message.reply("ℹ️ That member does not have the role.");await m.roles.remove(r,"LightCore role command");return message.reply("✅ Removed <@&"+r.id+"> from <@"+m.id+">.");}}export default new Unrole();
