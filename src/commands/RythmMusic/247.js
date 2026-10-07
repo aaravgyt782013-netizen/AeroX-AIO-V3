@@ -1,0 +1,3 @@
+import { command, context, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const c=context(x),g=c.guild;if(!g)return safeReply(x,"♾️ 24/7","Server only.",0xED4245);const s=x.client.db.guild.get247Settings(g.id);const enable=!s.enabled;if(enable){const v=c.member?.voice?.channel;if(!v)return safeReply(x,"♾️ 24/7","Join a voice channel first.",0xED4245);x.client.db.guild.set247Mode(g.id,true,v.id,c.channel.id)}else x.client.db.guild.set247Mode(g.id,false);return safeReply(x,"♾️ 24/7",enable?"24/7 mode enabled.":"24/7 mode disabled.")};
+export default command({name:"247",description:"Toggle 24/7 mode",aliases:["alwaysplaying"],execute:run,slashExecute:run});
