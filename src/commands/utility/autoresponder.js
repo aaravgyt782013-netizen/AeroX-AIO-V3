@@ -59,14 +59,10 @@ class AutoResponderCommand extends Command {
 
     if (sub === "add") {
       const rule = parseRule(args.slice(1).join(" "), true);
-      if (!rule) return message.reply(replyBox(emoji.get("cross") + " Use: .autoresponder add [exact] trigger | response
-Example: .autoresponder add hello | Hey {user}!"));
+      if (!rule) return message.reply(replyBox(emoji.get("cross") + " Use: .autoresponder add [exact] trigger | response\nExample: .autoresponder add hello | Hey {user}!"));
       try {
         db.addAutoresponder(guildId, rule.trigger, rule.response, rule.matchType);
-        return message.reply(replyBox(emoji.get("check") + " Autoresponder added.
-**Trigger:** " + rule.trigger + "
-**Match:** " + rule.matchType + "
-**Response:** " + rule.response));
+        return message.reply(replyBox(emoji.get("check") + " Autoresponder added.\n**Trigger:** " + rule.trigger + "\n**Match:** " + rule.matchType + "\n**Response:** " + rule.response));
       } catch (error) {
         if (String(error.message).toLowerCase().includes("unique")) {
           return message.reply(replyBox(emoji.get("cross") + " That trigger already exists. Use .autoresponder edit <id> | new response."));
@@ -100,26 +96,15 @@ Example: .autoresponder add hello | Hey {user}!"));
     }
 
     if (sub === "placeholders" || sub === "variables") {
-      return message.reply(replyBox("**Autoresponder placeholders**
-
-" + automationPlaceholderHelp()));
+      return message.reply(replyBox("**Autoresponder placeholders**\n\n" + automationPlaceholderHelp()));
     }
 
     const rules = db.getAutoresponders(guildId);
-    if (!rules.length) return message.reply(replyBox(emoji.get("info") + " No autoresponders are configured.
-
-Use .autoresponder add hello | Hey {user}!"));
+    if (!rules.length) return message.reply(replyBox(emoji.get("info") + " No autoresponders are configured.\n\nUse .autoresponder add hello | Hey {user}!"));
     const lines = rules.map(rule =>
-      "**#" + rule.id + "** · " + rule.trigger_text + " · " + rule.match_type + "
-↳ " + rule.response
+      "**#" + rule.id + "** · " + rule.trigger_text + " · " + rule.match_type + "\n↳ " + rule.response
     );
-    return message.reply(replyBox("**Autoresponders (" + rules.length + ")**
-
-" + lines.join("
-
-") + "
-
-Use .autoresponder remove <id> to delete one."));
+    return message.reply(replyBox("**Autoresponders (" + rules.length + ")**\n\n" + lines.join("\n\n") + "\n\nUse .autoresponder remove <id> to delete one."));
   }
 
   async slashExecute({ interaction }) {
