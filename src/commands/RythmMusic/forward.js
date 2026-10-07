@@ -1,0 +1,3 @@
+import { command, getPlayer, getArgs, djError, parseTime, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const e=djError(x);if(e)return safeReply(x,"⏩ Forward","❌ "+e,0xED4245);const p=getPlayer(x),ms=parseTime(x.interaction?.options.getString("time")||getArgs(x).join(" "))||30000;if(!p?.currentTrack)return safeReply(x,"⏩ Forward","Nothing is playing.",0xED4245);await p.forward(ms);return safeReply(x,"⏩ Forward","Forwarded **"+Math.round(ms/1000)+"s**.")};
+export default command({name:"forward",description:"Forward the current track",aliases:["fwd"],dj:true,options:[{name:"time",description:"Example: 1m",type:3,required:true}],execute:run,slashExecute:run});
