@@ -1,487 +1,154 @@
-import {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  PermissionFlagsBits,
-  ChannelType,
-} from "discord.js";
+import { PermissionFlagsBits, ChannelType } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
-import { config } from "#config/config";
+import { buildTicketEmbed } from "#utils/TicketEmbed";
+
+const TIMEOUT = 300000;
 
 export default {
   name: "panelsetup",
-  description: "Create a new ticket panel with step-by-step setup",
+  description: "Create a fully customizable ticket panel with an interactive setup wizard",
   usage: "panelsetup",
-  aliases: ["ticketpanel", "createpanel"],
+  aliases: ["ticketpanel", "createpanel", "ticketsetup"],
   category: "Ticket",
   cooldown: 5,
   userPermissions: [PermissionFlagsBits.ManageGuild],
 
-  async execute({ client, message, args, prefix }) {
+  async execute({ message }) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} No Permission`)
-        .setDescription("You need the **Manage Server** permission to use this command.");
-
-      return message.reply({ embeds: [embed] });
+      return message.reply({ embeds: [buildTicketEmbed({
+        title: emoji.get("cross") + " No Permission",
+        description: "You need Manage Server to configure ticket panels.",
+        color: 0xED4245, timestamp: true
+      })] });
     }
 
     const panelId = db.incrementPanelCounter(message.guild.id);
+    const filter = m => m.author.id === message.author.id && m.channel.id === message.channel.id;
 
-    const setupData = {
-      guildId: message.guild.id,
-      panelId: panelId,
-      categories: [],
-      supportRoles: [],
+    const ask = async (title, description, parser = x => x.trim()) => {
+      await message.channel.send({ embeds: [buildTicketEmbed({
+        title: emoji.get("ticketPanel") + " " + title,
+        description: description + "\n\nReply within 5 minutes. Type 'cancel' to stop.",
+        color: 0x5865F2, timestamp: true
+      })] });
+      const collected = await message.channel.awaitMessages({ filter, max: 1, time: TIMEOUT });
+      const raw = collected.first()?.content?.trim();
+      if (!raw) throw new Error("Setup timed out.");
+      if (raw.toLowerCase() === "cancel") throw new Error("Setup cancelled.");
+      return parser(raw);
     };
 
-    const filter = (m) => m.author.id === message.author.id;
-    const timeout = 300000;
+    const optional = async (title, description, fallback = "") =>
+      ask(title, description + "\nReply 'skip' for default.", x => x.toLowerCase() === "skip" ? fallback : x);
 
-    const createStepEmbed = (step, total, title, description) => {
-      return new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("ticketPanel")} Ticket Panel Setup #${panelId}`)
-        .setDescription(
-          `**Step ${step} of ${total}**\n\n` +
-          `${title}\n\n` +
-          `${description}\n\n` +
-          `Reply within 5 minutes or setup will be cancelled.`
-        );
-    };
+    const channel = async (title, description, required = true, type = null) =>
+      ask(title, description + (required ? "" : "\nReply 'skip' to leave empty."), x => {
+        if (x.toLowerCase() === "skip" && !required) return null;
+        const id = message.mentions.channels.first()?.id || x.replace(/[<#>]/g, "");
+        const ch = message.guild.channels.cache.get(id);
+        if (!ch || (type && ch.type !== type) || (!type && !ch.isTextBased())) throw new Error("Invalid channel. Restart setup and provide a valid channel.");
+        return ch.id;
+      });
+
+    const role = async (title, description) =>
+      ask(title, description, x => {
+        if (x.toLowerCase() === "skip") return null;
+        const id = message.mentions.roles.first()?.id || x.replace(/[<@&>]/g, "");
+        if (!message.guild.roles.cache.has(id)) throw new Error("Invalid role.");
+        return id;
+      });
 
     try {
-      await message.reply({
-        embeds: [
-          createStepEmbed(
-            1,
-            10,
-            `${emoji.get("ticketCategory")} **Open Category ID**`,
-            "This is the category where new tickets will be created.\n\nReply with the **category ID**."
-          ),
-        ],
-      });
+      const panelChannelId = await channel("1 • Panel Channel", "Where should the panel be published?");
+      const title = (await optional("2 • Panel Title", "Enter the main panel title.", "Support Tickets")).slice(0, 256);
+      const description = (await optional("3 • Panel Message", "Enter the panel description/message.", "Choose a category below to open a ticket.")).slice(0, 4096);
+      const color = await optional("4 • Embed Color", "Enter a hex color such as #5865F2.", "#5865F2");
+      const image = await optional("5 • Panel Image", "Enter an image URL.", "");
+      const thumbnail = await optional("6 • Panel Thumbnail", "Enter a thumbnail URL.", "");
+      const footer = await optional("7 • Footer Text", "Enter footer text.", "AeroX Ticket System");
+      const footerIcon = await optional("8 • Footer Icon", "Enter a footer icon URL.", "");
+      const authorName = await optional("9 • Author Name", "Enter an author name.", "");
+      const authorIcon = await optional("10 • Author Icon", "Enter an author icon URL.", "");
+      const url = await optional("11 • Embed URL", "Enter an optional clickable URL.", "");
+      const timestamp = (await optional("12 • Timestamp", "Reply yes or no.", "yes")).toLowerCase() !== "no";
+      const panelEmoji = await optional("13 • Panel Emoji", "Enter an emoji to prefix the title.", emoji.get("ticketPanel"));
+      const selector = (await optional("14 • Category Selector", "Reply dropdown or buttons.", "dropdown")).toLowerCase() === "buttons" ? "buttons" : "dropdown";
+      const placeholder = await optional("15 • Dropdown Placeholder", "Enter the select menu placeholder.", "Select a ticket category");
+      const buttonStyleRaw = (await optional("16 • Button Style", "Reply primary, secondary, success, or danger.", "primary")).toLowerCase();
+      const buttonStyle = ["primary", "secondary", "success", "danger"].includes(buttonStyleRaw) ? buttonStyleRaw : "primary";
+      const autoTranscript = (await optional("17 • Automatic Transcripts", "Reply yes to automatically send HTML transcripts on close.", "yes")).toLowerCase() !== "no";
+      const reviewChannelId = await channel("18 • Review Channel", "Where should ratings/reviews be posted?", false);
 
-      const q1 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const openCategoryId = q1.first().content.trim();
-      const openCategory = message.guild.channels.cache.get(openCategoryId);
-
-      if (!openCategory || openCategory.type !== ChannelType.GuildCategory) {
-        return sendError(message, "Invalid category ID. Setup cancelled.");
-      }
-      setupData.categoryOpen = openCategoryId;
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            2,
-            10,
-            `${emoji.get("ticketClose")} **Closed Category ID**`,
-            "This is the category where closed tickets will be moved.\n\nReply with the **category ID**."
-          ),
-        ],
-      });
-
-      const q2 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const closedCategoryId = q2.first().content.trim();
-      const closedCategory = message.guild.channels.cache.get(closedCategoryId);
-
-      if (
-        !closedCategory ||
-        closedCategory.type !== ChannelType.GuildCategory
-      ) {
-        return sendError(message, "Invalid category ID. Setup cancelled.");
-      }
-      setupData.categoryClosed = closedCategoryId;
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            3,
-            10,
-            `${emoji.get("ticketTranscript")} **Transcript Channel ID**`,
-            "This is the channel where transcripts will be sent.\n\nReply with the **channel ID** or `skip` to skip."
-          ),
-        ],
-      });
-
-      const q3 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const transcriptInput = q3.first().content.trim();
-      if (transcriptInput.toLowerCase() !== "skip") {
-        const transcriptChannel =
-          message.guild.channels.cache.get(transcriptInput);
-        if (transcriptChannel && transcriptChannel.isTextBased()) {
-          setupData.transcriptChannel = transcriptInput;
-        }
+      const categories = [];
+      while (true) {
+        const n = categories.length + 1;
+        const name = (await ask("Category " + n + " • Name", "Enter the category name.")).slice(0, 100);
+        const catDescription = (await optional("Category " + n + " • Description", "Enter the category description.", "Create a " + name + " ticket.")).slice(0, 100);
+        const catEmoji = await optional("Category " + n + " • Emoji", "Enter an emoji or skip.", "");
+        const staffRoleId = await role("Category " + n + " • Staff Role", "Mention the staff role that should be pinged and granted access.");
+        const ticketCategoryId = await channel("Category " + n + " • Discord Category", "Enter the Discord category where this ticket type will be created.", true, ChannelType.GuildCategory);
+        const transcriptChannelId = await channel("Category " + n + " • Transcript Channel", "Enter the transcript channel for this category.", false);
+        const welcomeTitle = (await optional("Category " + n + " • Welcome Title", "Enter the welcome embed title.", emoji.get("ticketOpen") + " Ticket Created")).slice(0, 256);
+        const welcomeDescription = (await optional("Category " + n + " • Welcome Description", "Placeholders: {user}, {mention}, {username}, {server}, {category}, {ticketid}, {created}.", "Welcome {user}!\n\nPlease describe your issue and our team will help you shortly.")).slice(0, 4096);
+        const welcomeImage = await optional("Category " + n + " • Welcome Image", "Enter a welcome image URL or skip.", "");
+        categories.push({
+          id: String(n), name, description: catDescription, emoji: catEmoji || null,
+          staffRoleId, ticketCategoryId, transcriptChannelId,
+          welcome: { title: welcomeTitle, description: welcomeDescription, image: welcomeImage || "" }
+        });
+        const more = await ask("Add Another Category?", "Reply yes to add another category or done to continue.", x => x.toLowerCase());
+        if (more !== "yes") break;
       }
 
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            4,
-            10,
-            `${emoji.get("ticketStar")} **Review Channel ID**`,
-            "This is the channel where user reviews/ratings will be sent.\n\nReply with the **channel ID** or `skip` to skip."
-          ),
-        ],
-      });
-
-      const q3b = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const reviewInput = q3b.first().content.trim();
-      if (reviewInput.toLowerCase() !== "skip") {
-        const reviewChannel =
-          message.guild.channels.cache.get(reviewInput);
-        if (reviewChannel && reviewChannel.isTextBased()) {
-          setupData.reviewChannel = reviewInput;
-        }
-      }
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            5,
-            10,
-            `${emoji.get("ticketSupport")} **Support Roles**`,
-            "These roles can manage tickets.\n\nReply with **role IDs separated by commas** or `skip` to skip.\nExample: `1234567890, 0987654321`"
-          ),
-        ],
-      });
-
-      const q4 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const rolesInput = q4.first().content.trim();
-      if (rolesInput.toLowerCase() !== "skip") {
-        const roleIds = rolesInput.split(",").map((id) => id.trim());
-        const validRoles = roleIds.filter((id) =>
-          message.guild.roles.cache.has(id)
-        );
-        setupData.supportRoles = validRoles;
-      }
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            6,
-            10,
-            `${emoji.get("ticketPanel")} **Panel Title**`,
-            "This is the title of your ticket panel.\n\nReply with the **title** or `skip` for default."
-          ),
-        ],
-      });
-
-      const q5 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const titleInput = q5.first().content.trim();
-      setupData.panelTitle =
-        titleInput.toLowerCase() === "skip"
-          ? "Support Tickets"
-          : titleInput.substring(0, 100);
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            7,
-            10,
-            `${emoji.get("info")} **Panel Description**`,
-            "This is the description shown on your ticket panel.\n\nReply with the **description** or `skip` for default."
-          ),
-        ],
-      });
-
-      const q6 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const descInput = q6.first().content.trim();
-      setupData.panelDescription =
-        descInput.toLowerCase() === "skip"
-          ? "Click below to create a support ticket. Our team will assist you as soon as possible."
-          : descInput.substring(0, 1000);
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            8,
-            10,
-            `${emoji.get("ticketCategory")} **Use Dropdown Menu?**`,
-            "Do you want to use a dropdown menu for categories?\n\nReply with `yes` for dropdown or `no` for buttons."
-          ),
-        ],
-      });
-
-      const q7 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      setupData.useDropdown =
-        q7.first().content.trim().toLowerCase() === "yes";
-
-      await message.channel.send({
-        embeds: [
-          createStepEmbed(
-            9,
-            10,
-            `${emoji.get("ticket")} **How Many Categories?**`,
-            "How many ticket categories do you want to create?\n\nReply with a **number** between 1 and 10.\nExample: `3`"
-          ),
-        ],
-      });
-
-      const q8 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      
-      let categoryCount = parseInt(q8.first().content.trim());
-      if (isNaN(categoryCount) || categoryCount < 1) categoryCount = 1;
-      if (categoryCount > 10) categoryCount = 10;
-
-      const dynamicCreateStepEmbed = (step, total, title, description) => {
-        return new EmbedBuilder()
-          .setColor(0x000000)
-          .setTitle(`${emoji.get("ticketPanel")} Ticket Panel Setup #${panelId}`)
-          .setDescription(
-            `**Step ${step} of ${total}**\n\n` +
-            `${title}\n\n` +
-            `${description}\n\n` +
-            `Reply within 5 minutes or setup will be cancelled.`
-          );
+      const style = {
+        title, description, color, image, thumbnail, footer, footerIcon,
+        authorName, authorIcon, url, timestamp, panelEmoji, selectorMode: selector,
+        placeholder, buttonStyle
       };
 
-      const totalSteps = 10 + (categoryCount * 3);
-      let currentStep = 10;
+      const summary = categories.map((c, i) =>
+        (i + 1) + ". " + c.name + " • Staff " + (c.staffRoleId ? "<@&" + c.staffRoleId + ">" : "None") +
+        " • Discord category <#" + c.ticketCategoryId + "> • Transcript " + (c.transcriptChannelId ? "<#" + c.transcriptChannelId + ">" : "panel default")
+      ).join("\n");
 
-      for (let i = 0; i < categoryCount; i++) {
-        await message.channel.send({
-          embeds: [
-            dynamicCreateStepEmbed(
-              currentStep,
-              totalSteps,
-              `${emoji.get("ticket")} **Category ${i + 1} - Name**`,
-              `What should category **#${i + 1}** be called?\n\nReply with the **category name**.\nExample: \`General Support\` or \`Bug Report\``
-            ),
-          ],
-        });
-        currentStep++;
+      const decision = await ask("Final Review • Publish?", "Panel: " + title + "\nSelector: " + selector + "\nCategories: " + categories.length + "\n\n" + summary + "\n\nReply publish to publish or cancel to abort.", x => x.toLowerCase());
+      if (decision !== "publish") throw new Error("Setup cancelled.");
 
-        const catNameResponse = await message.channel.awaitMessages({
-          filter,
-          max: 1,
-          time: timeout,
-          errors: ["time"],
-        });
-        const catName = catNameResponse.first().content.trim().substring(0, 50);
-
-        await message.channel.send({
-          embeds: [
-            dynamicCreateStepEmbed(
-              currentStep,
-              totalSteps,
-              `${emoji.get("info")} **Category ${i + 1} - Description**`,
-              `What description should **${catName}** have?\n\nReply with the **description** or \`skip\` for default.\nExample: \`Get help with general questions\``
-            ),
-          ],
-        });
-        currentStep++;
-
-        const catDescResponse = await message.channel.awaitMessages({
-          filter,
-          max: 1,
-          time: timeout,
-          errors: ["time"],
-        });
-        const catDescInput = catDescResponse.first().content.trim();
-        const catDescription = catDescInput.toLowerCase() === "skip" 
-          ? `Create a ${catName} ticket` 
-          : catDescInput.substring(0, 100);
-
-        await message.channel.send({
-          embeds: [
-            dynamicCreateStepEmbed(
-              currentStep,
-              totalSteps,
-              `${emoji.get("ticketCategory")} **Category ${i + 1} - Emoji**`,
-              `What emoji should **${catName}** use?\n\nReply with an **emoji** or \`skip\` for none.\nExample: \`:ticket:\` or a Unicode emoji`
-            ),
-          ],
-        });
-        currentStep++;
-
-        const catEmojiResponse = await message.channel.awaitMessages({
-          filter,
-          max: 1,
-          time: timeout,
-          errors: ["time"],
-        });
-        const catEmojiInput = catEmojiResponse.first().content.trim();
-        const catEmoji = catEmojiInput.toLowerCase() === "skip" ? null : catEmojiInput;
-
-        setupData.categories.push({
-          name: catName,
-          description: catDescription,
-          emoji: catEmoji,
-        });
-      }
-
-      if (setupData.categories.length === 0) {
-        setupData.categories.push({
-          name: "General Support",
-          description: "Create a general support ticket",
-          emoji: null,
-        });
-      }
-
-      await message.channel.send({
-        embeds: [
-          dynamicCreateStepEmbed(
-            currentStep,
-            totalSteps,
-            `${emoji.get("channel")} **Panel Channel**`,
-            "Where should the ticket panel be sent?\n\nReply with the **channel ID** or mention (e.g., #tickets)."
-          ),
-        ],
+      db.createTicketPanel({
+        guildId: message.guild.id,
+        panelId,
+        categories,
+        supportRoles: [...new Set(categories.map(c => c.staffRoleId).filter(Boolean))],
+        categoryOpen: categories[0]?.ticketCategoryId || null,
+        transcriptChannel: categories.find(c => c.transcriptChannelId)?.transcriptChannelId || null,
+        reviewChannel: reviewChannelId,
+        panelTitle: title,
+        panelDescription: description,
+        panelColor: color,
+        useDropdown: selector === "dropdown",
+        autoTranscript,
+        panelStyle: style,
+        panelChannelId
       });
 
-      const q9 = await message.channel.awaitMessages({
-        filter,
-        max: 1,
-        time: timeout,
-        errors: ["time"],
-      });
-      const channelInput = q9.first().content.trim();
-      const panelChannel =
-        message.mentions.channels.first() ||
-        message.guild.channels.cache.get(channelInput);
+      const target = message.guild.channels.cache.get(panelChannelId);
+      const panelEmbed = buildTicketEmbed(style, { server: message.guild.name });
+      const sent = await target.send({ embeds: [panelEmbed] });
+      db.updateTicketPanel(message.guild.id, panelId, { panel_channel_id: target.id, panel_message_id: sent.id });
 
-      if (!panelChannel || !panelChannel.isTextBased()) {
-        return sendError(message, "Invalid channel. Setup cancelled.");
-      }
-
-      db.createTicketPanel(setupData);
-
-      const panelEmbed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("ticketPanel")} ${setupData.panelTitle}`)
-        .setDescription(setupData.panelDescription);
-
-      let components = [];
-
-      if (setupData.useDropdown) {
-        const { StringSelectMenuBuilder } = await import("discord.js");
-        const selectMenu = new StringSelectMenuBuilder()
-          .setCustomId(`ticket_create_${panelId}`)
-          .setPlaceholder("Select a ticket category")
-          .addOptions(
-            setupData.categories.map((cat, index) => ({
-              label: cat.name,
-              description: cat.description,
-              value: `${panelId}_${index}`,
-              emoji: cat.emoji || undefined,
-            }))
-          );
-
-        components.push(new ActionRowBuilder().addComponents(selectMenu));
-      } else {
-        const buttons = setupData.categories.map((cat, index) => {
-          const btn = new ButtonBuilder()
-            .setCustomId(`ticket_create_${panelId}_${index}`)
-            .setLabel(cat.name)
-            .setStyle(ButtonStyle.Primary);
-          if (cat.emoji) btn.setEmoji(cat.emoji);
-          return btn;
-        });
-
-        for (let i = 0; i < buttons.length; i += 5) {
-          components.push(
-            new ActionRowBuilder().addComponents(buttons.slice(i, i + 5))
-          );
-        }
-      }
-
-      const panelMessage = await panelChannel.send({
-        embeds: [panelEmbed],
-        components: components,
-      });
-
-      db.updateTicketPanel(message.guild.id, panelId, {
-        panel_channel_id: panelChannel.id,
-        panel_message_id: panelMessage.id,
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("check")} Ticket Panel Created Successfully!`)
-        .setDescription(
-          `**Panel ID:** ${panelId}\n` +
-          `**Channel:** ${panelChannel}\n` +
-          `**Categories:** ${setupData.categories.length}\n` +
-          `**Type:** ${setupData.useDropdown ? "Dropdown Menu" : "Buttons"}\n` +
-          `**Support Roles:** ${setupData.supportRoles.length > 0 ? setupData.supportRoles.map((r) => `<@&${r}>`).join(", ") : "None"}\n\n` +
-          `Your professional ticket panel is now active!`
-        );
-
-      return message.channel.send({ embeds: [embed] });
+      return message.channel.send({ embeds: [buildTicketEmbed({
+        title: emoji.get("check") + " Ticket Panel Published",
+        description: "Panel ID: " + panelId + "\nChannel: " + target + "\nCategories: " + categories.length + "\nSelector: " + selector,
+        color: 0x57F287, timestamp: true
+      })] });
     } catch (error) {
-      if (error.message === "time" || error.size === 0) {
-        db.decrementPanelCounter(message.guild.id);
-        return sendError(
-          message,
-          "Setup cancelled due to timeout (5 minutes)."
-        );
-      }
-
-      console.error("Panel setup error:", error);
       db.decrementPanelCounter(message.guild.id);
-      return sendError(
-        message,
-        `An error occurred during setup: ${error.message}`
-      );
+      return message.channel.send({ embeds: [buildTicketEmbed({
+        title: emoji.get("cross") + " Setup Cancelled",
+        description: error.message || "The setup could not be completed.",
+        color: 0xED4245, timestamp: true
+      })] });
     }
-  },
+  }
 };
-
-function sendError(message, errorMessage) {
-  const embed = new EmbedBuilder()
-    .setColor(0x000000)
-    .setTitle(`${emoji.get("cross")} Setup Failed`)
-    .setDescription(errorMessage);
-
-  return message.channel.send({ embeds: [embed] });
-}
