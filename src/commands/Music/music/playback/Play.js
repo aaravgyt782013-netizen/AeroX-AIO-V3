@@ -855,8 +855,10 @@ class PlayCommand extends Command {
         results.youtube = ytResult.value.tracks[0];
       }
 
-      if (spResult.status === "fulfilled" && spResult.value?.tracks?.length) {
-        results.spotify = spResult.value.tracks[0];
+      if (spResult.status === "fulfilled" && spResult.value) {
+        // spotifyManager.searchTrack() returns a resolved Lavalink track,
+        // not a Lavalink load-result wrapper.
+        results.spotify = spResult.value.tracks?.[0] || spResult.value;
       }
     } catch (error) {
       console.error("Error searching both sources:", error);
