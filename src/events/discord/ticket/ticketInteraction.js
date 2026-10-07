@@ -13,6 +13,7 @@ import {
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { logger } from "#utils/logger";
+import { buildTicketEmbed } from "#utils/TicketEmbed";
 
 function parseEmoji(emojiString) {
   if (!emojiString) return null;
@@ -48,11 +49,11 @@ async function handleTicketCreate(interaction, client, panelId, categoryIndex) {
     interaction.guild.id,
     interaction.user.id
   );
-  if (existingTickets.length >= 3) {
+  if (existingTickets.length >= 1) {
     const embed = new EmbedBuilder()
       .setColor(0x000000)
       .setTitle(`${emoji.get("cross")} Ticket Limit Reached`)
-      .setDescription("You already have 3 open tickets. Please close some before creating a new one.");
+      .setDescription("You already have an open ticket. Please close it before creating another one.");
 
     return interaction.reply({
       embeds: [embed],
@@ -94,7 +95,8 @@ async function handleTicketCreate(interaction, client, panelId, categoryIndex) {
       },
     ];
 
-    for (const roleId of panel.supportRoles) {
+    const categoryRoleIds = category.staffRoleId ? [category.staffRoleId] : (panel.supportRoles || []);
+    for (const roleId of categoryRoleIds) {
       const role = interaction.guild.roles.cache.get(roleId);
       if (role) {
         permissionOverwrites.push({
@@ -113,7 +115,7 @@ async function handleTicketCreate(interaction, client, panelId, categoryIndex) {
     const ticketChannel = await interaction.guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      parent: panel.categoryOpen,
+      parent: category.ticketCategoryId || panel.categoryOpen,
       permissionOverwrites: permissionOverwrites,
     });
 
@@ -126,15 +128,22 @@ async function handleTicketCreate(interaction, client, panelId, categoryIndex) {
       category: category.name,
     });
 
-    const welcomeEmbed = new EmbedBuilder()
-      .setColor(0x000000)
-      .setTitle(`${emoji.get("ticketOpen")} Ticket #${ticketId} Created`)
-      .setDescription(
-        `Welcome ${interaction.user}!\n\n` +
-        `**Category:** ${category.name}\n` +
-        `**Created:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
-        `Please describe your issue and our support team will assist you shortly.`
-      );
+    const welcome = category.welcome || {};
+    const replacements = (text) => String(text || "")
+      .replaceAll("{user}", interaction.user.tag)
+      .replaceAll("{mention}", interaction.user.toString())
+      .replaceAll("{username}", interaction.user.username)
+      .replaceAll("{server}", interaction.guild.name)
+      .replaceAll("{category}", category.name)
+      .replaceAll("{ticketid}", String(ticketId))
+      .replaceAll("{created}", "<t:" + Math.floor(Date.now() / 1000) + ":R>");
+    const welcomeEmbed = buildTicketEmbed({
+      title: replacements(welcome.title || (emoji.get("ticketOpen") + " Ticket #" + ticketId + " Created")),
+      description: replacements(welcome.description || "Welcome {user}!"),
+      image: welcome.image || "",
+      color: panel.panelStyle?.color || panel.panelColor || "#5865F2",
+      timestamp: true
+    });
 
     const claimEmoji = parseEmoji(emoji.get("ticketClaim")) || "👤";
     const closeEmoji = parseEmoji(emoji.get("ticketClose")) || "🔒";
@@ -159,7 +168,7 @@ async function handleTicketCreate(interaction, client, panelId, categoryIndex) {
     );
 
     await ticketChannel.send({
-      content: `${interaction.user} ${panel.supportRoles.map((r) => `<@&${r}>`).join(" ")}`,
+      content: `${interaction.user} ${category.staffRoleId ? `<@&${category.staffRoleId}>` : (panel.supportRoles || []).map((r) => `<@&${r}>`).join(" ")}`,
       embeds: [welcomeEmbed],
       components: [actionRow],
     });
@@ -760,9 +769,32 @@ export default {
 
     const customId = interaction.customId;
 
+    if (customId.startsWith("ticket_page_")) {
+      const parts = customId.split("_");
+      const panelId = parseInt(parts[2]);
+      const page = parseInt(parts[3] || "0");
+      const panel = db.getTicketPanel(interaction.guild.id, panelId);
+      if (!panel) return interaction.reply({ content: "Panel not found.", ephemeral: true });
+      const cats = panel.categories || [];
+      const pages = [];
+      for (let i = 0; i < cats.length; i += 25) pages.push(cats.slice(i, i + 25));
+      const nextPage = Math.min(page + 1, Math.max(0, pages.length - 1));
+      const slice = pages[nextPage] || [];
+      const { StringSelectMenuBuilder } = await import("discord.js");
+      const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+        .setCustomId("ticket_create_" + panelId + "_page_" + nextPage)
+        .setPlaceholder(panel.panelStyle?.placeholder || "Select a ticket category")
+        .addOptions(slice.map((cat, i) => ({ label: cat.name.slice(0,100), description: (cat.description || "Create a ticket").slice(0,100), value: String(nextPage * 25 + i), emoji: cat.emoji || undefined }))));
+      const nav = new ActionRowBuilder();
+      if (nextPage > 0) nav.addComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_" + (nextPage - 1)).setLabel("Previous").setStyle(ButtonStyle.Secondary));
+      if (nextPage < pages.length - 1) nav.addComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_" + (nextPage + 1)).setLabel("Next").setStyle(ButtonStyle.Secondary));
+      return interaction.update({ components: [row, ...(nav.components.length ? [nav] : [])] });
+    }
     if (customId.startsWith("ticket_create_")) {
       if (interaction.isStringSelectMenu()) {
-        const [panelId, categoryIndex] = interaction.values[0].split("_");
+        const parts = interaction.customId.split("_");
+        const panelId = parseInt(parts[2]);
+        const categoryIndex = parseInt(interaction.values[0]);
         await handleTicketCreate(
           interaction,
           client,
