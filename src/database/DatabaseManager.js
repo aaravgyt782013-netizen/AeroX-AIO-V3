@@ -137,6 +137,7 @@ export class DatabaseManager {
   rateTicket(channelId, rating, feedback) { return this.ticket.rateTicket(channelId, rating, feedback); }
   getTicketStats(guildId) { return this.ticket.getTicketStats(guildId); }
   deleteTicket(channelId) { return this.ticket.deleteTicket(channelId); }
+  getTicketsReadyForDeletion(now = Date.now()) { return this.ticket.getTicketsReadyForDeletion(now); }
 
   // FIX: These 4 methods were called in ticketInteraction.js but were never
   //      exposed through DatabaseManager. They existed in Ticket.js — now wired up.
