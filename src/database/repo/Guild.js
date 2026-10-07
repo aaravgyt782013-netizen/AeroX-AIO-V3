@@ -204,6 +204,35 @@ export class Guild extends Database {
     return this.all("SELECT * FROM guilds WHERE stay_247   =1 AND stay_247_voice_channel IS NOT NULL");
   }
 
+  getMusicSettings(guildId) {
+    const guild = this.ensureGuild(guildId);
+    return {
+      djRole: guild.dj_role || null,
+      autoplay: !!guild.autoplay,
+      announceSongs: guild.announce_songs !== 0 && guild.announce_songs !== false,
+      voteSkip: !!guild.vote_skip,
+      requestChannel: guild.request_channel || null,
+      source: guild.music_source || "ytmsearch",
+      mode247: !!guild.music_247
+    };
+  }
+
+  setMusicSettings(guildId, settings = {}) {
+    this.ensureGuild(guildId);
+    const allowed = { djRole:"dj_role", autoplay:"autoplay", announceSongs:"announce_songs", voteSkip:"vote_skip", requestChannel:"request_channel", source:"music_source", mode247:"music_247" };
+    const entries = Object.entries(settings).filter(([k]) => allowed[k]).map(([k,v]) => [allowed[k],v]);
+    if (!entries.length) return null;
+    const set = entries.map(([k]) => k + " = ?").join(", ");
+    const values = entries.map(([,v]) => v === true ? 1 : v === false ? 0 : v);
+    values.push(guildId);
+    return this.exec("UPDATE guilds SET " + set + ", updated_at = CURRENT_TIMESTAMP WHERE id = ?", values);
+  }
+
+  setDJRole(guildId, roleId = null) { return this.setMusicSettings(guildId, { djRole: roleId }); }
+  setAutoplay(guildId, enabled) { return this.setMusicSettings(guildId, { autoplay: !!enabled }); }
+  setVoteSkip(guildId, enabled) { return this.setMusicSettings(guildId, { voteSkip: !!enabled }); }
+  setAnnounceSongs(guildId, enabled) { return this.setMusicSettings(guildId, { announceSongs: !!enabled }); }
+
   setAutoDisconnect(guildId, enabled) {
     this.ensureGuild(guildId);
     return this.exec(
