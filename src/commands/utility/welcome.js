@@ -28,7 +28,7 @@ class WelcomeCommand extends Command {
       name: "welcome",
       description: "Configure automatic member welcome messages",
       usage: "welcome <setup|message|channel|view|test|off|placeholders>",
-      aliases: ["welcomer"],
+      aliases: ["welcomer", "greet", "greeting"],
       category: "Utility",
       cooldown: 3,
       userPermissions: [PermissionFlagsBits.ManageGuild],
