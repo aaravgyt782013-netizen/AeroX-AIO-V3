@@ -6,6 +6,7 @@ export class Guild extends Database {
   constructor() {
     super(config.database.guild);
     this.initTable();
+    this.initRoleSettings();
   }
 
   initTable() {
@@ -26,6 +27,20 @@ export class Guild extends Database {
     `);
   }
 
+
+  initRoleSettings() {
+    try { this.exec("ALTER TABLE guilds ADD COLUMN autorole_id TEXT DEFAULT NULL"); } catch {}
+  }
+
+  getAutorole(guildId) {
+    this.ensureGuild(guildId); this.initRoleSettings();
+    return this.getGuild(guildId)?.autorole_id || null;
+  }
+
+  setAutorole(guildId, roleId = null) {
+    this.ensureGuild(guildId); this.initRoleSettings();
+    return this.exec("UPDATE guilds SET autorole_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [roleId, guildId]);
+  }
 
   getGuild(guildId) {
 
