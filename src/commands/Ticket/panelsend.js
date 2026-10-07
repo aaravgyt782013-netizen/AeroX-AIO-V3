@@ -1,161 +1,74 @@
-import {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder,
-  PermissionFlagsBits,
-} from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
+import { buildTicketEmbed } from "#utils/TicketEmbed";
+
+function buttonStyle(name) {
+  return { primary: ButtonStyle.Primary, secondary: ButtonStyle.Secondary, success: ButtonStyle.Success, danger: ButtonStyle.Danger }[name] || ButtonStyle.Primary;
+}
+function renderComponents(panel) {
+  const rows = [];
+  const cats = panel.categories || [];
+  if (panel.useDropdown) {
+    const pages = [];
+    for (let i = 0; i < cats.length; i += 25) pages.push(cats.slice(i, i + 25));
+    const page = pages[0] || [];
+    rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+      .setCustomId("ticket_create_" + panel.panel_id + "_page_0")
+      .setPlaceholder(panel.panelStyle?.placeholder || "Select a ticket category")
+      .addOptions(page.map((cat, i) => ({
+        label: cat.name.slice(0, 100),
+        description: (cat.description || "Create a ticket").slice(0, 100),
+        value: String(i),
+        emoji: cat.emoji || undefined
+      })))));
+    if (pages.length > 1) rows.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("ticket_page_" + panel.panel_id + "_0").setLabel("Next").setStyle(ButtonStyle.Secondary)
+    ));
+    return rows;
+  }
+  for (let i = 0; i < cats.length; i += 5) {
+    rows.push(new ActionRowBuilder().addComponents(cats.slice(i, i + 5).map((cat, j) => {
+      const b = new ButtonBuilder().setCustomId("ticket_create_" + panel.panel_id + "_" + (i + j))
+        .setLabel(cat.name.slice(0, 80)).setStyle(buttonStyle(panel.panelStyle?.buttonStyle));
+      if (cat.emoji) b.setEmoji(cat.emoji);
+      return b;
+    })));
+    if (rows.length >= 5) break;
+  }
+  const pages = Math.ceil(cats.length / 25);
+  if (pages > 1) rows.push(new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("ticket_page_" + panel.panel_id + "_0").setLabel("Next").setStyle(ButtonStyle.Secondary)
+  ));
+  return rows.slice(0, 5);
+}
 
 export default {
   name: "panelsend",
-  description: "Send an existing ticket panel to a channel",
+  description: "Send an existing customizable ticket panel",
   usage: "panelsend <panel_id> [channel]",
   aliases: ["sendpanel", "resendpanel"],
   category: "Ticket",
   cooldown: 5,
   userPermissions: [PermissionFlagsBits.ManageGuild],
 
-  async execute({ client, message, args, prefix }) {
+  async execute({ message, args }) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} No Permission`)
-        .setDescription("You need the **Manage Server** permission to use this command.");
-
-      return message.reply({ embeds: [embed] });
+      return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("cross") + " No Permission", description: "You need Manage Server.", color: 0xED4245 })] });
     }
-
-    if (!args[0]) {
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} Missing Panel ID`)
-        .setDescription(
-          `**Usage:** \`${prefix}panelsend <panel_id> [channel]\`\n\n` +
-          `**Examples:**\n` +
-          `├─ \`${prefix}panelsend 1\` - Send panel #1 to current channel\n` +
-          `├─ \`${prefix}panelsend 1 #tickets\` - Send panel #1 to #tickets\n` +
-          `└─ \`${prefix}panelsend 2 1234567890\` - Send panel #2 to channel ID`
-        );
-
-      return message.reply({ embeds: [embed] });
+    const panelId = Number(args[0]);
+    if (!Number.isInteger(panelId)) {
+      return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("cross") + " Invalid Panel ID", description: "Usage: panelsend <panel_id> [channel]", color: 0xED4245 })] });
     }
-
-    const panelId = parseInt(args[0]);
-    if (isNaN(panelId)) {
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} Invalid Panel ID`)
-        .setDescription("Please provide a valid panel number.");
-
-      return message.reply({ embeds: [embed] });
-    }
-
     const panel = db.getTicketPanel(message.guild.id, panelId);
+    if (!panel) return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("cross") + " Panel Not Found", description: "That panel does not exist.", color: 0xED4245 })] });
 
-    if (!panel) {
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} Panel Not Found`)
-        .setDescription(`Panel #${panelId} was not found in this server.`);
+    const target = args[1] ? message.guild.channels.cache.get(message.mentions.channels.first()?.id || args[1].replace(/[<#>]/g, "")) : message.channel;
+    if (!target?.isTextBased()) return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("cross") + " Invalid Channel", description: "Choose a text channel.", color: 0xED4245 })] });
 
-      return message.reply({ embeds: [embed] });
-    }
-
-    let targetChannel = message.channel;
-    if (args[1]) {
-      const channelId = message.mentions.channels.first()?.id || args[1];
-      targetChannel = message.guild.channels.cache.get(channelId);
-
-      if (!targetChannel || !targetChannel.isTextBased()) {
-        const embed = new EmbedBuilder()
-          .setColor(0x000000)
-          .setTitle(`${emoji.get("cross")} Invalid Channel`)
-          .setDescription("Please mention a valid text channel or provide a valid channel ID.");
-
-        return message.reply({ embeds: [embed] });
-      }
-    }
-
-    if (panel.categories.length === 0) {
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} Empty Panel`)
-        .setDescription(`Panel #${panelId} has no categories configured. Cannot send an empty panel.`);
-
-      return message.reply({ embeds: [embed] });
-    }
-
-    try {
-      const panelEmbed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("ticketPanel")} ${panel.panelTitle}`)
-        .setDescription(panel.panelDescription);
-
-      let components = [];
-
-      if (panel.useDropdown) {
-        const selectMenu = new StringSelectMenuBuilder()
-          .setCustomId(`ticket_create_${panelId}`)
-          .setPlaceholder("Select a ticket category")
-          .addOptions(
-            panel.categories.map((cat, index) => ({
-              label: cat.name,
-              description: cat.description || `Create a ${cat.name} ticket`,
-              value: `${panelId}_${index}`,
-              emoji: cat.emoji || emoji.get("ticket"),
-            }))
-          );
-
-        components.push(new ActionRowBuilder().addComponents(selectMenu));
-      } else {
-        const buttons = panel.categories.map((cat, index) =>
-          new ButtonBuilder()
-            .setCustomId(`ticket_create_${panelId}_${index}`)
-            .setLabel(cat.name)
-            .setEmoji(cat.emoji || emoji.get("ticket"))
-            .setStyle(ButtonStyle.Primary)
-        );
-
-        for (let i = 0; i < buttons.length; i += 5) {
-          components.push(
-            new ActionRowBuilder().addComponents(buttons.slice(i, i + 5))
-          );
-        }
-      }
-
-      const panelMessage = await targetChannel.send({
-        embeds: [panelEmbed],
-        components: components,
-      });
-
-      db.updateTicketPanel(message.guild.id, panelId, {
-        panel_channel_id: targetChannel.id,
-        panel_message_id: panelMessage.id,
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("check")} Panel Sent Successfully`)
-        .setDescription(
-          `**Panel ID:** ${panelId}\n` +
-          `**Channel:** ${targetChannel}\n` +
-          `**Categories:** ${panel.categories.length}\n` +
-          `**Type:** ${panel.useDropdown ? "Dropdown Menu" : "Buttons"}`
-        );
-
-      return message.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error("Panel send error:", error);
-
-      const embed = new EmbedBuilder()
-        .setColor(0x000000)
-        .setTitle(`${emoji.get("cross")} Failed to Send Panel`)
-        .setDescription(`An error occurred while sending the panel: ${error.message}`);
-
-      return message.reply({ embeds: [embed] });
-    }
-  },
+    const style = panel.panelStyle || { title: panel.panelTitle, description: panel.panelDescription, color: panel.panelColor };
+    const sent = await target.send({ embeds: [buildTicketEmbed(style, { server: message.guild.name })], components: renderComponents(panel) });
+    db.updateTicketPanel(message.guild.id, panelId, { panel_channel_id: target.id, panel_message_id: sent.id });
+    return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("check") + " Panel Sent", description: "Panel #" + panelId + " was published in " + target + ".", color: 0x57F287, timestamp: true })] });
+  }
 };
