@@ -101,7 +101,8 @@ export class AeroX extends Client {
                                                 target.has(userId) ||
                                                 Boolean(this.db.premium?.isUserPremium?.(userId));
                                 }
-                                return Reflect.get(target, property, receiver);
+                                const value = Reflect.get(target, property, target);
+                                return typeof value === 'function' ? value.bind(target) : value;
                         },
                 });
 
