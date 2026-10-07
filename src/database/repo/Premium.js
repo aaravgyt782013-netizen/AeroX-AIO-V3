@@ -42,8 +42,14 @@ export class Premium extends Database {
     logger.success('PremiumDatabase', 'Premium tables initialized successfully');
   }
 
-  grantUserPremium(userId, grantedBy, expiresAt   =null, reason   ='Premium granted') {
-    const now   =Date.now();
+  _validateId(id) {
+    return typeof id === 'string' && /^\d{17,20}$/.test(id);
+  }
+
+  grantUserPremium(userId, grantedBy, expiresAt = null, reason = 'Premium granted') {
+    if (!this._validateId(userId)) throw new Error('Invalid Discord user ID.');
+    if (!this._validateId(grantedBy)) throw new Error('Invalid granting owner ID.');
+    const now = Date.now();
     return this.exec(
       `INSERT OR REPLACE INTO user_premium 
        (user_id, granted_by, granted_at, expires_at, reason, active, updated_at) 
@@ -52,8 +58,10 @@ export class Premium extends Database {
     );
   }
 
-  grantGuildPremium(guildId, grantedBy, expiresAt   =null, reason   ='Premium granted') {
-    const now   =Date.now();
+  grantGuildPremium(guildId, grantedBy, expiresAt = null, reason = 'Premium granted') {
+    if (!this._validateId(guildId)) throw new Error('Invalid Discord guild ID.');
+    if (!this._validateId(grantedBy)) throw new Error('Invalid granting owner ID.');
+    const now = Date.now();
     return this.exec(
       `INSERT OR REPLACE INTO guild_premium 
        (guild_id, granted_by, granted_at, expires_at, reason, active, updated_at) 
@@ -242,7 +250,11 @@ export class Premium extends Database {
 
 
   extendPremium(type, id, additionalTime) {
-    const table   =type   ==='user' ? 'user_premium' : 'guild_premium';
+    if (!['user', 'guild'].includes(type)) throw new Error('Premium type must be user or guild.');
+    if (!this._validateId(id)) throw new Error('Invalid Discord ID.');
+    if (!Number.isFinite(additionalTime) || additionalTime <= 0) throw new Error('Additional premium time must be greater than zero.');
+
+    const table = type === 'user' ? 'user_premium' : 'guild_premium';
     const idColumn   =type   ==='user' ? 'user_id' : 'guild_id';
 
     const current   =this.get(
@@ -252,12 +264,11 @@ export class Premium extends Database {
 
     if (!current) return false;
 
-    let newExpiresAt;
-    if (current.expires_at   ===null) {
-      newExpiresAt   =Date.now() + additionalTime;
-    } else {
-      newExpiresAt   =Math.max(current.expires_at, Date.now()) + additionalTime;
+    if (current.expires_at === null) {
+      return type === 'user' ? this.isUserPremium(id) : this.isGuildPremium(id);
     }
+
+    const newExpiresAt = Math.max(current.expires_at, Date.now()) + additionalTime;
 
     this.exec(
       `UPDATE ${table} SET expires_at   =?, updated_at   =? WHERE ${idColumn}   =?`,
