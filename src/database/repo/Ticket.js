@@ -56,6 +56,11 @@ export class Ticket extends Database {
       )
     `);
 
+    const panelColumns = this.all("PRAGMA table_info(ticket_panels)");
+    if (!panelColumns.some(c => c.name === "panel_style")) {
+      try { this.exec(`ALTER TABLE ticket_panels ADD COLUMN panel_style TEXT DEFAULT '{}'`); } catch (e) {}
+    }
+
     const columns = this.all("PRAGMA table_info(ticket_data)");
     const columnNames = columns.map(c => c.name);
     
