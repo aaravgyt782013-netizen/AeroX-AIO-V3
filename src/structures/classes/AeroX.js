@@ -115,7 +115,7 @@ export class AeroX extends Client {
                 try {
                         await this.eventHandler.loadAllEvents();
                         await this.commandHandler.loadCommands();
-                        this.noPrefixUsers = new Set();
+                        this.noPrefixUsers.clear();
                         try {
                             const allUsers = this.db.user.all("SELECT id FROM users WHERE no_prefix = 1");
                             if (allUsers && Array.isArray(allUsers)) {
