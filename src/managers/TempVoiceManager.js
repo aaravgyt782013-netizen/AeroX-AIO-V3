@@ -16,6 +16,7 @@ export class TempVoiceManager {
       name,type:ChannelType.GuildVoice,parent:parent?.type===ChannelType.GuildCategory?parent.id:undefined,
       userLimit:Math.max(0,Math.min(99,s.limit||0)),
       bitrate:Math.max(8000,Math.min(member.guild.maximumBitrate||384000,s.bitrate||64000)),
+      permissionOverwrites:[{id:member.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.Connect,PermissionFlagsBits.Speak,PermissionFlagsBits.Stream,PermissionFlagsBits.UseVAD,PermissionFlagsBits.SendMessages]}],
       reason:"LightCore TempVoice Join-to-Create"
     });
     db.guild.setTempVoiceChannel(ch.id,member.guild.id,member.id);
@@ -57,10 +58,10 @@ export class TempVoiceManager {
   static async button(i){
     const ch=i.guild?.channels.cache.get(i.channelId); if(!ch||!this.isTemp(ch.id))return false;
     const owner=this.owner(ch.id);
-    if(i.customId==="tv_claim"){ if(owner&&ch.members.has(owner))return i.reply({content:"The current owner is still in the room.",ephemeral:true}); db.guild.setTempVoiceOwner(ch.id,i.user.id); await i.deferUpdate(); await this.refresh(ch,"Ownership claimed"); return true; }
+    if(i.customId==="tv_claim"){ if(!db.guild.getTempVoiceSettings(ch.guild.id).claim)return i.reply({content:"Claiming is disabled for this server.",ephemeral:true}); if(owner&&ch.members.has(owner))return i.reply({content:"The current owner is still in the room.",ephemeral:true}); db.guild.setTempVoiceOwner(ch.id,i.user.id); await i.deferUpdate(); await this.refresh(ch,"Ownership claimed"); return true; }
     if(!this.canManage(i.member,ch.id))return i.reply({content:"Only the room owner or a server manager can use these controls.",ephemeral:true}).then(()=>true);
-    if(i.customId==="tv_lock"){const x=ch.permissionsFor(ch.guild.roles.everyone)?.has(PermissionFlagsBits.Connect)===false;await ch.permissionOverwrites.edit(ch.guild.roles.everyone,{Connect:x?null:false});await i.deferUpdate();await this.refresh(ch,x?"Room unlocked":"Room locked");return true;}
-    if(i.customId==="tv_hide"){const x=ch.permissionsFor(ch.guild.roles.everyone)?.has(PermissionFlagsBits.ViewChannel)===false;await ch.permissionOverwrites.edit(ch.guild.roles.everyone,{ViewChannel:x?null:false});await i.deferUpdate();await this.refresh(ch,x?"Room visible":"Room hidden");return true;}
+    if(i.customId==="tv_lock"){const x=ch.permissionsFor(ch.guild.roles.everyone)?.has(PermissionFlagsBits.Connect)===false;await ch.permissionOverwrites.edit(ch.guild.roles.everyone,{Connect:x?null:false}); await ch.permissionOverwrites.edit(owner,{Connect:true,ViewChannel:true});await i.deferUpdate();await this.refresh(ch,x?"Room unlocked":"Room locked");return true;}
+    if(i.customId==="tv_hide"){const x=ch.permissionsFor(ch.guild.roles.everyone)?.has(PermissionFlagsBits.ViewChannel)===false;await ch.permissionOverwrites.edit(ch.guild.roles.everyone,{ViewChannel:x?null:false}); await ch.permissionOverwrites.edit(owner,{Connect:true,ViewChannel:true});await i.deferUpdate();await this.refresh(ch,x?"Room visible":"Room hidden");return true;}
     if(i.customId==="tv_delete"){await i.deferUpdate();db.guild.deleteTempVoiceChannel(ch.id);await ch.delete("LightCore TempVoice owner deleted room");return true;}
     return false;
   }
