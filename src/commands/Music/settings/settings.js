@@ -80,14 +80,14 @@ class MusicSettingsCommand extends Command {
     c.addTextDisplayComponents(new TextDisplayBuilder().setContent("🎵 **LightCore Music Settings**"));
     c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
     c.addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      (changed ? "✅ **Settings updated.**\\n\\n" : "")+
-      "**Playback**\\n"+
-      "├─ 🔄 Autoplay: **"+(s.autoplay?"ON":"OFF")+"**\\n"+
-      "├─ 📢 Song announcements: **"+(s.announceSongs?"ON":"OFF")+"**\\n"+
-      "├─ 🗳️ Vote skip: **"+(s.voteSkip?"ON":"OFF")+"**\\n"+
-      "├─ ♾️ 24/7: **"+(s.mode247?"ON":"OFF")+"**\\n"+
-      "└─ 🔎 Default source: **"+source+"**\\n\\n"+
-      "**Access**\\n└─ 👑 DJ role: "+role+"\\n\\n"+
+      (changed ? "✅ **Settings updated.**\n\n" : "")+
+      "**Playback**\n"+
+      "├─ 🔄 Autoplay: **"+(s.autoplay?"ON":"OFF")+"**\n"+
+      "├─ 📢 Song announcements: **"+(s.announceSongs?"ON":"OFF")+"**\n"+
+      "├─ 🗳️ Vote skip: **"+(s.voteSkip?"ON":"OFF")+"**\n"+
+      "├─ ♾️ 24/7: **"+(s.mode247?"ON":"OFF")+"**\n"+
+      "└─ 🔎 Default source: **"+source+"**\n\n"+
+      "**Access**\n└─ 👑 DJ role: "+role+"\n\n"+
       "Quick controls are below. You can also use: settings djrole @DJ, settings autoplay on, settings source spotify"
     ));
     c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
