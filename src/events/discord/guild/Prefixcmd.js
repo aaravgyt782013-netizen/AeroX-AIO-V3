@@ -273,10 +273,44 @@ function _parseCommand(message, client) {
 
   if (commandText === null) return null;
 
-  const parts = commandText.split(/\s+/);
-  const commandName = parts.shift()?.toLowerCase();
+  const parts = commandText.split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
 
-  return commandName ? { commandName, args: parts } : null;
+  // Resolve the longest registered command/alias first. This is important
+  // for no-prefix users because multi-word commands must not be truncated
+  // to their first word.
+  const normalized = parts.map((part) => part.toLowerCase());
+  let commandName = normalized[0];
+  let consumed = 1;
+
+  for (let length = Math.min(parts.length, 4); length > 1; length--) {
+    const candidate = normalized.slice(0, length).join(" ");
+    if (
+      client.commandHandler.commands.has(candidate) ||
+      client.commandHandler.aliases.has(candidate)
+    ) {
+      commandName = candidate;
+      consumed = length;
+      break;
+    }
+  }
+
+  // Some loaders normalize command names differently. Fall back to a
+  // case-insensitive scan so no-prefix does not randomly fail for valid
+  // commands/aliases.
+  if (
+    !client.commandHandler.commands.has(commandName) &&
+    !client.commandHandler.aliases.has(commandName)
+  ) {
+    const match = [...client.commandHandler.commands.values()].find(
+      (cmd) =>
+        cmd.name?.toLowerCase() === commandName ||
+        cmd.aliases?.some((alias) => alias.toLowerCase() === commandName),
+    );
+    if (match) commandName = match.name.toLowerCase();
+  }
+
+  return { commandName, args: parts.slice(consumed) };
 }
 
 
