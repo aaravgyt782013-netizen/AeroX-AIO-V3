@@ -342,6 +342,8 @@ async function handleTicketClose(interaction, client, channelId) {
   }
 
   const panel = db.getTicketPanel(interaction.guild.id, ticketData.panel_id);
+  const ticketCategoryConfig = panel?.categories?.find(c => c.name === ticketData.category) || null;
+  const transcriptChannelId = ticketCategoryConfig?.transcriptChannelId || panel?.transcriptChannel;
   if (!panel) {
     return interaction.reply({
       content: "Panel configuration not found.",
@@ -383,14 +385,14 @@ async function handleTicketClose(interaction, client, channelId) {
 
     const alreadySentTranscript = db.isTranscriptSent(channelId);
 
-    if (!alreadySentTranscript && panel.transcriptChannel) {
+    if (!alreadySentTranscript && transcriptChannelId) {
       const html = await generateHTMLTranscript(channel, ticketData, panel, client);
       const buffer = Buffer.from(html, "utf-8");
       const attachment = new AttachmentBuilder(buffer, {
         name: `ticket-${ticketData.ticket_id}-transcript.html`,
       });
 
-      const transcriptChannel = interaction.guild.channels.cache.get(panel.transcriptChannel);
+      const transcriptChannel = interaction.guild.channels.cache.get(transcriptChannelId);
       if (transcriptChannel) {
         const transcriptEmbed = new EmbedBuilder()
           .setColor(0x000000)
@@ -435,7 +437,7 @@ async function handleTicketClose(interaction, client, channelId) {
       .setTitle(`${emoji.get("ticketClose")} Ticket Closed`)
       .setDescription(
         `This ticket has been closed by ${interaction.user}.\n\n` +
-        `Transcript has been saved${panel.transcriptChannel ? ` to <#${panel.transcriptChannel}>` : ""}.\n` +
+        `Transcript has been saved${transcriptChannelId ? ` to <#${transcriptChannelId}>` : ""}.\n` +
         `Use the \`delete\` command to permanently delete this ticket.`
       );
 
@@ -712,8 +714,8 @@ async function handleTicketTranscript(interaction, client, channelId) {
       name: `ticket-${ticketData.ticket_id}-transcript.html`,
     });
 
-    if (panel.transcriptChannel) {
-      const transcriptChannel = interaction.guild.channels.cache.get(panel.transcriptChannel);
+    if (transcriptChannelId) {
+      const transcriptChannel = interaction.guild.channels.cache.get(transcriptChannelId);
       if (transcriptChannel) {
         const transcriptEmbed = new EmbedBuilder()
           .setColor(0x000000)
@@ -737,7 +739,7 @@ async function handleTicketTranscript(interaction, client, channelId) {
       .setColor(0x000000)
       .setTitle(`${emoji.get("check")} Transcript Generated`)
       .setDescription(
-        `The transcript has been generated successfully!${panel.transcriptChannel ? `\n\nIt has been sent to <#${panel.transcriptChannel}>.` : ""}`
+        `The transcript has been generated successfully!${transcriptChannelId ? `\n\nIt has been sent to <#${transcriptChannelId}>.` : ""}`
       );
 
     return interaction.editReply({
