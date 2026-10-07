@@ -4,63 +4,57 @@ import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
 import { spotifyManager } from "#utils/SpotifyManager";
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export class MusicManager {
   constructor(client) {
     this.client = client;
     this.initialized = false;
-    this.eventsManager = null;
+    this.readyPromise = null;
+    this.lastNodeWarning = 0;
     this.init();
   }
 
   init() {
     try {
       this.lavalink = new LavalinkManager({
-        nodes: config.nodes.map(node => ({
+        nodes: (config.nodes || []).map((node) => ({
           ...node,
-          sessionId: `session_${config.clientId || 'bot'}_${node.id}`,
-          resumeKey: `resume_${config.clientId || 'bot'}_${node.id}`,
-          resumeTimeout: 60000,
+          sessionId: `lightcore_${config.clientId || "bot"}_${node.id}`,
+          resumeKey: `lightcore_${config.clientId || "bot"}_${node.id}`,
+          resumeTimeout: 120000,
+          retryAmount: Infinity,
+          retryDelay: 10000,
         })),
         sendToShard: (guildId, payload) => {
           if (this.client.cluster) {
             return this.client.cluster.broadcastEval(
               (client, context) => {
                 const guild = client.guilds.cache.get(context.guildId);
-                if (guild) {
-                  guild.shard.send(context.payload);
-                  return true;
-                }
-                return false;
+                if (!guild) return false;
+                guild.shard?.send(context.payload);
+                return true;
               },
               { context: { guildId, payload } },
             );
-          } else {
-            return this.client.guilds.cache.get(guildId)?.shard?.send(payload);
           }
+          return this.client.guilds.cache.get(guildId)?.shard?.send(payload);
         },
         autoSkip: true,
-        client: {
-          id: config.clientId || this.client.user?.id,
-          username: this.client.user?.username || "MusicBot",
-        },
         autoSkipOnResolveError: true,
         emitNewSongsOnly: false,
+        client: {
+          id: config.clientId || this.client.user?.id,
+          username: this.client.user?.username || "LightCore",
+        },
         playerOptions: {
-          maxErrorsPerTime: {
-            threshold: 15_000,
-            maxAmount: 5,
-          },
-          minAutoPlayMs: 10_000,
+          maxErrorsPerTime: { threshold: 15000, maxAmount: 5 },
+          minAutoPlayMs: 10000,
           applyVolumeAsFilter: false,
           clientBasedPositionUpdateInterval: 100,
-          defaultSearchPlatform: "ytmsearch",
-          onDisconnect: {
-            autoReconnect: true,
-            destroyPlayer: false,
-          },
-          onEmptyQueue: {
-            destroyAfterMs: 300_000,
-          },
+          defaultSearchPlatform: "ytsearch",
+          onDisconnect: { autoReconnect: true, destroyPlayer: false },
+          onEmptyQueue: { destroyAfterMs: 300000 },
           useUnresolvedData: true,
           requesterTransformer: (requester) => requester,
         },
@@ -71,44 +65,32 @@ export class MusicManager {
         linksBlacklist: [],
         linksWhitelist: [],
         advancedOptions: {
-          maxFilterFixDuration: 600_000,
+          maxFilterFixDuration: 600000,
           debugOptions: {
             noAudio: false,
-            playerDestroy: {
-              dontThrowError: true,
-            },
+            playerDestroy: { dontThrowError: true },
           },
         },
       });
 
-      this.client.on("clientReady", async () => {
-        logger.success(
-          "MusicManager",
-          `🎵 ${this.client.user.tag} music system is ready!`,
-        );
-
-        await this.lavalink.init({
-          id: this.client.user.id,
-          username: this.client.user.username,
+      this.readyPromise = new Promise((resolve) => {
+        this.client.once("clientReady", async () => {
+          try {
+            await this.lavalink.init({
+              id: this.client.user.id,
+              username: this.client.user.username,
+            });
+          } finally {
+            this.initialized = true;
+            const nodes = this.getUsableNodes();
+            if (nodes.length) {
+              logger.success("MusicManager", `LightCore music ready — ${nodes.length} Lavalink node(s) connected.`);
+            } else {
+              logger.warn("MusicManager", "Music engine initialized; waiting for Lavalink connection.");
+            }
+            resolve();
+          }
         });
-
-        const connectedNodes =
-          this.lavalink.nodeManager?.leastUsedNodes("players") || [];
-        this.initialized = true;
-
-        if (connectedNodes.length > 0) {
-          logger.success(
-            "MusicManager",
-            "Initialized successfully with " +
-              connectedNodes.length +
-              " connected Lavalink node(s)",
-          );
-        } else {
-          logger.warn(
-            "MusicManager",
-            "Lavalink initialized, but no node is currently connected. Music searches will wait for a usable node.",
-          );
-        }
       });
     } catch (error) {
       logger.error("MusicManager", "Failed to initialize music system", error);
@@ -116,95 +98,49 @@ export class MusicManager {
     }
   }
 
-  formatMS_HHMMSS(ms) {
-    if (!ms || ms === 0) return "0:00";
-
-    const seconds = Math.floor(ms / 1000);
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+  getUsableNodes() {
+    try {
+      return this.lavalink?.nodeManager?.leastUsedNodes("players") || [];
+    } catch {
+      return [];
     }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
   }
 
-  async createPlayer(options) {
-    if (!this.initialized) {
-      logger.error("MusicManager", "Cannot create player – not initialized");
-      return null;
+  async waitForNode(timeout = 15000) {
+    if (!this.initialized && this.readyPromise) {
+      await Promise.race([this.readyPromise, sleep(timeout)]);
     }
-
-    try {
-      const { guildId, textId, voiceId } = this.parsePlayerOptions(options);
-
-      if (!guildId || !textId || !voiceId) {
-        logger.error("MusicManager", "Missing IDs for player creation", { guildId, textId, voiceId });
-        return null;
-      }
-
-      const existing = this.lavalink.getPlayer(guildId);
-      if (existing) {
-        logger.debug("MusicManager", `Player already exists for guild ${guildId}`);
-        return existing;
-      }
-
-      let playerVolume = 100;
-      try {
-        if (db) {
-          playerVolume = db.guild.getDefaultVolume(guildId);
-        }
-      } catch (error) {
-        logger.warn("MusicManager", `Failed to get default volume for guild ${guildId}, using 100: ${error.message}`);
-        playerVolume = 100;
-      }
-
-      if (isNaN(playerVolume) || playerVolume < 1 || playerVolume > 100) {
-        logger.warn("MusicManager", `Invalid volume ${playerVolume}, using 100`);
-        playerVolume = 100;
-      }
-
-      logger.info("MusicManager", `Creating player for guild ${guildId} with default volume ${playerVolume}`);
-
-      const player = await this.lavalink.createPlayer({
-        guildId,
-        voiceChannelId: voiceId,
-        textChannelId: textId,
-        selfDeaf: true,
-        selfMute: false,
-        volume: playerVolume,
-        instaUpdateFiltersFix: true,
-        applyVolumeAsFilter: false,
-      });
-
-      if (!player) {
-        logger.error("MusicManager", `Failed to create player for guild ${guildId}`);
-        return null;
-      }
-
-      const musicSettings = db.guild.getMusicSettings(guildId);
-      player.set("autoplayEnabled", musicSettings.autoplay);
-      player.set("announceSongs", musicSettings.announceSongs);
-      player.set("djRole", musicSettings.djRole);
-
-      if (!player.connected) {
-        await player.connect();
-      }
-
-      logger.success("MusicManager", `Player created and connected for guild ${guildId} (vol: ${playerVolume})`);
-      return player;
-    } catch (error) {
-      logger.error("MusicManager", `Error creating player: ${error.message}`);
-      return null;
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const nodes = this.getUsableNodes();
+      if (nodes.length) return nodes;
+      await sleep(500);
     }
+    if (Date.now() - this.lastNodeWarning > 30000) {
+      this.lastNodeWarning = Date.now();
+      logger.warn("MusicManager", "No usable Lavalink node is connected.");
+    }
+    return [];
+  }
+
+  formatMS_HHMMSS(ms) {
+    if (!ms || ms <= 0) return "0:00";
+    const total = Math.floor(ms / 1000);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    return hours
+      ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+      : `${minutes}:${String(seconds).padStart(2, "0")}`;
   }
 
   normalizeSource(source = "yt") {
     const map = {
       yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch",
-      sp: "spsearch", spotify: "spsearch", sc: "scsearch", soundcloud: "scsearch",
-      am: "amsearch", apple: "amsearch", dz: "dzsearch", deezer: "dzsearch",
+      sp: "spsearch", spotify: "spsearch",
+      sc: "scsearch", soundcloud: "scsearch",
+      am: "amsearch", apple: "amsearch", applemusic: "amsearch",
+      dz: "dzsearch", deezer: "dzsearch",
       js: "jssearch", jiosaavn: "jssearch", saavn: "jssearch",
     };
     return map[String(source).toLowerCase()] || source;
@@ -214,156 +150,138 @@ export class MusicManager {
     try { new URL(String(value)); return true; } catch { return false; }
   }
 
+  async createPlayer(options) {
+    if (!this.initialized) await this.waitForNode();
+    const { guildId, textId, voiceId } = this.parsePlayerOptions(options);
+    if (!guildId || !textId || !voiceId) return null;
+
+    const existing = this.lavalink?.getPlayer(guildId);
+    if (existing) {
+      if (!existing.connected || existing.voiceChannelId !== voiceId) {
+        try { await existing.connect(); } catch {}
+      }
+      return existing;
+    }
+
+    const nodes = await this.waitForNode();
+    if (!nodes.length) return null;
+
+    let volume = 100;
+    try { volume = Number(db.guild.getDefaultVolume(guildId)) || 100; } catch {}
+    volume = Math.max(1, Math.min(100, volume));
+
+    try {
+      const player = await this.lavalink.createPlayer({
+        guildId,
+        voiceChannelId: voiceId,
+        textChannelId: textId,
+        selfDeaf: true,
+        selfMute: false,
+        volume,
+        instaUpdateFiltersFix: true,
+        applyVolumeAsFilter: false,
+      });
+      if (!player) return null;
+
+      const settings = db.guild.getMusicSettings(guildId);
+      player.set("autoplayEnabled", !!settings.autoplay);
+      player.set("announceSongs", !!settings.announceSongs);
+      player.set("djRole", settings.djRole || null);
+
+      if (!player.connected) await player.connect();
+      return player;
+    } catch (error) {
+      logger.error("MusicManager", `Player creation failed: ${error.message}`);
+      return null;
+    }
+  }
+
   async resolve(query, options = {}) {
     if (!query) return null;
     const requester = options.requester;
     const source = this.normalizeSource(options.source || "yt");
-    if (this.isUrl(query)) {
-      const direct = await this.search(query, { source, requester, directUrl: true });
-      if (direct?.tracks?.length || direct?.loadType === "playlist") return direct;
+    if (!this.isUrl(query)) return this.search(query, { source, requester });
+
+    const direct = await this.search(query, { source, requester, directUrl: true });
+    if (direct?.tracks?.length || direct?.loadType === "playlist") return direct;
+
+    try {
       const spotify = await spotifyManager.resolveUrl(this.client, query, requester);
       if (spotify) return spotify;
-      return null;
+    } catch (error) {
+      logger.debug("MusicManager", `Spotify URL fallback failed: ${error.message}`);
     }
-    return this.search(query, { source, requester });
+    return null;
   }
 
   async searchAll(query, requester) {
-    const [youtube, spotify] = await Promise.allSettled([
+    const results = await Promise.allSettled([
       this.search(query, { source: "ytsearch", requester }),
-      spotifyManager.searchTrack(this.client, query, requester),
+      this.search(query, { source: "spsearch", requester }),
+      this.search(query, { source: "scsearch", requester }),
     ]);
     return {
-      youtube: youtube.status === "fulfilled" ? youtube.value : null,
-      spotify: spotify.status === "fulfilled" ? spotify.value : null,
+      youtube: results[0].status === "fulfilled" ? results[0].value : null,
+      spotify: results[1].status === "fulfilled" ? results[1].value : null,
+      soundcloud: results[2].status === "fulfilled" ? results[2].value : null,
     };
   }
 
   async search(query, options = {}) {
-    if (!this.initialized) {
-      logger.error("MusicManager", "Cannot search – not initialized");
-      return null;
-    }
+    if (!query) return null;
+    const nodes = await this.waitForNode();
+    if (!nodes.length) return null;
 
-    try {
-      const { source = config.search?.defaultSources?.[0] || "ytsearch", requester } = options;
-      const normalizedSource = this.normalizeSource(source);
+    const requester = options.requester;
+    const source = this.normalizeSource(options.source || config.search?.defaultSources?.[0] || "ytsearch");
+    const attempts = [source];
 
-      if (!this.lavalink.useable) {
-        logger.warn(
-          "MusicManager",
-          "No connected Lavalink node is available for search",
-        );
-        return null;
-      }
+    if (source === "ytsearch") attempts.push("ytmsearch");
+    if (source === "ytmsearch") attempts.push("ytsearch");
 
-      const nodes =
-        this.lavalink.nodeManager?.leastUsedNodes("players") || [];
-      const node = nodes[0];
-
-      if (!node) {
-        logger.warn(
-          "MusicManager",
-          "Lavalink reports no connected node for search",
-        );
-        return null;
-      }
-      let searchResult = await node.search({ query, source: normalizedSource }, requester).catch((error) => {
-        logger.warn("MusicManager", `Search failed on ${source}: ${error.message}`);
-        return null;
-      });
-
-      // Public Lavalink nodes can expose YouTube through either ytsearch or
-      // ytmsearch. Try both before reporting no results.
-      if ((!searchResult || !searchResult.tracks?.length) && normalizedSource === "ytsearch") {
-        searchResult = await node.search({ query, source: "ytmsearch" }, requester).catch(() => null);
-      }
-
-      if ((!searchResult || !searchResult.tracks?.length) && normalizedSource === "ytmsearch") {
-        searchResult = await node.search({ query, source: "ytsearch" }, requester).catch(() => null);
-      }
-
-      // Prefer Lavalink/LavaSrc for Spotify. Only use Spotify Web API as a
-      // metadata fallback when the node cannot search Spotify itself.
-      if ((!searchResult || !searchResult.tracks?.length) && normalizedSource === "spsearch") {
-        const spotifyTrack = await spotifyManager.searchTrack(this.client, query, requester);
-        if (spotifyTrack) {
-          return {
-            loadType: "search",
-            tracks: [spotifyTrack],
-          };
+    for (const node of nodes) {
+      for (const attempt of [...new Set(attempts)]) {
+        try {
+          const result = await node.search({ query, source: attempt }, requester);
+          if (result?.tracks?.length || result?.loadType === "playlist") return result;
+        } catch (error) {
+          logger.debug("MusicManager", `Search ${attempt} failed: ${error.message}`);
         }
       }
-
-      if (!searchResult || !searchResult.tracks?.length) {
-        logger.debug("MusicManager", `No tracks found for query "${query}" using ${source}`);
-        return null;
-      }
-
-      return searchResult;
-    } catch (error) {
-      logger.error("MusicManager", `Search error: ${error.message}`);
-      return null;
     }
+
+    if (source === "spsearch") {
+      try {
+        const spotify = await spotifyManager.searchTrack(this.client, query, requester);
+        if (spotify) return { loadType: "search", tracks: [spotify] };
+      } catch {}
+    }
+    return null;
   }
 
   getPlayer(guildId) {
-    if (!this.initialized) {
-      logger.warn("MusicManager", "Attempted to get player before initialization.");
-      return undefined;
-    }
-    return this.lavalink.getPlayer(guildId);
+    return this.lavalink?.getPlayer(guildId);
   }
 
   getDefaultVolume(guildId) {
-    try {
-      return db.guild.getDefaultVolume(guildId);
-    } catch (error) {
-      logger.warn("MusicManager", `Failed to get default volume for guild ${guildId}: ${error.message}`);
-      return 100;
-    }
+    try { return db.guild.getDefaultVolume(guildId); } catch { return 100; }
   }
 
   setDefaultVolume(guildId, volume) {
-    try {
-      db.guild.setDefaultVolume(guildId, volume);
-      logger.success("MusicManager", `Default volume set to ${volume} for guild ${guildId}`);
-      return true;
-    } catch (error) {
-      logger.error("MusicManager", `Failed to set default volume for guild ${guildId}: ${error.message}`);
-      return false;
-    }
+    try { db.guild.setDefaultVolume(guildId, volume); return true; } catch { return false; }
   }
 
-  // FIX: was returning bare `return` (undefined) in both branches — now returns proper booleans
   async is247ModeEnabled(guildId) {
-    try {
-      const settings = db.guild.get247Settings(guildId);
-      return settings.enabled === true;
-    } catch (error) {
-      logger.warn("MusicManager", `Failed to check 247 mode for guild ${guildId}: ${error.message}`);
-      return false;
-    }
+    try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; }
   }
 
-  parsePlayerOptions(options) {
+  parsePlayerOptions(options = {}) {
     if (options.guildId && options.textChannelId && options.voiceChannelId) {
-      return {
-        guildId: options.guildId,
-        textId: options.textChannelId,
-        voiceId: options.voiceChannelId,
-      };
+      return { guildId: options.guildId, textId: options.textChannelId, voiceId: options.voiceChannelId };
     }
-
     if (options.guildId && options.textChannel && options.voiceChannel) {
-      return {
-        guildId: options.guildId,
-        textId: options.textChannel.id,
-        voiceId: options.voiceChannel.id,
-      };
+      return { guildId: options.guildId, textId: options.textChannel.id, voiceId: options.voiceChannel.id };
     }
-
-    logger.error("MusicManager", "Invalid options for player creation", options);
     return {};
   }
 }
