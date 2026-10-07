@@ -12,6 +12,7 @@ export const emoji = {
   "category_invites": "<:category_invites:1461683756908941397>",
   "category_music": "<:category_music:1461683767205695492>",
   "category_owner": "<:category_owner:1461683777993707603>",
+  "category_premium": "<:category_owner:1461683777993707603>",
   "category_pfps": "<:category_pfps:1461683793520754699>",
   "category_ticket": "<:category_ticket:1461683804463825067>",
   "category_voice": "<:category_voice:1461683815067156593>",
