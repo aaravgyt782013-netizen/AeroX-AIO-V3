@@ -81,6 +81,21 @@ export default {
     }, 24 * 60 * 60 * 1000);
     checkReminders(client);
 
+    logger.info("TicketSystem", "Starting closed-ticket deletion scheduler (every 60 seconds)");
+    setInterval(async () => {
+      try {
+        const expired = db.getTicketsReadyForDeletion();
+        for (const ticket of expired) {
+          const guild = client.guilds.cache.get(ticket.guild_id);
+          const channel = guild?.channels.cache.get(ticket.channel_id);
+          if (channel) await channel.delete("Ticket auto-delete: closed for 1 hour").catch(() => null);
+          db.deleteTicket(ticket.channel_id);
+        }
+      } catch (error) {
+        logger.error("TicketSystem", "Automatic ticket deletion failed:", error);
+      }
+    }, 60000);
+
     logger.info("Bot", "Initializing invite cache for all guilds...");
     await initializeInviteCache(client);
   },
