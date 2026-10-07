@@ -93,6 +93,8 @@ export default {
     }
 
     const panel = db.getTicketPanel(message.guild.id, ticketData.panel_id);
+    const ticketCategoryConfig = panel?.categories?.find(c => c.name === ticketData.category) || null;
+    const transcriptChannelId = ticketCategoryConfig?.transcriptChannelId || panel?.transcriptChannel;
 
     if (!panel) {
       const embed = new EmbedBuilder()
@@ -131,14 +133,14 @@ export default {
     try {
       const alreadySentTranscript = db.isTranscriptSent(message.channel.id);
       
-      if (!alreadySentTranscript && panel.transcriptChannel) {
+      if (!alreadySentTranscript && panel.autoTranscript && transcriptChannelId) {
         const html = await generateHTMLTranscript(message.channel, ticketData, panel, client);
         const buffer = Buffer.from(html, "utf-8");
         const attachment = new AttachmentBuilder(buffer, {
           name: `ticket-${ticketData.ticket_id}-transcript.html`,
         });
 
-        const transcriptChannel = message.guild.channels.cache.get(panel.transcriptChannel);
+        const transcriptChannel = message.guild.channels.cache.get(transcriptChannelId);
         if (transcriptChannel) {
           const transcriptEmbed = new EmbedBuilder()
             .setColor(0x000000)
@@ -185,7 +187,7 @@ export default {
         .setDescription(
           `**Closed By:** ${message.author}\n` +
           `**Reason:** ${reason}\n\n` +
-          `Transcript has been saved${panel.transcriptChannel ? ` to <#${panel.transcriptChannel}>` : ""}.\n` +
+          `Transcript has been saved${transcriptChannelId ? ` to <#${transcriptChannelId}>` : ""}.\n` +
           `Use \`delete\` command to permanently delete this ticket.`
         );
 
