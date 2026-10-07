@@ -35,7 +35,7 @@ export class TempVoiceManager {
     return new ContainerBuilder()
       .addTextDisplayComponents(new TextDisplayBuilder().setContent("🔊 **LightCore TempVoice**"))
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent((notice?"✅ **"+notice+"**\\n\\n":"")+"👑 Owner: <@"+owner+">\\n👥 Members: **"+ch.members.size+"**"+(ch.userLimit?" / **"+ch.userLimit+"**":"")+"\\n🔒 Locked: **"+(locked?"Yes":"No")+"** · 👁️ Hidden: **"+(hidden?"Yes":"No")+"**\\n\\nManage your temporary room below."))
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent((notice?"✅ **"+notice+"**\n\n":"")+"👑 Owner: <@"+owner+">\n👥 Members: **"+ch.members.size+"**"+(ch.userLimit?" / **"+ch.userLimit+"**":"")+"\n🔒 Locked: **"+(locked?"Yes":"No")+"** · 👁️ Hidden: **"+(hidden?"Yes":"No")+"**\n\nManage your temporary room below."))
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addActionRowComponents(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("tv_lock").setLabel(locked?"Unlock":"Lock").setEmoji(locked?"🔓":"🔒").setStyle(ButtonStyle.Secondary),
@@ -68,7 +68,7 @@ export class TempVoiceManager {
   static async select(i){
     if(i.customId!=="tv_manage")return false; const ch=i.guild?.channels.cache.get(i.channelId); if(!ch||!this.isTemp(ch.id))return false;
     if(!this.canManage(i.member,ch.id))return i.reply({content:"Only the room owner or a server manager can use these controls.",ephemeral:true}).then(()=>true);
-    const type=i.values[0]; if(type==="info")return i.reply({content:"👑 Owner: <@"+this.owner(ch.id)+">\\n👥 Members: "+ch.members.size+"\\n👤 Limit: "+(ch.userLimit||"Unlimited")+"\\n🎚️ Bitrate: "+Math.round(ch.bitrate/1000)+" kbps",ephemeral:true}).then(()=>true);
+    const type=i.values[0]; if(type==="info")return i.reply({content:"👑 Owner: <@"+this.owner(ch.id)+">\n👥 Members: "+ch.members.size+"\n👤 Limit: "+(ch.userLimit||"Unlimited")+"\n🎚️ Bitrate: "+Math.round(ch.bitrate/1000)+" kbps",ephemeral:true}).then(()=>true);
     await this.modal(i,type); return true;
   }
   static async submit(i){
