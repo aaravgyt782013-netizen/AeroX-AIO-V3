@@ -23,7 +23,7 @@ function renderComponents(panel) {
         emoji: cat.emoji || undefined
       })))));
     if (pages.length > 1) rows.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("ticket_page_" + panel.panel_id + "_0").setLabel("Next").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("ticket_page_" + panel.panel_id + "_1").setLabel("Next").setStyle(ButtonStyle.Secondary)
     ));
     return rows;
   }
