@@ -5,6 +5,7 @@ import { Premium } from "#db/Premium";
 import { Moderation } from "#db/Moderation";
 import { Ticket } from "#db/Ticket";
 import { Invites } from "#db/Invites";
+import { Automation } from "#db/Automation";
 import { logger } from "#utils/logger";
 
 export class DatabaseManager {
@@ -21,6 +22,7 @@ export class DatabaseManager {
       this.moderation = new Moderation();
       this.ticket = new Ticket();
       this.invites = new Invites();
+      this.automation = new Automation();
       logger.success("DatabaseManager", "All databases initialized successfully");
     } catch (error) {
       logger.error("DatabaseManager", "Failed to initialize databases", error);
@@ -37,6 +39,7 @@ export class DatabaseManager {
       this.moderation.close();
       this.ticket.close();
       this.invites.close();
+      this.automation.close();
       logger.info("DatabaseManager", "All database connections closed");
     } catch (error) {
       logger.error("DatabaseManager", "Failed to close database connections", error);
@@ -49,6 +52,21 @@ export class DatabaseManager {
   isGuildBlacklisted(guildId) { return this.guild.isBlacklisted(guildId); }
   blacklistGuild(guildId, reason = "No reason provided") { return this.guild.blacklistGuild(guildId, reason); }
   unblacklistGuild(guildId) { return this.guild.unblacklistGuild(guildId); }
+
+  // ─── Welcome / Leave / Autoresponder ───────────────────────────────────────
+  getWelcome(guildId) { return this.automation.getWelcome(guildId); }
+  setWelcome(guildId, channelId, message) { return this.automation.setWelcome(guildId, channelId, message); }
+  disableWelcome(guildId) { return this.automation.disableWelcome(guildId); }
+  getLeave(guildId) { return this.automation.getLeave(guildId); }
+  setLeave(guildId, channelId, message) { return this.automation.setLeave(guildId, channelId, message); }
+  disableLeave(guildId) { return this.automation.disableLeave(guildId); }
+  getAutoresponders(guildId) { return this.automation.getAutoresponders(guildId); }
+  getAutoresponder(guildId, id) { return this.automation.getAutoresponder(guildId, id); }
+  findAutoresponder(guildId, trigger) { return this.automation.findAutoresponder(guildId, trigger); }
+  addAutoresponder(guildId, trigger, response, matchType) { return this.automation.addAutoresponder(guildId, trigger, response, matchType); }
+  updateAutoresponder(guildId, id, response, matchType) { return this.automation.updateAutoresponder(guildId, id, response, matchType); }
+  deleteAutoresponder(guildId, id) { return this.automation.deleteAutoresponder(guildId, id); }
+  clearAutoresponders(guildId) { return this.automation.clearAutoresponders(guildId); }
 
   // ─── User ────────────────────────────────────────────────────────────────────
   hasNoPrefix(userId) { return this.user.hasNoPrefix(userId); }
