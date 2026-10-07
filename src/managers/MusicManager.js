@@ -3,6 +3,7 @@ import { logger } from "#utils/logger";
 import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
 import { spotifyManager } from "#utils/SpotifyManager";
+import { createMusicPlayerV2 } from "#events/discord/music/Playerbuttons";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -12,6 +13,7 @@ export class MusicManager {
     this.initialized = false;
     this.readyPromise = null;
     this.lastNodeWarning = 0;
+    this.panelMessages = new Map();
     this.init();
   }
 
@@ -73,6 +75,12 @@ export class MusicManager {
         },
       });
 
+      this.lavalink.on("trackStart", (player, track) => {
+        this.updateMusicPanel(player, track).catch((error) => {
+          logger.debug("MusicManager", `Music panel update failed: ${error.message}`);
+        });
+      });
+
       this.readyPromise = new Promise((resolve) => {
         this.client.once("clientReady", async () => {
           try {
@@ -96,6 +104,51 @@ export class MusicManager {
       logger.error("MusicManager", "Failed to initialize music system", error);
       this.initialized = false;
     }
+  }
+
+  async updateMusicPanel(player, track) {
+    if (!player?.guildId || !track) return null;
+
+    const channelId = player.textChannelId;
+    const channel = channelId ? this.client.channels.cache.get(channelId) : null;
+    if (!channel?.isTextBased?.()) return null;
+
+    const guildSettings = db.guild.getMusicSettings(player.guildId);
+    const paused = !!player.paused;
+    const position = Number(player.position || track.info?.position || 0);
+    const container = createMusicPlayerV2(track, guildSettings, paused, position);
+    const payload = {
+      components: [container],
+      flags: 32768,
+    };
+
+    let message = null;
+    const previous = this.panelMessages.get(player.guildId);
+    if (previous) {
+      try {
+        message = await channel.messages.fetch(previous);
+      } catch {}
+    }
+
+    if (message) {
+      try {
+        await message.edit(payload);
+        return message;
+      } catch {}
+    }
+
+    try {
+      message = await channel.send(payload);
+      this.panelMessages.set(player.guildId, message.id);
+      return message;
+    } catch (error) {
+      logger.debug("MusicManager", `Unable to send music panel: ${error.message}`);
+      return null;
+    }
+  }
+
+  clearMusicPanel(guildId) {
+    this.panelMessages.delete(guildId);
   }
 
   getUsableNodes() {
