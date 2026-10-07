@@ -10,15 +10,24 @@ export default {
   name:"interactionCreate",
   once:false,
   async execute(interaction, client) {
-    if (!interaction.isButton?.() || !interaction.customId.startsWith("lc_music_")) return;
+    if (!interaction.isButton?.() && !interaction.isStringSelectMenu?.()) return;
+    if (!interaction.customId.startsWith("lc_music_")) return;
     const p=getPlayer({interaction,client});
     if (!p) return interaction.reply({content:"❌ No active music player.",ephemeral:true});
-    const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up"].includes(interaction.customId);
+    const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up","lc_music_search_select"].includes(interaction.customId);
     if (needsDJ) {
       const e=djError({interaction,client});
       if (e) return interaction.reply({content:"❌ "+e,ephemeral:true});
     }
     try {
+      if (interaction.isStringSelectMenu?.() && interaction.customId === "lc_music_search_select") {
+        const index=Number(interaction.values[0]);
+        const session=p.player?.get?.("searchSession");
+        if (!session || session.userId !== interaction.user.id || !session.tracks?.[index]) return interaction.reply({content:"❌ Search session expired. Run search again.",ephemeral:true});
+        await p.addTracks(session.tracks[index]);
+        if (!p.currentTrack) await p.play();
+        return interaction.update({content:"✅ Added **"+(session.tracks[index].info.title||"track")+"** to the queue.",embeds:[],components:[]});
+      }
       switch(interaction.customId) {
         case "lc_music_previous": if (!await p.playPrevious()) return interaction.reply({content:"❌ No previous track is available.",ephemeral:true}); break;
         case "lc_music_pause": if(p.isPaused) await p.resume(); else await p.pause(); break;
