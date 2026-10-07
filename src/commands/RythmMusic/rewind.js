@@ -1,0 +1,3 @@
+import { command, getPlayer, getArgs, djError, parseTime, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const e=djError(x);if(e)return safeReply(x,"⏪ Rewind","❌ "+e,0xED4245);const p=getPlayer(x),ms=parseTime(x.interaction?.options.getString("time")||getArgs(x).join(" "))||30000;if(!p?.currentTrack)return safeReply(x,"⏪ Rewind","Nothing is playing.",0xED4245);await p.rewind(ms);return safeReply(x,"⏪ Rewind","Rewound **"+Math.round(ms/1000)+"s**.")};
+export default command({name:"rewind",description:"Rewind the current track",aliases:["rwd"],dj:true,options:[{name:"time",description:"Example: 30s",type:3,required:true}],execute:run,slashExecute:run});
