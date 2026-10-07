@@ -72,6 +72,9 @@ export class DatabaseManager {
   }
   revokeUserPremium(userId) { return this.premium.revokeUserPremium(userId); }
   revokeGuildPremium(guildId) { return this.premium.revokeGuildPremium(guildId); }
+  getGuildProfile(guildId) { return this.premium.getGuildProfile(guildId); }
+  setGuildProfile(guildId, data = {}) { return this.premium.setGuildProfile(guildId, data); }
+  resetGuildProfile(guildId) { return this.premium.resetGuildProfile(guildId); }
 
   // ─── Moderation ──────────────────────────────────────────────────────────────
   addMute(guildId, userId, moderatorId, reason, duration = null) {
