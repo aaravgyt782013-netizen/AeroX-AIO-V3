@@ -84,6 +84,101 @@ export default {
     } catch (error) {
       logger.error('TrackStart', 'Error in trackStart event:', error);
 
+      const settings = db.guild.getMusicSettings(player.guildId);
+      const fallbackComponents = createMusicPlayerV2(track, settings, false);
+      const message = await EventUtils.sendPlayerMessage(client, player, {
+        components: fallbackComponents,
+        flags: MessageFlags.IsComponentsV2,
+      });
+      if (message?.id) {
+        player.set('nowPlayingMessageId', message.id);
+        player.set('nowPlayingChannelId', player.textChannelId);
+      } { AttachmentBuilder, MessageFlags } from 'discord.js';
+import { EventUtils } from '#utils/EventUtils';
+import { db } from '#database/DatabaseManager';
+import MusicCard from '#structures/classes/MusicCard';
+import { logger } from '#utils/logger';
+import { createMusicPlayerV2 } from '#events/discord/music/Playerbuttons';
+
+export default {
+  name: "trackStart",
+  once: false,
+  async execute(player, track, payload, musicManager, client) {
+    try {
+      if (!track || !track.info) {
+        logger.error('TrackStart', 'Invalid track data received:', track);
+        return;
+      }
+
+      player.set('lastPlayedTrack', track);
+
+      if (!player.get('sessionStartTime')) {
+        player.set('sessionStartTime', Date.now());
+        player.set('totalTracksPlayed', 0);
+      }
+
+      const currentCount = player.get('totalTracksPlayed') || 0;
+      player.set('totalTracksPlayed', currentCount + 1);
+
+      if (track.requester?.id && track.info.identifier) {
+        try {
+          logger.debug('TrackStart', `Adding to history: ${JSON.stringify({
+            userId: track.requester.id,
+            trackInfo: {
+              identifier: track.info.identifier,
+              title: track.info.title,
+              author: track.info.author,
+              uri: track.info.uri,
+           },
+          })}`);
+
+          db.user.addTrackToHistory(track.requester.id, track.info);
+        } catch (historyError) {
+          logger.error('TrackStart', 'Error adding track to history:', historyError);
+        }
+      }
+
+      let message;
+
+      const announceSongs = db.guild.getMusicSettings(player.guildId).announceSongs;
+      if (!announceSongs) {
+        player.set('nowPlayingMessageId', null);
+        player.set('nowPlayingChannelId', player.textChannelId);
+        logger.info('TrackStart', `Track started silently because announcements are disabled: "${track.info.title}"`);
+        return;
+      }
+
+      try {
+        const musicCard = new MusicCard();
+        const buffer = await musicCard.createMusicCard(track, 0);
+        const attachment = new AttachmentBuilder(buffer, { name: 'errorx-nowplaying.png' });
+        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
+
+        message = await EventUtils.sendPlayerMessage(client, player, {
+          files: [attachment],
+          components,
+          flags: MessageFlags.IsComponentsV2,
+        });
+      } catch (cardError) {
+        logger.error('TrackStart', 'Error creating music card:', cardError);
+
+        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
+        message = await EventUtils.sendPlayerMessage(client, player, {
+          content: `🎵 **Now Playing**\n**${track.info.title}** by **${track.info.author}**`,
+          components,
+          flags: MessageFlags.IsComponentsV2,
+        });
+      }
+
+      if (message?.id) {
+        player.set('nowPlayingMessageId', message.id);
+        player.set('nowPlayingChannelId', player.textChannelId);
+      }
+
+      logger.info('TrackStart', `Track started: "${track.info.title}" by ${track.info.author} in guild ${player.guildId} (Autoplay: ${player.get('autoplayEnabled') ? 'ON' : 'OFF'})`);
+    } catch (error) {
+      logger.error('TrackStart', 'Error in trackStart event:', error);
+
       const title = track?.info?.title || track?.title || 'Unknown Track';
       const author = track?.info?.author || track?.author || 'Unknown Artist';
 
