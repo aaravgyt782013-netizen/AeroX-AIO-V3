@@ -1,4 +1,39 @@
 import { EmbedBuilder } from "discord.js";
-import { player,dj,nowEmbed,rows,queueEmbed } from "#utils/MusicCore";
-export function createMusicPlayerV2(track,settings,paused=false,position=0){return rows({currentTrack:track,isPaused:paused,position,volume:settings?.volume??100,repeatMode:"off",queueSize:0})}
-export default {name:"interactionCreate",once:false,async execute(i,c){if(!i.isButton?.()||!i.customId.startsWith("lc_music_"))return;try{const p=player({client:c,interaction:i});if(!p)return i.reply({content:"❌ No active music player.",ephemeral:true});const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up"].includes(i.customId);const d=dj({client:c,interaction:i});if(needsDJ&&d)return i.reply({content:"❌ "+d,ephemeral:true});switch(i.customId){case"lc_music_pause":if(p.isPaused)await p.resume();else await p.pause();break;case"lc_music_skip":await p.skip();break;case"lc_music_stop":await p.stop();return i.update({embeds:[new EmbedBuilder().setColor(0xED4245).setTitle("⏹️ Music stopped").setDescription("Playback stopped and the queue was cleared.")],components:[]});case"lc_music_previous":if(!await p.playPrevious())return i.reply({content:"❌ No previous track is available.",ephemeral:true});break;case"lc_music_shuffle":await p.shuffleQueue();break;case"lc_music_loop":await p.setRepeatMode(p.repeatMode==="track"?"off":"track");break;case"lc_music_volume_down":await p.setVolume(Math.max(1,(p.volume||100)-10));break;case"lc_music_volume_up":await p.setVolume(Math.min(200,(p.volume||100)+10));break;case"lc_music_queue":return i.reply({embeds:[queueEmbed(p)],ephemeral:true});default:return}return i.update({embeds:[nowEmbed(p)],components:rows(p)})}catch(e){const m={content:"❌ "+(e.message||"Music control failed."),ephemeral:true};return i.replied||i.deferred?i.followUp(m):i.reply(m)}}};
+import { getPlayer, djError, nowPlayingEmbed, queueEmbed, controlRows } from "#utils/MusicCore";
+
+export function createMusicPlayerV2(track, settings, paused=false, position=0) {
+  const fake={ currentTrack:track, isPaused:paused, position, volume:settings?.volume??100, repeatMode:"off", queueSize:0 };
+  return controlRows(fake);
+}
+
+export default {
+  name:"interactionCreate",
+  once:false,
+  async execute(interaction, client) {
+    if (!interaction.isButton?.() || !interaction.customId.startsWith("lc_music_")) return;
+    const p=getPlayer({interaction,client});
+    if (!p) return interaction.reply({content:"❌ No active music player.",ephemeral:true});
+    const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up"].includes(interaction.customId);
+    if (needsDJ) {
+      const e=djError({interaction,client});
+      if (e) return interaction.reply({content:"❌ "+e,ephemeral:true});
+    }
+    try {
+      switch(interaction.customId) {
+        case "lc_music_previous": if (!await p.playPrevious()) return interaction.reply({content:"❌ No previous track is available.",ephemeral:true}); break;
+        case "lc_music_pause": if(p.isPaused) await p.resume(); else await p.pause(); break;
+        case "lc_music_skip": await p.skip(); break;
+        case "lc_music_stop": await p.stop(); break;
+        case "lc_music_shuffle": await p.shuffleQueue(); break;
+        case "lc_music_loop": await p.setRepeatMode(p.repeatMode==="track"?"off":"track"); break;
+        case "lc_music_volume_down": await p.setVolume(Math.max(1,(p.volume??100)-10)); break;
+        case "lc_music_volume_up": await p.setVolume(Math.min(200,(p.volume??100)+10)); break;
+        case "lc_music_queue": return interaction.reply({embeds:[queueEmbed(p,1)],ephemeral:true});
+      }
+      await interaction.update({embeds:[nowPlayingEmbed(p)],components:controlRows(p)});
+    } catch(e) {
+      if (interaction.replied || interaction.deferred) return interaction.followUp({content:"❌ "+e.message,ephemeral:true}).catch(()=>{});
+      return interaction.reply({content:"❌ "+e.message,ephemeral:true}).catch(()=>{});
+    }
+  }
+};
