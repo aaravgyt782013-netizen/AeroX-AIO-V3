@@ -1,15 +1,44 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-const PUBLIC_LAVALINK = {
-  id: "lightcore-public-india",
-  host: "lavalink.heavencloud.in",
-  port: 443,
-  authorization: "heavencloud",
-  secure: true,
-  retryAmount: Infinity,
-  retryDelay: 10000,
-};
+const PUBLIC_LAVALINK_NODES = [
+  {
+    id: "lightcore-india",
+    host: "lavalink.heavencloud.in",
+    port: 443,
+    authorization: "heavencloud",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 10000,
+  },
+  {
+    id: "lightcore-singapore",
+    host: "sg.lavalink.heavencloud.in",
+    port: 443,
+    authorization: "heavencloud",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 10000,
+  },
+  {
+    id: "lightcore-usa",
+    host: "us.lavalink.heavencloud.in",
+    port: 443,
+    authorization: "heavencloud",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 10000,
+  },
+  {
+    id: "lightcore-europe",
+    host: "eu.lavalink.heavencloud.in",
+    port: 443,
+    authorization: "heavencloud",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 10000,
+  },
+];
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
@@ -25,7 +54,7 @@ export const config = {
   // Permanent built-in public Lavalink node.
   // Environment variables are intentionally ignored for the music node so Render
   // does not require LAVALINK_* variables.
-  nodes: [PUBLIC_LAVALINK],
+  nodes: PUBLIC_LAVALINK_NODES,
 
   environment: process.env.NODE_ENV || 'development',
   debug: process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development',
