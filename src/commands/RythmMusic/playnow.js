@@ -1,0 +1,2 @@
+import { command, getArgs, playQuery, ensurePlayer } from "#utils/RythmCommands";
+export default command({name:"playskip",description:"Skip the current track and play a new one",aliases:["ps","playnow","pn"],voiceRequired:true,dj:true,options:[{name:"query",description:"Song name or URL",type:3,required:true}],execute:async x=>{const p=await ensurePlayer(x);await p.stop();return playQuery(x,getArgs(x).join(" "))},slashExecute:async x=>{const p=await ensurePlayer(x);await p.stop();return playQuery(x,x.interaction.options.getString("query"))}});
