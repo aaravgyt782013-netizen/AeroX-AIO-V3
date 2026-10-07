@@ -1,0 +1,2 @@
+import { TempVoiceManager } from "#managers/TempVoiceManager";
+export default { name:"interactionCreate", async execute(interaction){ if(interaction.isButton()&&interaction.customId.startsWith("tv_")) return TempVoiceManager.button(interaction); if(interaction.isStringSelectMenu()&&interaction.customId==="tv_manage") return TempVoiceManager.select(interaction); if(interaction.isModalSubmit()&&interaction.customId.startsWith("tv_modal_")) return TempVoiceManager.submit(interaction); } };
