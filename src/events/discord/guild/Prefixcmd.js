@@ -456,7 +456,12 @@ export default {
         }
       }
 
-      if (command.userPrem && !db.isUserPremium(message.author.id))
+const djSettings = db.guild.getMusicSettings(message.guild.id);
+      if (command.category?.toLowerCase() === "music" && command.name !== "settings" && djSettings.djRole && !config.ownerIds?.includes(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.roles.cache.has(djSettings.djRole)) {
+        return _sendError(message, "DJ Role Required", `This server has a DJ role configured: <@&${djSettings.djRole}>. You need that role to control music.`);
+      }
+
+            if (command.userPrem && !db.isUserPremium(message.author.id))
         return _sendPremiumError(message, "user");
       if (command.guildPrem && !db.isGuildPremium(message.guild.id))
         return _sendPremiumError(message, "guild");
