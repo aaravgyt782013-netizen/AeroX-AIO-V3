@@ -1,0 +1,2 @@
+import { LoggingManager } from "#managers/LoggingManager";
+export default {name:"roleDelete",async execute(role){const by=await LoggingManager.executor(role.guild,32,role.id);await LoggingManager.send(role.guild,"role",{emoji:"🗑️",title:"Role Deleted",color:0xED4245,description:"A role was deleted.",fields:[{name:"Role",value:role.name+" (`"+role.id+"`)"},{name:"Executor",value:by?"<@"+by.id+">":"Unknown"}]});}};
