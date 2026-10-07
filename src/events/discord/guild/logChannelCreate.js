@@ -1,0 +1,2 @@
+import { LoggingManager } from "#managers/LoggingManager";
+export default {name:"channelCreate",async execute(channel){if(!channel.guild)return;const by=await LoggingManager.executor(channel.guild,10,channel.id);await LoggingManager.send(channel.guild,"channel",{emoji:"📁",title:"Channel Created",color:0x57F287,description:"<#"+channel.id+"> was created.",fields:[{name:"Type",value:String(channel.type),inline:true},{name:"Executor",value:by?"<@"+by.id+">":"Unknown",inline:true}]});}};
