@@ -1,0 +1,2 @@
+import { TempVoiceManager } from "#managers/TempVoiceManager";
+export default { name:"voiceStateUpdate", async execute(oldState,newState){ if(oldState.channelId!==newState.channelId){ if(oldState.channelId) await TempVoiceManager.handleLeave(oldState.channel); if(newState.channelId) await TempVoiceManager.createFromJoin(newState.member); } } };
