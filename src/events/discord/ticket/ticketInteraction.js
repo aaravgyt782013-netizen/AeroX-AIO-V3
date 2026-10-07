@@ -669,6 +669,8 @@ async function handleTicketTranscript(interaction, client, channelId) {
   }
 
   const panel = db.getTicketPanel(interaction.guild.id, ticketData.panel_id);
+  const ticketCategoryConfig = panel?.categories?.find(c => c.name === ticketData.category) || null;
+  const transcriptChannelId = ticketCategoryConfig?.transcriptChannelId || panel?.transcriptChannel;
   if (!panel) {
     return interaction.reply({
       content: "Panel configuration not found.",
