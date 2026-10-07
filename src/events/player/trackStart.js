@@ -44,6 +44,14 @@ export default {
 
       let message;
 
+      const announceSongs = db.guild.getMusicSettings(player.guildId).announceSongs;
+      if (!announceSongs) {
+        player.set('nowPlayingMessageId', null);
+        player.set('nowPlayingChannelId', player.textChannelId);
+        logger.info('TrackStart', `Track started silently because announcements are disabled: "${track.info.title}"`);
+        return;
+      }
+
       try {
         const musicCard = new MusicCard();
         const buffer = await musicCard.createMusicCard(track, 0);
