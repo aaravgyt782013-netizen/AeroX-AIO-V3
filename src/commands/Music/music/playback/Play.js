@@ -957,7 +957,7 @@ class PlayCommand extends Command {
 
     const collector = messageOrInteraction.createMessageComponentCollector({
       filter,
-      time: 60_000,
+      time: 300_000,
       max: 1,
     });
 
@@ -1033,7 +1033,7 @@ class PlayCommand extends Command {
       if (reason === "time" && collected.size === 0) {
         try {
           const timeoutContainer = this._createErrorContainer(
-            "Source selection timed out. Please try again.",
+            "Source selection expired. Run `.play` again when you are ready to choose a source.",
           );
           
           if (isSlash) {
