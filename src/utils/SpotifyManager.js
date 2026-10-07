@@ -281,6 +281,38 @@ export class SpotifyManager {
 		}
 	}
 
+	async resolveUrl(client, url, requester) {
+		const parsed = this.parseSpotifyUrl(url);
+		if (!parsed) return null;
+		if (parsed.type === 'track') return this.searchTrack(client, url, requester);
+
+		let items = [];
+		let collection = null;
+		if (parsed.type === 'playlist') {
+			const data = await this.apiRequest(`/playlists/${parsed.id}/tracks?limit=100&market=IN`);
+			collection = await this.apiRequest(`/playlists/${parsed.id}?market=IN`);
+			items = data?.items?.map(x => x.track).filter(Boolean) || [];
+		} else if (parsed.type === 'album') {
+			const data = await this.apiRequest(`/albums/${parsed.id}/tracks?limit=50&market=IN`);
+			collection = await this.apiRequest(`/albums/${parsed.id}?market=IN`);
+			items = data?.items || [];
+		}
+		if (!items.length) return null;
+
+		const tracks = [];
+		for (const item of items.slice(0, 100)) {
+			const artists = item.artists?.map(a => a.name).join(' ') || '';
+			const resolved = await this.searchTrack(client, `${item.name} ${artists}`, requester);
+			if (resolved) tracks.push(resolved);
+		}
+		if (!tracks.length) return null;
+		return {
+			loadType: 'playlist',
+			playlist: { name: collection?.name || 'Spotify Collection', selectedTrack: 0 },
+			tracks,
+		};
+	}
+
 	async searchTrack(client, query, requester) {
 		try {
 			if (!client?.music) {
