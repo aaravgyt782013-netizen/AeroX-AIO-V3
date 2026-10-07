@@ -30,15 +30,15 @@ export class TempVoiceManager {
     if(ch.members?.size !== 0) return;
 
     const channelId = ch.id;
-    db.guild.deleteTempVoiceChannel(channelId);
+    const owner = this.owner(channelId);
 
     try {
       if(ch.deletable) {
         await ch.delete("LightCore TempVoice became empty");
+        db.guild.deleteTempVoiceChannel(channelId);
       }
     } catch {
-      // If Discord rejects deletion, restore the DB record so the room can still be managed.
-      const owner = this.owner(channelId);
+      // Keep the DB record if Discord rejects the deletion.
       if(owner) db.guild.setTempVoiceChannel(channelId, ch.guild.id, owner);
     }
   }
