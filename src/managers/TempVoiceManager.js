@@ -25,8 +25,8 @@ export class TempVoiceManager {
   }
   static async handleLeave(ch) {
     if(!ch || !this.isTemp(ch.id)) return;
-    const s=db.guild.getTempVoiceSettings(ch.guild.id);
-    if(s.autoDelete && ch.members.size===0){ db.guild.deleteTempVoiceChannel(ch.id); try{await ch.delete("LightCore TempVoice empty");}catch{} }
+    // TempVoice rooms intentionally persist when empty. They are never deleted just because everyone leaves.
+    // The database record is kept so the room can be managed again when its owner returns.
   }
   static panel(ch,notice="") {
     const owner=this.owner(ch.id);
