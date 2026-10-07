@@ -1,8 +1,9 @@
-import { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
+import { AttachmentBuilder, MessageFlags } from 'discord.js';
 import { EventUtils } from '#utils/EventUtils';
 import { db } from '#database/DatabaseManager';
 import MusicCard from '#structures/classes/MusicCard';
 import { logger } from '#utils/logger';
+import { createMusicPlayerV2 } from '#events/discord/music/Playerbuttons';
 
 export default {
   name: "trackStart",
@@ -56,19 +57,21 @@ export default {
         const musicCard = new MusicCard();
         const buffer = await musicCard.createMusicCard(track, 0);
         const attachment = new AttachmentBuilder(buffer, { name: 'errorx-nowplaying.png' });
-        const components = createControlComponents();
+        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
 
         message = await EventUtils.sendPlayerMessage(client, player, {
           files: [attachment],
           components,
+          flags: MessageFlags.IsComponentsV2,
         });
       } catch (cardError) {
         logger.error('TrackStart', 'Error creating music card:', cardError);
 
-        const components = createControlComponents();
+        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
         message = await EventUtils.sendPlayerMessage(client, player, {
           content: `🎵 **Now Playing**\n**${track.info.title}** by **${track.info.author}**`,
           components,
+          flags: MessageFlags.IsComponentsV2,
         });
       }
 
