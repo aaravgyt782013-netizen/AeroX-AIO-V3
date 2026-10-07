@@ -14,7 +14,7 @@ class TempVoiceCommand extends Command {
       if(!cat||cat.type!==ChannelType.GuildCategory)cat=await g.channels.create({name:"LightCore TempVoice",type:ChannelType.GuildCategory,reason:"LightCore TempVoice setup"});
       if(!join||join.type!==ChannelType.GuildVoice)join=await g.channels.create({name:"➕ Join to Create",type:ChannelType.GuildVoice,parent:cat.id,reason:"LightCore TempVoice setup"});
       db.guild.setTempVoiceSettings(g.id,{category:cat.id,joinChannel:join.id});
-      return this.reply(ctx,"✅ LightCore TempVoice is ready.\\nJoin <#"+join.id+"> to create your temporary room.");
+      return this.reply(ctx,"✅ LightCore TempVoice is ready.\nJoin <#"+join.id+"> to create your temporary room.");
     }
     if(a==="disable"){db.guild.setTempVoiceSettings(g.id,{joinChannel:null});return this.reply(ctx,"✅ Join-to-Create disabled.");}
     if(a==="settings")return this.settings(ctx);
@@ -29,7 +29,7 @@ class TempVoiceCommand extends Command {
     if(a==="limit"){const n=Number(v);if(!Number.isInteger(n)||n<0||n>99)return this.reply(ctx,"Limit must be 0-99.");db.guild.setTempVoiceSettings(g.id,{limit:n});return this.settings(ctx,"Limit updated");}
     if(a==="bitrate"){const n=Number(v);if(!Number.isFinite(n)||n<8||n>384)return this.reply(ctx,"Bitrate must be 8-384 kbps.");db.guild.setTempVoiceSettings(g.id,{bitrate:n*1000});return this.settings(ctx,"Bitrate updated");}
   }
-  build(id,n=""){const s=db.guild.getTempVoiceSettings(id);return new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent("🔊 **LightCore TempVoice Settings**")).addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)).addTextDisplayComponents(new TextDisplayBuilder().setContent((n?"✅ **"+n+"**\\n\\n":"")+"🚪 Join: "+(s.joinChannel?"<#"+s.joinChannel+">":"Not configured")+"\\n📁 Category: "+(s.category?"<#"+s.category+">":"Not configured")+"\\n📝 Name: `"+s.name+"`\\n👥 Limit: **"+(s.limit||"Unlimited")+"**\\n🎚️ Bitrate: **"+Math.round(s.bitrate/1000)+" kbps**\\n🗑️ Auto-delete: **"+(s.autoDelete?"ON":"OFF")+"**\\n👑 Claim: **"+(s.claim?"ON":"OFF")+"\\n\\nUse tempvoice setup for automatic setup."));}
+  build(id,n=""){const s=db.guild.getTempVoiceSettings(id);return new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent("🔊 **LightCore TempVoice Settings**")).addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)).addTextDisplayComponents(new TextDisplayBuilder().setContent((n?"✅ **"+n+"**\n\n":"")+"🚪 Join: "+(s.joinChannel?"<#"+s.joinChannel+">":"Not configured")+"\n📁 Category: "+(s.category?"<#"+s.category+">":"Not configured")+"\n📝 Name: `"+s.name+"`\n👥 Limit: **"+(s.limit||"Unlimited")+"**\n🎚️ Bitrate: **"+Math.round(s.bitrate/1000)+" kbps**\n🗑️ Auto-delete: **"+(s.autoDelete?"ON":"OFF")+"**\n👑 Claim: **"+(s.claim?"ON":"OFF")+"\n\nUse tempvoice setup for automatic setup."));}
   async settings(ctx,n=""){const d={components:[this.build(ctx.guild.id,n)],flags:MessageFlags.IsComponentsV2};return ctx.user?ctx.reply({...d,ephemeral:true}):ctx.reply(d);}
   async reply(ctx,t){return ctx.user?ctx.reply({content:t,ephemeral:true}):ctx.reply(t);}
 }
