@@ -423,7 +423,11 @@ class PlayCommand extends Command {
         options.source = this._normalizeSource(source);
       }
 
-      const searchResult = await client.music.search(finalquery, options);
+      // Direct URLs are resolved by the unified music engine. This supports
+      // YouTube/Spotify/SoundCloud links and Spotify playlists/albums.
+      const searchResult = this._isUrl(query)
+        ? await client.music.resolve(finalquery, options)
+        : await client.music.search(finalquery, options);
 
       if (!searchResult || !searchResult.tracks?.length) {
         return { success: false, message: `No results found for: ${query}` };
