@@ -74,18 +74,6 @@ export class AeroX extends Client {
                 this.music = new MusicManager(this);
                 this.lavalink = this.music.lavalink;
 
-                // Lavalink must receive Discord gateway voice-state packets.
-                // Without forwarding raw packets, the player can be created but
-                // Lavalink cannot complete/maintain the voice connection, so no
-                // audio reaches the Discord voice channel.
-                this.on("raw", data => {
-                        try {
-                                this.lavalink?.sendRawData(data);
-                        } catch (error) {
-                                this.logger.debug("AeroX", `Failed to forward Lavalink raw packet: ${error.message}`);
-                        }
-                });
-
                 this.commandHandler = new CommandHandler(this);
                 this.eventHandler = new EventLoader(this);
 
