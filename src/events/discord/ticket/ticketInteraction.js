@@ -385,7 +385,7 @@ async function handleTicketClose(interaction, client, channelId) {
 
     const alreadySentTranscript = db.isTranscriptSent(channelId);
 
-    if (!alreadySentTranscript && transcriptChannelId) {
+    if (!alreadySentTranscript && panel.autoTranscript && transcriptChannelId) {
       const html = await generateHTMLTranscript(channel, ticketData, panel, client);
       const buffer = Buffer.from(html, "utf-8");
       const attachment = new AttachmentBuilder(buffer, {
