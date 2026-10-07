@@ -1,0 +1,2 @@
+import { LoggingManager } from "#managers/LoggingManager";
+export default { name:"roleCreate", async execute(role){ const by=await LoggingManager.executor(role.guild,30,role.id); await LoggingManager.send(role.guild,"role",{emoji:"🎭",title:"Role Created",color:0x57F287,description:"<@&"+role.id+"> was created.",fields:[{name:"Role",value:role.name+" (`"+role.id+"`)",inline:true},{name:"Executor",value:by?"<@"+by.id+">":"Unknown",inline:true}]}); }};
