@@ -191,38 +191,7 @@ class PlayCommand extends Command {
         });
       }
 
-      if (!this._isUrl(query) && !source) {
-        const loadingMsg = await message.reply({
-          components: [this._createLoadingContainer(query)],
-          flags: MessageFlags.IsComponentsV2,
-        });
-
-        const searchResults = await this._searchBothSources(client, query);
-        const sourceSelectionContainer = this._createSourceSelectionContainer(
-          query, 
-          message.guild.id, 
-          message.author.id,
-          searchResults
-        );
-
-        await loadingMsg.edit({
-          components: [sourceSelectionContainer],
-          flags: MessageFlags.IsComponentsV2,
-        });
-
-        this._setupSourceSelectionCollector(loadingMsg, {
-          client,
-          guildId: message.guild.id,
-          query,
-          position,
-          requester: message.author,
-          voiceChannel,
-          isSlash: false,
-        });
-        return;
-      }
-
-      const loadingMessage = await message.reply({
+      // Normal .play <query> uses the fast YouTube-first path.\n      const loadingMessage = await message.reply({
         components: [this._createLoadingContainer(query)],
         flags: MessageFlags.IsComponentsV2,
       });
@@ -316,8 +285,7 @@ class PlayCommand extends Command {
         });
       }
 
-      if (!this._isUrl(query) && !source) {
-        await interaction.reply({
+      // Normal /play <query> uses the fast YouTube-first path.\n\n      await interaction.reply({
           components: [this._createLoadingContainer(query)],
           flags: MessageFlags.IsComponentsV2,
           fetchReply: true,
