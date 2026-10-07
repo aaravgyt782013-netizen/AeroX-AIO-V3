@@ -62,6 +62,15 @@ export class AeroX extends Client {
                 this.logger = logger;
                 this.config = config;
                 this.db = db;
+                // Keep premium state accurate across restarts.
+                try {
+                        const cleaned = this.db.premium.cleanupExpired();
+                        if (cleaned.total > 0) {
+                                this.logger.info("AeroX", "Cleaned " + cleaned.total + " expired premium grant(s) at startup.");
+                        }
+                } catch (error) {
+                        this.logger.error("AeroX", "Failed to clean expired premium grants:", error);
+                }
                 this.music = new MusicManager(this);
                 this.lavalink = this.music.lavalink;
 
