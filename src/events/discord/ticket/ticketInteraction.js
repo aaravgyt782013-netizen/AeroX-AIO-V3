@@ -778,17 +778,26 @@ export default {
       const cats = panel.categories || [];
       const pages = [];
       for (let i = 0; i < cats.length; i += 25) pages.push(cats.slice(i, i + 25));
-      const nextPage = Math.min(page + 1, Math.max(0, pages.length - 1));
+      const nextPage = Math.min(page, Math.max(0, pages.length - 1));
       const slice = pages[nextPage] || [];
       const { StringSelectMenuBuilder } = await import("discord.js");
-      const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
-        .setCustomId("ticket_create_" + panelId + "_page_" + nextPage)
-        .setPlaceholder(panel.panelStyle?.placeholder || "Select a ticket category")
-        .addOptions(slice.map((cat, i) => ({ label: cat.name.slice(0,100), description: (cat.description || "Create a ticket").slice(0,100), value: String(nextPage * 25 + i), emoji: cat.emoji || undefined }))));
-      const nav = new ActionRowBuilder();
+      const rows = [];
+      if (panel.useDropdown) {
+        rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+          .setCustomId("ticket_create_" + panelId + "_page_" + nextPage)
+          .setPlaceholder(panel.panelStyle?.placeholder || "Select a ticket category")
+          .addOptions(slice.map((cat, i) => ({ label: cat.name.slice(0,100), description: (cat.description || "Create a ticket").slice(0,100), value: String(nextPage * 25 + i), emoji: cat.emoji || undefined })))));
+      } else {
+        const buttons = slice.map((cat, i) => {
+          const button = new ButtonBuilder().setCustomId("ticket_create_" + panelId + "_" + (nextPage * 25 + i)).setLabel(cat.name.slice(0,80)).setStyle(ButtonStyle.Primary);
+          if (cat.emoji) button.setEmoji(cat.emoji);
+          return button;
+        });
+        for (let i = 0; i < buttons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+      }      const nav = new ActionRowBuilder();
       if (nextPage > 0) nav.addComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_" + (nextPage - 1)).setLabel("Previous").setStyle(ButtonStyle.Secondary));
       if (nextPage < pages.length - 1) nav.addComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_" + (nextPage + 1)).setLabel("Next").setStyle(ButtonStyle.Secondary));
-      return interaction.update({ components: [row, ...(nav.components.length ? [nav] : [])] });
+      return interaction.update({ components: [...rows, ...(nav.components.length ? [nav] : [])].slice(0, 5) });
     }
     if (customId.startsWith("ticket_create_")) {
       if (interaction.isStringSelectMenu()) {
