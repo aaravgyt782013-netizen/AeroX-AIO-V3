@@ -1,0 +1,3 @@
+import { command, getPlayer, getArgs, djError, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const e=djError(x);if(e)return safeReply(x,"🗑️ Remove","❌ "+e,0xED4245);const p=getPlayer(x);const n=x.interaction?.options.getInteger("position")??Number(getArgs(x)[0]);if(!p||!Number.isInteger(n)||n<1||n>p.queueSize)return safeReply(x,"🗑️ Remove","Give a valid queue position.",0xED4245);await p.removeTrack(n-1);return safeReply(x,"🗑️ Removed","Removed queue position **"+n+"**.")};
+export default command({name:"remove",description:"Remove a queue position",aliases:["rm","del"],dj:true,options:[{name:"position",description:"Queue position",type:4,required:true,min_value:1}],execute:run,slashExecute:run});
