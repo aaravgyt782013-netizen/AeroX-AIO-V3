@@ -21,6 +21,7 @@ import { PlayerManager } from "#managers/PlayerManager";
 import { db } from "#database/DatabaseManager";
 import { config } from "#config/config";
 import { spotifyManager } from "#utils/SpotifyManager";
+import { logger } from "#utils/logger";
 import emoji from "#config/emoji";
 
 class PlayCommand extends Command {
