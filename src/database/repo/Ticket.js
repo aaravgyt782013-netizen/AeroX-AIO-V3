@@ -28,6 +28,7 @@ export class Ticket extends Database {
         auto_transcript BOOLEAN DEFAULT TRUE,
         panel_channel_id TEXT,
         panel_message_id TEXT,
+        panel_style TEXT DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(guild_id, panel_id)
@@ -147,7 +148,8 @@ export class Ticket extends Database {
       categories = [],
       autoTranscript = true,
       panelChannelId,
-      panelMessageId
+      panelMessageId,
+      panelStyle = {}
     } = data;
 
     return this.exec(`
@@ -155,8 +157,8 @@ export class Ticket extends Database {
         guild_id, panel_id, category_open, category_closed, category_claimed,
         transcript_channel, review_channel, support_roles, panel_title,
         panel_description, panel_color, use_dropdown, categories,
-        auto_transcript, panel_channel_id, panel_message_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        auto_transcript, panel_channel_id, panel_message_id, panel_style
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       guildId,
       panelId,
@@ -173,7 +175,8 @@ export class Ticket extends Database {
       JSON.stringify(categories),
       autoTranscript ? 1 : 0,
       panelChannelId,
-      panelMessageId
+      panelMessageId,
+      JSON.stringify(panelStyle)
     ]);
   }
 
@@ -194,6 +197,7 @@ export class Ticket extends Database {
       panel.panelColor = panel.panel_color;
       panel.panelChannelId = panel.panel_channel_id;
       panel.panelMessageId = panel.panel_message_id;
+      panel.panelStyle = JSON.parse(panel.panel_style || '{}');
     }
     return panel;
   }
@@ -215,6 +219,7 @@ export class Ticket extends Database {
       panel.panelColor = panel.panel_color;
       panel.panelChannelId = panel.panel_channel_id;
       panel.panelMessageId = panel.panel_message_id;
+      panel.panelStyle = JSON.parse(panel.panel_style || '{}');
       return panel;
     });
   }
@@ -225,7 +230,7 @@ export class Ticket extends Database {
       'transcript_channel', 'review_channel', 'support_roles',
       'panel_title', 'panel_description', 'panel_color',
       'use_dropdown', 'categories', 'auto_transcript',
-      'panel_channel_id', 'panel_message_id'
+      'panel_channel_id', 'panel_message_id', 'panel_style'
     ];
 
     const keys = Object.keys(updates).filter(key => allowedKeys.includes(key));
@@ -235,6 +240,7 @@ export class Ticket extends Database {
     const values = keys.map(key => {
       const value = updates[key];
       if (Array.isArray(value)) return JSON.stringify(value);
+      if (key === 'panel_style' && typeof value === 'object') return JSON.stringify(value);
       if (typeof value === 'boolean') return value ? 1 : 0;
       return value;
     });
