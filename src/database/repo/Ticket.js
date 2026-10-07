@@ -50,6 +50,7 @@ export class Ticket extends Database {
         feedback TEXT,
         transcript_sent INTEGER DEFAULT 0,
         review_sent INTEGER DEFAULT 0,
+        delete_at INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -63,9 +64,10 @@ export class Ticket extends Database {
       } catch (e) {}
     }
     if (!columnNames.includes('review_sent')) {
-      try {
-        this.exec(`ALTER TABLE ticket_data ADD COLUMN review_sent INTEGER DEFAULT 0`);
-      } catch (e) {}
+      try { this.exec(`ALTER TABLE ticket_data ADD COLUMN review_sent INTEGER DEFAULT 0`); } catch (e) {}
+    }
+    if (!columnNames.includes('delete_at')) {
+      try { this.exec(`ALTER TABLE ticket_data ADD COLUMN delete_at INTEGER`); } catch (e) {}
     }
 
     this.exec(`
@@ -277,7 +279,19 @@ export class Ticket extends Database {
   }
 
   closeTicket(channelId, closedBy) {
-    return this.exec("UPDATE ticket_data SET closed_at = ?, closed_by = ? WHERE channel_id = ?", [Date.now(), closedBy, channelId]);
+    const closedAt = Date.now();
+    const deleteAt = closedAt + 60 * 60 * 1000;
+    return this.exec(
+      "UPDATE ticket_data SET closed_at = ?, closed_by = ?, delete_at = ? WHERE channel_id = ?",
+      [closedAt, closedBy, deleteAt, channelId]
+    );
+  }
+
+  getTicketsReadyForDeletion(now = Date.now()) {
+    return this.all(
+      "SELECT * FROM ticket_data WHERE closed_at IS NOT NULL AND delete_at IS NOT NULL AND delete_at <= ?",
+      [now]
+    );
   }
 
   rateTicket(channelId, rating, feedback = null) {
