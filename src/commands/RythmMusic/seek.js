@@ -1,0 +1,3 @@
+import { command, getPlayer, getArgs, djError, parseTime, formatDuration, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const e=djError(x);if(e)return safeReply(x,"⏱️ Seek","❌ "+e,0xED4245);const p=getPlayer(x),v=x.interaction?.options.getString("time")||getArgs(x).join(" "),ms=parseTime(v);if(!p?.currentTrack||ms==null)return safeReply(x,"⏱️ Seek","Use a time like 1:30 or 90s.",0xED4245);const max=p.currentTrack.info.duration||ms;await p.seek(Math.min(ms,max));return safeReply(x,"⏱️ Seek","Moved to **"+formatDuration(Math.min(ms,max))+"**.")};
+export default command({name:"seek",description:"Seek to a time",dj:true,options:[{name:"time",description:"Example: 1:30",type:3,required:true}],execute:run,slashExecute:run});
