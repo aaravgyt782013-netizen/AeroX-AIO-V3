@@ -2,6 +2,7 @@ import { LavalinkManager } from "lavalink-client";
 import { logger } from "#utils/logger";
 import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
+import { spotifyManager } from "#utils/SpotifyManager";
 
 export class MusicManager {
   constructor(client) {
@@ -182,7 +183,7 @@ export class MusicManager {
     }
 
     try {
-      const { source = "spsearch", requester } = options;
+      const { source = config.search?.defaultSources?.[0] || "ytsearch", requester } = options;
 
       // FIX: guard against no connected nodes before searching
       const nodes = this.lavalink.nodeManager.leastUsedNodes("memory");
@@ -192,10 +193,30 @@ export class MusicManager {
       }
 
       const node = nodes[0];
-      const searchResult = await node.search({ query, source }, requester);
+      let searchResult = await node.search({ query, source }, requester);
+
+      // Public Lavalink nodes often have YouTube enabled but do not have
+      // every LavaSrc source enabled. Keep YouTube search working even when
+      // the preferred engine is unavailable.
+      if ((!searchResult || !searchResult.tracks?.length) && source === "ytsearch") {
+        searchResult = await node.search({ query, source: "ytmsearch" }, requester).catch(() => null);
+      }
+
+      // Spotify search can be provided by LavaSrc, but it is not installed on
+      // every public node. Fall back to Spotify Web API metadata + a YouTube
+      // search so Spotify queries still resolve to playable audio.
+      if ((!searchResult || !searchResult.tracks?.length) && source === "spsearch") {
+        const spotifyTrack = await spotifyManager.searchTrack(this.client, query, requester);
+        if (spotifyTrack) {
+          return {
+            loadType: "search",
+            tracks: [spotifyTrack],
+          };
+        }
+      }
 
       if (!searchResult || !searchResult.tracks?.length) {
-        logger.debug("MusicManager", `No tracks found for query: ${query}`);
+        logger.debug("MusicManager", `No tracks found for query "${query}" using ${source}`);
         return null;
       }
 
