@@ -153,3 +153,6 @@ export class LightCore extends Client {
                 return Date.now() - this.startTime;
         }
 }
+
+// Backward-compatible export for existing entrypoints/imports.
+export const AeroX = LightCore;
