@@ -7,6 +7,7 @@ export class Guild extends Database {
     super(config.database.guild);
     this.initTable();
     this.initRoleSettings();
+    this.initLoggingSettings();
   }
 
   initTable() {
@@ -40,6 +41,36 @@ export class Guild extends Database {
   setAutorole(guildId, roleId = null) {
     this.ensureGuild(guildId); this.initRoleSettings();
     return this.exec("UPDATE guilds SET autorole_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [roleId, guildId]);
+  }
+
+
+  initLoggingSettings() {
+    try { this.exec("ALTER TABLE guilds ADD COLUMN logging_channels TEXT DEFAULT '{}'"); } catch {}
+    try { this.exec("ALTER TABLE guilds ADD COLUMN logging_enabled BOOLEAN DEFAULT FALSE"); } catch {}
+  }
+
+  getLogging(guildId) {
+    this.ensureGuild(guildId); this.initLoggingSettings();
+    const g = this.getGuild(guildId);
+    let channels = {};
+    try { channels = JSON.parse(g?.logging_channels || "{}"); } catch {}
+    return { enabled: g?.logging_enabled === 1 || g?.logging_enabled === true, channels };
+  }
+
+  setLogging(guildId, channels, enabled = true) {
+    this.ensureGuild(guildId); this.initLoggingSettings();
+    return this.exec("UPDATE guilds SET logging_channels = ?, logging_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [JSON.stringify(channels || {}), enabled ? 1 : 0, guildId]);
+  }
+
+  updateLoggingChannel(guildId, type, channelId) {
+    const current = this.getLogging(guildId);
+    current.channels[type] = channelId;
+    return this.setLogging(guildId, current.channels, true);
+  }
+
+  disableLogging(guildId) {
+    this.ensureGuild(guildId); this.initLoggingSettings();
+    return this.exec("UPDATE guilds SET logging_enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [guildId]);
   }
 
   getGuild(guildId) {
