@@ -11,7 +11,8 @@ export function buildTicketEmbed(style = {}, vars = {}) {
   const e = new EmbedBuilder().setColor(parseColor(style.color));
   const title = String(style.title ?? DEFAULTS.title).replaceAll("{server}", vars.server ?? "");
   const description = String(style.description ?? DEFAULTS.description).replaceAll("{server}", vars.server ?? "");
-  if (title) e.setTitle(title.slice(0, 256));
+  if (style.panelEmoji && title && !title.startsWith(String(style.panelEmoji))) e.setTitle(String(style.panelEmoji) + " " + title.slice(0, 245));
+  else if (title) e.setTitle(title.slice(0, 256));
   if (description) e.setDescription(description.slice(0, 4096));
   if (style.url) e.setURL(String(style.url).slice(0, 2000));
   if (style.image) e.setImage(String(style.image).slice(0, 2000));
