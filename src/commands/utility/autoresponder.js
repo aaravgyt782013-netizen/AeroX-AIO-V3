@@ -1,14 +1,16 @@
 import { Command } from "#structures/classes/Command";
-import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags } from "discord.js";
+import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags, EmbedBuilder } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { automationPlaceholderHelp } from "#utils/AutomationUtils";
 
 function replyBox(content) {
-  return {
-    components: [new ContainerBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(content))],
-    flags: MessageFlags.IsComponentsV2,
-  };
+  const embed = new EmbedBuilder()
+    .setTitle("🤖 Autoresponder")
+    .setDescription(content)
+    .setColor(0x5865F2)
+    .setTimestamp();
+  return { embeds: [embed] };
 }
 
 function parseRule(raw, allowMode = false) {
