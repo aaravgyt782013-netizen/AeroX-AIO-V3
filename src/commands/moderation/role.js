@@ -1,0 +1,5 @@
+import { Command } from "#structures/classes/Command";
+import { PermissionFlagsBits } from "discord.js";
+const roleOf=(m,v)=>m.mentions.roles.first()||m.guild.roles.cache.get(String(v||"").replace(/[<@&>]/g,""));
+const memberOf=(m,v)=>m.mentions.members.first()||m.guild.members.cache.get(String(v||"").replace(/[<@!>]/g,""));
+class Role extends Command{constructor(){super({name:"role",description:"Add a role to a member",usage:"role @user @role",aliases:["addrole"],category:"Moderation",userPermissions:[PermissionFlagsBits.ManageRoles],permissions:[PermissionFlagsBits.ManageRoles],cooldown:3});}async execute({message,args}){const m=memberOf(message,args[0]),r=roleOf(message,args[1]);if(!m||!r)return message.reply("❌ Usage: .role @user @role");if(r.managed||r.position>=message.guild.members.me.roles.highest.position)return message.reply("❌ I cannot manage that role.");if(m.roles.cache.has(r.id))return message.reply("ℹ️ That member already has the role.");await m.roles.add(r,"LightCore role command");return message.reply("✅ Added <@&"+r.id+"> to <@"+m.id+">.");}}export default new Role();
