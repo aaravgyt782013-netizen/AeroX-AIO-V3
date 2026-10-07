@@ -17,7 +17,7 @@ class AddPremiumCommand extends Command {
       name: "addpremium",
       description: "Grant premium status to a user",
       usage: "addpremium <user_id> [duration]",
-      aliases: ["addpr", "grantpremium", "premium"],
+      aliases: ["addpr", "grantpremium"],
       category: "Owner",
       examples: [
         "addpremium 123456789",
@@ -52,10 +52,6 @@ class AddPremiumCommand extends Command {
         });
       }
 
-      if (!client.premiumUsers) {
-        client.premiumUsers = new Map();
-      }
-
       let expiresAt = null;
       let durationText = "Lifetime";
 
@@ -70,11 +66,18 @@ class AddPremiumCommand extends Command {
         }
       }
 
-      client.premiumUsers.set(userId, {
-        grantedBy: message.author.id,
-        grantedAt: Date.now(),
+      const result = client.db.grantUserPremium(
+        userId,
+        message.author.id,
         expiresAt,
-      });
+        "Granted with addpremium"
+      );
+
+      if (!result || result.changes < 1) {
+        return message.reply({
+          content: emoji.get("cross") + " Failed to persist premium for this user.",
+        });
+      }
 
       let user = null;
       try {
