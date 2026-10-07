@@ -1,0 +1,3 @@
+import { command, getPlayer, getArgs, djError, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const e=djError(x);if(e)return safeReply(x,"⏭️ Skip To","❌ "+e,0xED4245);const p=getPlayer(x),n=x.interaction?.options.getInteger("position")??Number(getArgs(x)[0]);if(!p||!Number.isInteger(n)||n<1||n>p.queueSize)return safeReply(x,"⏭️ Skip To","Invalid queue position.",0xED4245);for(let i=1;i<n;i++)await p.skip();return safeReply(x,"⏭️ Skip To","Playing queue position **"+n+"**.")};
+export default command({name:"skipto",description:"Skip to a queue position",aliases:["st"],dj:true,options:[{name:"position",description:"Queue position",type:4,required:true,min_value:1}],execute:run,slashExecute:run});
