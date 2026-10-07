@@ -39,6 +39,18 @@ export class Premium extends Database {
       )
     `);
 
+    this.exec(`
+      CREATE TABLE IF NOT EXISTS guild_premium_profile (
+        guild_id TEXT PRIMARY KEY,
+        profile_name TEXT DEFAULT NULL,
+        avatar_url TEXT DEFAULT NULL,
+        banner_url TEXT DEFAULT NULL,
+        color TEXT DEFAULT '#5865F2',
+        enabled INTEGER DEFAULT 1,
+        updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `);
+
     logger.success('PremiumDatabase', 'Premium tables initialized successfully');
   }
 
@@ -278,6 +290,41 @@ export class Premium extends Database {
     return type   ==='user' ? this.isUserPremium(id) : this.isGuildPremium(id);
   }
 
+
+  getGuildProfile(guildId) {
+    return this.get('SELECT * FROM guild_premium_profile WHERE guild_id = ?', [guildId]) || null;
+  }
+
+  setGuildProfile(guildId, data = {}) {
+    if (!this._validateId(guildId)) throw new Error('Invalid Discord guild ID.');
+    const current = this.getGuildProfile(guildId) || {};
+    const profile = {
+      profile_name: data.profile_name ?? current.profile_name ?? null,
+      avatar_url: data.avatar_url ?? current.avatar_url ?? null,
+      banner_url: data.banner_url ?? current.banner_url ?? null,
+      color: data.color ?? current.color ?? '#5865F2',
+      enabled: data.enabled ?? current.enabled ?? 1,
+    };
+    return this.exec(
+      `INSERT OR REPLACE INTO guild_premium_profile
+       (guild_id, profile_name, avatar_url, banner_url, color, enabled, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [guildId, profile.profile_name, profile.avatar_url, profile.banner_url, profile.color, profile.enabled, Date.now()]
+    );
+  }
+
+  resetGuildProfile(guildId) {
+    return this.exec('DELETE FROM guild_premium_profile WHERE guild_id = ?', [guildId]);
+  }
+
+  getUserPerks(userId) {
+    return {
+      customPrefix: true,
+      fasterCooldowns: true,
+      premiumCommands: true,
+      customPreferences: true,
+    };
+  }
 
   getUserPremium(userId) {
     return this.get(
