@@ -195,6 +195,45 @@ export class MusicManager {
     }
   }
 
+  normalizeSource(source = "yt") {
+    const map = {
+      yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch",
+      sp: "spsearch", spotify: "spsearch", sc: "scsearch", soundcloud: "scsearch",
+      am: "amsearch", apple: "amsearch", dz: "dzsearch", deezer: "dzsearch",
+      js: "jssearch", jiosaavn: "jssearch", saavn: "jssearch",
+    };
+    return map[String(source).toLowerCase()] || source;
+  }
+
+  isUrl(value) {
+    try { new URL(String(value)); return true; } catch { return false; }
+  }
+
+  async resolve(query, options = {}) {
+    if (!query) return null;
+    const requester = options.requester;
+    const source = this.normalizeSource(options.source || "yt");
+    if (this.isUrl(query)) {
+      const direct = await this.search(query, { source, requester, directUrl: true });
+      if (direct?.tracks?.length || direct?.loadType === "playlist") return direct;
+      const spotify = await spotifyManager.resolveUrl(this.client, query, requester);
+      if (spotify) return spotify;
+      return null;
+    }
+    return this.search(query, { source, requester });
+  }
+
+  async searchAll(query, requester) {
+    const [youtube, spotify] = await Promise.allSettled([
+      this.search(query, { source: "ytsearch", requester }),
+      spotifyManager.searchTrack(this.client, query, requester),
+    ]);
+    return {
+      youtube: youtube.status === "fulfilled" ? youtube.value : null,
+      spotify: spotify.status === "fulfilled" ? spotify.value : null,
+    };
+  }
+
   async search(query, options = {}) {
     if (!this.initialized) {
       logger.error("MusicManager", "Cannot search – not initialized");
@@ -203,6 +242,7 @@ export class MusicManager {
 
     try {
       const { source = config.search?.defaultSources?.[0] || "ytsearch", requester } = options;
+      const normalizedSource = this.normalizeSource(source);
 
       if (!this.lavalink.useable) {
         logger.warn(
@@ -223,24 +263,24 @@ export class MusicManager {
         );
         return null;
       }
-      let searchResult = await node.search({ query, source }, requester).catch((error) => {
+      let searchResult = await node.search({ query, source: normalizedSource }, requester).catch((error) => {
         logger.warn("MusicManager", `Search failed on ${source}: ${error.message}`);
         return null;
       });
 
       // Public Lavalink nodes can expose YouTube through either ytsearch or
       // ytmsearch. Try both before reporting no results.
-      if ((!searchResult || !searchResult.tracks?.length) && source === "ytsearch") {
+      if ((!searchResult || !searchResult.tracks?.length) && normalizedSource === "ytsearch") {
         searchResult = await node.search({ query, source: "ytmsearch" }, requester).catch(() => null);
       }
 
-      if ((!searchResult || !searchResult.tracks?.length) && source === "ytmsearch") {
+      if ((!searchResult || !searchResult.tracks?.length) && normalizedSource === "ytmsearch") {
         searchResult = await node.search({ query, source: "ytsearch" }, requester).catch(() => null);
       }
 
       // Prefer Lavalink/LavaSrc for Spotify. Only use Spotify Web API as a
       // metadata fallback when the node cannot search Spotify itself.
-      if ((!searchResult || !searchResult.tracks?.length) && source === "spsearch") {
+      if ((!searchResult || !searchResult.tracks?.length) && normalizedSource === "spsearch") {
         const spotifyTrack = await spotifyManager.searchTrack(this.client, query, requester);
         if (spotifyTrack) {
           return {
