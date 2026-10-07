@@ -1,0 +1,13 @@
+import { command, context, musicSettings, safeReply } from "#utils/RythmCommands";
+function parseBool(v){ if(["on","true","yes","enable","enabled"].includes(String(v).toLowerCase())) return true; if(["off","false","no","disable","disabled"].includes(String(v).toLowerCase())) return false; return null; }
+const run=async x=>{
+ const c=context(x),g=c.guild;if(!g)return safeReply(x,"⚙️ Music Settings","Server only.",0xED4245);
+ const args=c.args||[],sub=x.interaction?.options?.getString("setting")||args[0],value=x.interaction?.options?.getString("value")||args[1];
+ if(!sub){const s=musicSettings(x);return safeReply(x,"⚙️ LightCore Music Settings","DJ role: "+(s.djRole?"<@&"+s.djRole+">":"Disabled (everyone can control)")+"\nAnnouncements: **"+(s.announceSongs?"ON":"OFF")+"**\nAutoplay: **"+(s.autoplay?"ON":"OFF")+"**\nVote skip: **"+(s.voteSkip?"ON":"OFF")+"**\nSource: **"+s.source+"**\n24/7: **"+(s.mode247?"ON":"OFF")+"**\n\nUse .settings autoplay on|off, .settings announce on|off, .settings voteskip on|off, or .settings source ytmsearch|ytsearch|spsearch|scsearch.");}
+ if(!c.member?.permissions?.has("ManageGuild")&&!c.member?.permissions?.has("Administrator"))return safeReply(x,"⚙️ Settings","You need Manage Server to change music settings.",0xED4245);
+ const key=String(sub).toLowerCase();
+ if(["autoplay","announce","announcesongs","voteskip"].includes(key)){const b=parseBool(value);if(b===null)return safeReply(x,"⚙️ Settings","Use on or off.",0xED4245);if(key==="autoplay")c.client.db.guild.setAutoplay(g.id,b);if(key==="announce"||key==="announcesongs")c.client.db.guild.setAnnounceSongs(g.id,b);if(key==="voteskip")c.client.db.guild.setVoteSkip(g.id,b);return safeReply(x,"⚙️ Settings","Updated "+key+" to "+(b?"ON":"OFF")+".");}
+ if(key==="source"){const allowed=["ytmsearch","ytsearch","spsearch","scsearch"];if(!allowed.includes(value))return safeReply(x,"⚙️ Settings","Sources: ytmsearch, ytsearch, spsearch, scsearch.",0xED4245);c.client.db.guild.setMusicSettings(g.id,{source:value});return safeReply(x,"⚙️ Settings","Default source set to "+value+".");}
+ return safeReply(x,"⚙️ Settings","Unknown setting.");
+};
+export default command({name:"settings",description:"Configure music settings",aliases:["setting"],options:[{name:"setting",description:"Setting name",type:3,required:false},{name:"value",description:"on/off or source",type:3,required:false}],execute:run,slashExecute:run});
