@@ -27,6 +27,7 @@ class PremiumProfileCommand extends Command {
       aliases: ["pprofile", "serverprofile"],
       category: "Premium",
       cooldown: 3,
+      guildPrem: true,
     });
   }
 
