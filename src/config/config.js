@@ -2,38 +2,40 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
+  // Nazha Free Lavalink v4 — current public nodes (2026).
+  // Keep these built into the bot so no LAVALINK_* Render variables are required.
   {
-    id: "lightcore-india",
-    host: "lavalink.heavencloud.in",
+    id: "lightcore-sg-1",
+    host: "sg-1.nazha.online",
     port: 443,
-    authorization: "heavencloud",
+    authorization: "youshallnotpass",
     secure: true,
     retryAmount: Infinity,
     retryDelay: 10000,
   },
   {
-    id: "lightcore-singapore",
-    host: "sg.lavalink.heavencloud.in",
+    id: "lightcore-sg-2",
+    host: "sg-2.nazha.online",
     port: 443,
-    authorization: "heavencloud",
+    authorization: "youshallnotpass",
     secure: true,
     retryAmount: Infinity,
     retryDelay: 10000,
   },
   {
-    id: "lightcore-usa",
-    host: "us.lavalink.heavencloud.in",
+    id: "lightcore-sg-3",
+    host: "sg-3.nazha.online",
     port: 443,
-    authorization: "heavencloud",
+    authorization: "youshallnotpass",
     secure: true,
     retryAmount: Infinity,
     retryDelay: 10000,
   },
   {
-    id: "lightcore-europe",
-    host: "eu.lavalink.heavencloud.in",
+    id: "lightcore-global",
+    host: "lavalink.nazha.online",
     port: 443,
-    authorization: "heavencloud",
+    authorization: "youshallnotpass",
     secure: true,
     retryAmount: Infinity,
     retryDelay: 10000,
