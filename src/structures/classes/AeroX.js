@@ -24,7 +24,7 @@ try {
         // console.error(`Error while getting shard info: ${error}`);
 }
 
-export class AeroX extends Client {
+export class LightCore extends Client {
         constructor() {
                 const clientOptions = {
                         intents: [
@@ -66,10 +66,10 @@ export class AeroX extends Client {
                 try {
                         const cleaned = this.db.premium.cleanupExpired();
                         if (cleaned.total > 0) {
-                                this.logger.info("AeroX", "Cleaned " + cleaned.total + " expired premium grant(s) at startup.");
+                                this.logger.info("LightCore", "Cleaned " + cleaned.total + " expired premium grant(s) at startup.");
                         }
                 } catch (error) {
-                        this.logger.error("AeroX", "Failed to clean expired premium grants:", error);
+                        this.logger.error("LightCore", "Failed to clean expired premium grants:", error);
                 }
                 this.music = new MusicManager(this);
                 this.lavalink = this.music.lavalink;
@@ -99,7 +99,7 @@ export class AeroX extends Client {
         }
 
         async init() {
-                this.logger.info('AeroX', `❄️ Initializing bot...`);
+                this.logger.info('LightCore', `❄️ Initializing bot...`);
                 try {
                         await this.eventHandler.loadAllEvents();
                         await this.commandHandler.loadCommands();
@@ -108,22 +108,22 @@ export class AeroX extends Client {
                             const allUsers = this.db.user.all("SELECT id FROM users WHERE no_prefix = 1");
                             if (allUsers && Array.isArray(allUsers)) {
                                 allUsers.forEach(u => this.noPrefixUsers.add(u.id));
-                                this.logger.info('AeroX', `Loaded ${this.noPrefixUsers.size} no-prefix users into memory.`);
+                                this.logger.info('LightCore', `Loaded ${this.noPrefixUsers.size} no-prefix users into memory.`);
                             }
                         } catch (error) {
-                            this.logger.error('AeroX', 'Failed to load no-prefix users:', error);
+                            this.logger.error('LightCore', 'Failed to load no-prefix users:', error);
                         }
                         await registerSlashCommands(this);
                         await this.login(config.token);
 
                         this.logger.success(
-                                'AeroX',
+                                'LightCore',
                                 `❄️ Bot has successfully initialized. 🌸`,
                         );
-                        this.logger.info('AeroX', '❄️ Coded by Shinchan');
+                        this.logger.info('LightCore', '❄️ Coded by Shinchan');
                 } catch (error) {
                         this.logger.error(
-                                'AeroX',
+                                'LightCore',
                                 '❄️ Failed to initialize bot cluster:',
                                 error,
                         );
@@ -132,17 +132,17 @@ export class AeroX extends Client {
         }
 
         async cleanup() {
-                this.logger.warn('AeroX', `❄️ Starting cleanup for bot...`);
+                this.logger.warn('LightCore', `❄️ Starting cleanup for bot...`);
                 try {
                         await this.db.closeAll();
                         this.destroy();
                         this.logger.success(
-                                'AeroX',
+                                'LightCore',
                                 '❄️ Cleanup completed successfully. 🌸',
                         );
                 } catch (error) {
                         this.logger.error(
-                                'AeroX',
+                                'LightCore',
                                 '❄️ An error occurred during cleanup:',
                                 error,
                         );
