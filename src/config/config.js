@@ -62,6 +62,7 @@ export const config = {
     playlists: './database/data/playlists.bread',
     ticket: './database/data/ticket.bread',
     invites: './database/data/invites.bread',
+    automation: './database/data/automation.bread',
   },
 
   // External links
