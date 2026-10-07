@@ -1,0 +1,2 @@
+import { command, getArgs, playQuery } from "#utils/RythmCommands";
+export default command({name:"playtop",description:"Add a song to the top of the queue",aliases:["pt"],voiceRequired:true,dj:true,options:[{name:"query",description:"Song name or URL",type:3,required:true}],execute:async x=>playQuery(x,getArgs(x).join(" "),{position:0}),slashExecute:async x=>playQuery(x,x.interaction.options.getString("query"),{position:0})});
