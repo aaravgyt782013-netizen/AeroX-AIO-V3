@@ -15,13 +15,17 @@ import {
   queueEmbed,
   sourceFromFlag,
   settingsRows,
-  sourceMenu
+  settingsContainer,
+  sourceMenu,
+  v2Payload,
+  musicContainer
 } from "#utils/MusicCore";
 
 export {
   ensurePlayer, getPlayer, resolveTrack, enqueue, reply, safeReply, djError,
   context, musicSettings, parseTime, formatDuration, nowPlayingEmbed,
-  controlRows, queueEmbed, sourceFromFlag, settingsRows, sourceMenu
+  controlRows, queueEmbed, sourceFromFlag, settingsRows, settingsContainer,
+  sourceMenu, v2Payload, musicContainer
 };
 
 export function command({
@@ -48,12 +52,7 @@ export function command({
     try {
       return await execute(x);
     } catch (error) {
-      return safeReply(
-        x,
-        "🎵 LightCore Music",
-        "❌ " + (error?.message || "Music command failed."),
-        0xED4245
-      );
+      return safeReply(x, "⚠️ LightCore Music", error?.message || "Music command failed.", 0xED4245);
     }
   };
 
@@ -69,12 +68,7 @@ export function command({
     try {
       return await (slashExecute || execute)(x);
     } catch (error) {
-      return safeReply(
-        x,
-        "🎵 LightCore Music",
-        "❌ " + (error?.message || "Music command failed."),
-        0xED4245
-      );
+      return safeReply(x, "⚠️ LightCore Music", error?.message || "Music command failed.", 0xED4245);
     }
   };
 
@@ -103,20 +97,13 @@ export async function runSafe(x, fn) {
   try {
     return await fn();
   } catch (error) {
-    return safeReply(
-      x,
-      "🎵 LightCore Music",
-      "❌ " + (error?.message || "Music command failed."),
-      0xED4245
-    );
+    return safeReply(x, "⚠️ LightCore Music", error?.message || "Music command failed.", 0xED4245);
   }
 }
 
 export async function playQuery(x, query, opts = {}) {
   const q = String(query || "").trim();
-  if (!q) {
-    return safeReply(x, "🎵 Play", "Usage: .play <song name or URL>", 0xED4245);
-  }
+  if (!q) return safeReply(x, "🎵 Play", "Usage: .play <song name or URL>", 0xED4245);
 
   const result = await resolveTrack(x, q, opts.source);
   const added = await enqueue(x, result, opts.position);
@@ -126,8 +113,8 @@ export async function playQuery(x, query, opts = {}) {
   if (result.loadType === "playlist") {
     return safeReply(
       x,
-      isNowPlaying ? "🎵 Now Playing" : "🎵 Added to Queue",
-      `Added **${added.count} tracks** to the queue.`
+      isNowPlaying ? "🎵 NOW PLAYING" : "📥 ADDED TO QUEUE",
+      `Added **${added.count} tracks** to the queue.\nUse the controls on the music panel to manage playback.`
     );
   }
 
@@ -135,9 +122,8 @@ export async function playQuery(x, query, opts = {}) {
   const author = first?.info?.author || "Unknown artist";
   const duration = formatDuration(first?.info?.duration);
 
-  return safeReply(
-    x,
-    isNowPlaying ? "🎵 Now Playing" : "🎵 Added to Queue",
-    `**[${title}](${first?.info?.uri || ""})**\n${author} • ${duration}`
-  );
+  return reply(x, v2Payload(nowPlayingEmbed(added.p), {
+    // V2 messages cannot contain content/embeds/stickers.
+    // The container itself is the complete message.
+  }));
 }
