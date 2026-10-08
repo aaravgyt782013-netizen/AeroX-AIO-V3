@@ -23,6 +23,8 @@ export class MusicManager {
     this.history = new Map();
     this.likes = new Map();
     this.emptyVoiceTimers = new Map();
+    this.nodeCooldowns = new Map();
+    this.nodeFailureCounts = new Map();
     this.init();
   }
 
@@ -68,13 +70,22 @@ export class MusicManager {
     });
 
     this.lavalink.nodeManager?.on("connect", node => {
-      try { node.updateSession?.(true, 120000); } catch {}
-      logger.success("MusicManager", "Lavalink connected: " + (node?.id || "unknown"));
+      const id = node?.id || "unknown";
+      this.nodeCooldowns.delete(id);
+      this.nodeFailureCounts.delete(id);
+      try { node.updateSession?.(true, 360000); } catch {}
+      logger.success("MusicManager", "Lavalink connected: " + id);
     });
     this.lavalink.nodeManager?.on("resumed", node => logger.info("MusicManager", "Lavalink session resumed: " + (node?.id || "unknown")));
     this.lavalink.nodeManager?.on("reconnecting", node => logger.warn("MusicManager", "Lavalink reconnecting: " + (node?.id || "unknown")));
-    this.lavalink.nodeManager?.on("disconnect", (node, reason) => logger.warn("MusicManager", "Lavalink disconnected [" + (node?.id || "unknown") + "]: " + (reason?.message || reason || "unknown")));
-    this.lavalink.nodeManager?.on("error", (node, error) => logger.error("MusicManager", "Lavalink node error [" + (node?.id || "unknown") + "]", error));
+    this.lavalink.nodeManager?.on("disconnect", (node, reason) => {
+      this._markNodeFailure(node, reason?.message || reason || "disconnect");
+      logger.warn("MusicManager", "Lavalink disconnected [" + (node?.id || "unknown") + "]: " + (reason?.message || reason || "unknown"));
+    });
+    this.lavalink.nodeManager?.on("error", (node, error) => {
+      this._markNodeFailure(node, error?.message || error || "error");
+      logger.error("MusicManager", "Lavalink node error [" + (node?.id || "unknown") + "]", error);
+    });
 
     this.lavalink.on("trackStart", (player, track) => {
       if (!track?.info?.title) return;
@@ -112,10 +123,31 @@ export class MusicManager {
     });
   }
 
+  _markNodeFailure(node, reason = "failure") {
+    const id = node?.id;
+    if (!id) return;
+    const failures = (this.nodeFailureCounts.get(id) || 0) + 1;
+    this.nodeFailureCounts.set(id, failures);
+    const cooldown = Math.min(120000, 15000 * Math.max(1, failures));
+    this.nodeCooldowns.set(id, Date.now() + cooldown);
+    logger.warn("MusicManager", "Temporarily cooling down node " + id + " for " + Math.round(cooldown / 1000) + "s: " + reason);
+  }
+
+  _isNodeCoolingDown(node) {
+    const id = node?.id;
+    if (!id) return true;
+    const until = this.nodeCooldowns.get(id) || 0;
+    if (until && until <= Date.now()) {
+      this.nodeCooldowns.delete(id);
+      return false;
+    }
+    return until > Date.now();
+  }
+
   getConnectedNodes() {
     try {
       const nodes = this.lavalink?.nodeManager?.leastUsedNodes?.("players") || [];
-      return Array.isArray(nodes) ? nodes : [];
+      return (Array.isArray(nodes) ? nodes : []).filter(node => !this._isNodeCoolingDown(node));
     } catch { return []; }
   }
 
@@ -230,17 +262,27 @@ export class MusicManager {
     if (requested === "ytmsearch") sources.push("ytsearch");
     if (requested === "spsearch") sources.push("ytmsearch", "ytsearch");
     if (requested === "scsearch") sources.push("ytsearch");
-    for (const node of nodes) {
+    const searchNode = async node => {
       for (const src of [...new Set(sources)]) {
         try {
-          const result = await node.search({ query: q, source: src }, requester);
+          const result = await Promise.race([
+            node.search({ query: q, source: src }, requester),
+            sleep(10000).then(() => null)
+          ]);
           if (result?.tracks?.length || result?.loadType === "playlist") return result;
         } catch (error) {
+          this._markNodeFailure(node, "search: " + (error?.message || error));
           logger.warn("MusicManager", "Search failed [" + node.id + "/" + src + "]: " + (error?.message || error));
         }
       }
+      throw new Error("No result from " + node.id);
+    };
+
+    try {
+      return await Promise.any(nodes.map(searchNode));
+    } catch {
+      return null;
     }
-    return null;
   }
 
   async resolve(query, options = {}) { return this.search(query, options); }
