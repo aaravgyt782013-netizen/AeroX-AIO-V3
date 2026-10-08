@@ -1,298 +1,135 @@
-import { PlayerManager } from '#managers/PlayerManager';
-import { logger } from '#utils/logger';
+import { PlayerManager } from "#managers/PlayerManager";
+import { logger } from "#utils/logger";
 
 const aloneTimeouts = new Map();
-const muteStates = new Map();
+const reconnectTimers = new Map();
 
 export default {
-	name: "voiceStateUpdate",
-	once: false,
-	async execute(oldState, newState, client) {
-		try {
-			const guildId = newState.guild.id;
-			const player = client.music?.getPlayer(guildId);
+  name: "voiceStateUpdate",
+  once: false,
+  async execute(oldState, newState, client) {
+    try {
+      const guildId = newState.guild.id;
+      const raw = client.music?.getPlayer(guildId);
+      if (!raw) return;
 
-			if (!player) return;
+      const pm = new PlayerManager(raw);
+      const botMember = newState.guild.members.me;
 
-			const pm = new PlayerManager(player);
-			const botMember = newState.guild.members.me;
+      if (newState.id === client.user.id) {
+        await handleBotState(oldState, newState, pm, client);
+        return;
+      }
 
-			if (newState.id === client.user.id) {
-				await handleBotVoiceStateChange(oldState, newState, pm, botMember, client);
-				return;
-			}
-
-			await handleUserVoiceStateChange(oldState, newState, pm, botMember, client);
-
-		} catch (error) {
-			logger.error('VoiceStateUpdate', 'Error in voice state update handler:', error);
-		}
-	},
+      await handleUserState(oldState, newState, pm, botMember, client);
+    } catch (error) {
+      logger.error("VoiceStateUpdate", "Music voice-state handler failed:", error);
+    }
+  }
 };
 
-async function handleBotVoiceStateChange(oldState, newState, pm, botMember, client) {
-	const guildId = newState.guild.id;
-
-	if (oldState.channelId && !newState.channelId) {
-		logger.info('VoiceStateUpdate', `Bot disconnected from voice channel in guild ${guildId}`);
-
-		clearAloneTimeout(guildId);
-
-		await destroyPlayer(pm, 'Bot disconnected from voice channel', client);
-		return;
-	}
-
-	if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-		logger.info('VoiceStateUpdate', `Bot moved from ${oldState.channelId} to ${newState.channelId} in guild ${guildId}`);
-
-		try {
-			await pm.changeVoiceState({ channelId: newState.channelId });
-		} catch (error) {
-			logger.error('VoiceStateUpdate', 'Error updating voice state after channel move:', error);
-		}
-
-		await checkIfAlone(newState, pm, client);
-	}
-
-	await handleMuteStateChange(oldState, newState, pm, client);
+function stayAliveEnabled(pm, client) {
+  try {
+    const s = client.db?.guild?.getMusicSettings?.(pm.guildId);
+    return Boolean(pm.getData("stayAlive") || pm.getData("autoplayEnabled") || s?.autoplay || s?.mode247);
+  } catch {
+    return Boolean(pm.getData("stayAlive") || pm.getData("autoplayEnabled"));
+  }
 }
 
-async function handleUserVoiceStateChange(oldState, newState, pm, botMember, client) {
-	const guildId = newState.guild.id;
-	const botVoiceChannelId = botMember?.voice?.channelId;
+async function handleBotState(oldState, newState, pm, client) {
+  const guildId = newState.guild.id;
 
-	if (!botVoiceChannelId) return;
+  if (oldState.channelId && !newState.channelId) {
+    if (stayAliveEnabled(pm, client)) {
+      logger.warn("VoiceStateUpdate", "LightCore lost voice in guild " + guildId + "; reconnecting.");
+      scheduleReconnect(pm, oldState.channelId, client);
+      return;
+    }
+    clearAloneTimeout(guildId);
+    await pm.destroy("Bot disconnected from voice channel", true).catch(() => {});
+    return;
+  }
 
-	if (oldState.channelId === botVoiceChannelId && newState.channelId !== botVoiceChannelId) {
-		logger.debug('VoiceStateUpdate', `User ${newState.id} left bot's voice channel in guild ${guildId}`);
-		await checkIfAlone(botMember.voice, pm, client);
-	}
-
-	if (oldState.channelId !== botVoiceChannelId && newState.channelId === botVoiceChannelId) {
-		logger.debug('VoiceStateUpdate', `User ${newState.id} joined bot's voice channel in guild ${guildId}`);
-
-		clearAloneTimeout(guildId);
-
-		if (pm.isPaused && pm.getData('pausedDueToAlone')) {
-			await pm.resume();
-			pm.setData('pausedDueToAlone', false);
-			logger.info('VoiceStateUpdate', `Resumed playback in guild ${guildId} - users rejoined`);
-		}
-	}
+  if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId && stayAliveEnabled(pm, client)) {
+    await pm.changeVoiceState({ channelId: newState.channelId }).catch(() => {});
+  }
 }
 
-async function handleMuteStateChange(oldState, newState, pm, client) {
-	const guildId = newState.guild.id;
-	const wasServerMuted = oldState.serverMute;
-	const isServerMuted = newState.serverMute;
-	const wasSelfMuted = oldState.selfMute;
-	const isSelfMuted = newState.selfMute;
+function scheduleReconnect(pm, channelId, client) {
+  const guildId = pm.guildId;
+  if (reconnectTimers.has(guildId)) return;
 
-	const previousMuteState = muteStates.get(guildId) || { serverMute: false, selfMute: false };
-	const currentMuteState = { serverMute: isServerMuted, selfMute: isSelfMuted };
-	muteStates.set(guildId, currentMuteState);
+  reconnectTimers.set(guildId, setTimeout(async () => {
+    reconnectTimers.delete(guildId);
+    try {
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild?.channels?.cache?.get(channelId)) return;
+      const current = client.music?.getPlayer(guildId);
+      if (!current || !stayAliveEnabled(new PlayerManager(current), client)) return;
 
-	const wasMuted = previousMuteState.serverMute || previousMuteState.selfMute;
-	const isMuted = isServerMuted || isSelfMuted;
-
-	if (!wasMuted && isMuted) {
-		if (pm.isPlaying) {
-			await pm.pause();
-			pm.setData('pausedDueToMute', true);
-
-			const muteType = isServerMuted ? 'server-muted' : 'self-muted';
-			logger.info('VoiceStateUpdate', `Paused playback in guild ${guildId} - bot was ${muteType}`);
-
-			await sendMuteNotification(pm, true, muteType, client);
-		}
-	} else if (wasMuted && !isMuted) {
-		if (pm.isPaused && pm.getData('pausedDueToMute')) {
-			await pm.resume();
-			pm.setData('pausedDueToMute', false);
-			logger.info('VoiceStateUpdate', `Resumed playback in guild ${guildId} - bot was unmuted`);
-
-			await sendMuteNotification(pm, false, null, client);
-		}
-	}
+      const manager = new PlayerManager(current);
+      await manager.changeVoiceState({ channelId });
+      await manager.connect().catch(() => {});
+      logger.success("VoiceStateUpdate", "LightCore reconnected to voice in guild " + guildId);
+    } catch (error) {
+      logger.warn("VoiceStateUpdate", "Voice reconnect failed: " + (error?.message || error));
+      scheduleReconnect(pm, channelId, client);
+    }
+  }, 5000));
 }
 
-async function checkIfAlone(voiceState, pm, client) {
-	const guildId = voiceState.guild.id;
-	const channel = voiceState.channel;
-	if (!channel) return;
+async function handleUserState(oldState, newState, pm, botMember, client) {
+  const guildId = newState.guild.id;
+  const botChannelId = botMember?.voice?.channelId;
+  if (!botChannelId) return;
 
-	const humanMembers = channel.members.filter(member => !member.user.bot);
+  if (oldState.channelId === botChannelId && newState.channelId !== botChannelId) {
+    const channel = newState.guild.channels.cache.get(botChannelId);
+    const humans = channel?.members?.filter(member => !member.user.bot).size ?? 0;
 
-	// Rythm-style rule: Autoplay is a stay-alive mode. When it is ON,
-	// LightCore must NOT pause or destroy the player just because nobody
-	// is currently sitting in the voice channel.
-	let autoplay = false;
-	let mode247 = false;
-	try {
-		const settings = client.db?.guild?.getMusicSettings?.(guildId);
-		autoplay = Boolean(settings?.autoplay);
-		mode247 = Boolean(settings?.mode247);
-	} catch {}
+    if (humans === 0 && stayAliveEnabled(pm, client)) {
+      clearAloneTimeout(guildId);
+      pm.setData("stayAlive", true);
+      return;
+    }
 
-	if (humanMembers.size === 0) {
-		clearAloneTimeout(guildId);
-		if (autoplay || mode247) {
-			pm.setData('stayAlive', true);
-			if (pm.isPaused && pm.getData('pausedDueToAlone')) {
-				await pm.resume().catch(() => {});
-				pm.setData('pausedDueToAlone', false);
-			}
-			logger.info('VoiceStateUpdate', `Keeping music connected in guild ${guildId} because autoplay/24-7 is enabled`);
-			return;
-		}
+    if (humans === 0) {
+      if (pm.isPlaying) {
+        await pm.pause().catch(() => {});
+        pm.setData("pausedDueToAlone", true);
+      }
+      clearAloneTimeout(guildId);
+      aloneTimeouts.set(guildId, setTimeout(async () => {
+        aloneTimeouts.delete(guildId);
+        const current = client.music?.getPlayer(guildId);
+        if (!current) return;
+        const latest = new PlayerManager(current);
+        const latestChannel = newState.guild.members.me?.voice?.channel;
+        if ((latestChannel?.members?.filter(member => !member.user.bot).size ?? 0) === 0 && !stayAliveEnabled(latest, client)) {
+          await latest.destroy("Voice channel empty for 60 seconds", true).catch(() => {});
+        }
+      }, 60000));
+    } else {
+      clearAloneTimeout(guildId);
+      if (pm.isPaused && pm.getData("pausedDueToAlone")) {
+        await pm.resume().catch(() => {});
+        pm.setData("pausedDueToAlone", false);
+      }
+    }
+  }
 
-		if (pm.isPlaying) {
-			await pm.pause().catch(() => {});
-			pm.setData('pausedDueToAlone', true);
-		}
-
-		const timeout = setTimeout(async () => {
-			try {
-				const currentChannel = voiceState.guild.members.me?.voice?.channel;
-				if (!currentChannel) return;
-				const currentHumanMembers = currentChannel.members.filter(member => !member.user.bot);
-				let keepAlive = false;
-				try {
-					const settings = client.db?.guild?.getMusicSettings?.(guildId);
-					keepAlive = Boolean(settings?.autoplay || settings?.mode247);
-				} catch {}
-				if (currentHumanMembers.size === 0 && !keepAlive) {
-					await destroyPlayer(pm, 'Alone in voice channel for 60 seconds', client);
-				}
-			} catch (error) {
-				logger.error('VoiceStateUpdate', 'Error in alone timeout handler:', error);
-			} finally {
-				aloneTimeouts.delete(guildId);
-			}
-		}, 60000);
-		aloneTimeouts.set(guildId, timeout);
-	} else {
-		clearAloneTimeout(guildId);
-		pm.setData('stayAlive', false);
-		if (pm.isPaused && pm.getData('pausedDueToAlone')) {
-			await pm.resume().catch(() => {});
-			pm.setData('pausedDueToAlone', false);
-		}
-	}
+  if (oldState.channelId !== botChannelId && newState.channelId === botChannelId) {
+    clearAloneTimeout(guildId);
+    if (pm.isPaused && pm.getData("pausedDueToAlone")) {
+      await pm.resume().catch(() => {});
+      pm.setData("pausedDueToAlone", false);
+    }
+  }
 }
 
 function clearAloneTimeout(guildId) {
-	const existingTimeout = aloneTimeouts.get(guildId);
-	if (existingTimeout) {
-		clearTimeout(existingTimeout);
-		aloneTimeouts.delete(guildId);
-		logger.debug('VoiceStateUpdate', `Cleared alone timeout for guild ${guildId}`);
-	}
+  const timer = aloneTimeouts.get(guildId);
+  if (timer) clearTimeout(timer);
+  aloneTimeouts.delete(guildId);
 }
-
-async function destroyPlayer(pm, reason, client) {
-	try {
-		const guildId = pm.guildId;
-
-			let is247Enabled = false;
-		let autoplayEnabled = false;
-		try {
-			is247Enabled = await pm.is247ModeEnabled();
-			autoplayEnabled = Boolean(client.db?.guild?.getMusicSettings?.(guildId)?.autoplay);
-		} catch {}
-
-		if (is247Enabled || autoplayEnabled) {
-			logger.info('VoiceStateUpdate', `Stay-alive mode enabled in guild ${guildId}; keeping the player connected: ${reason}`);
-			clearAloneTimeout(guildId);
-			muteStates.delete(guildId);
-			return;
-		}
-
-		await sendDisconnectNotification(pm, reason, client);
-
-		clearAloneTimeout(guildId);
-		muteStates.delete(guildId);
-
-		await pm.destroy(reason, true);
-
-		logger.info('VoiceStateUpdate', `Player destroyed in guild ${guildId}: ${reason}`);
-	} catch (error) {
-		logger.error('VoiceStateUpdate', 'Error destroying player:', error);
-	}
-}
-
-async function sendMuteNotification(pm, isMuted, muteType = null, client) {
-	try {
-		const textChannelId = pm.textChannelId;
-		if (!textChannelId) return;
-
-		const channel = client.channels.cache.get(textChannelId);
-		if (!channel) return;
-
-		let message;
-		if (isMuted) {
-			const type = muteType === 'server-muted' ? 'server-muted' : 'muted';
-			message = `⏸️ **Music paused** - Bot was ${type}`;
-		} else {
-			message = `▶️ **Music resumed** - Bot was unmuted`;
-		}
-
-		await channel.send(message);
-	} catch (error) {
-		logger.error('VoiceStateUpdate', 'Error sending mute notification:', error);
-	}
-}
-
-async function send247StopNotification(pm, reason, client) {
-	try {
-		const textChannelId = pm.textChannelId;
-		if (!textChannelId) return;
-
-		const channel = client.channels.cache.get(textChannelId);
-		if (!channel) return;
-
-		let message;
-		switch (reason) {
-			case 'Alone in voice channel for 10 seconds':
-				message = '⏹️ **Music stopped** - I was alone in the voice channel (24/7 mode active)';
-				break;
-			case 'Bot disconnected from voice channel':
-				message = '⏹️ **Music stopped** - I was removed from the voice channel (24/7 mode active)';
-				break;
-			default:
-				message = `⏹️ **Music stopped** - ${reason} (24/7 mode active)`;
-				break;
-		}
-
-		await channel.send(message);
-	} catch (error) {
-		logger.error('VoiceStateUpdate', 'Error sending 247 stop notification:', error);
-	}
-}
-
-async function sendDisconnectNotification(pm, reason, client) {
-	try {
-		const textChannelId = pm.textChannelId;
-		if (!textChannelId) return;
-
-		const channel = client.channels.cache.get(textChannelId);
-		if (!channel) return;
-
-		let message;
-		switch (reason) {
-			case 'Alone in voice channel for 10 seconds':
-				message = '👋 **Disconnected** - I was alone in the voice channel for too long';
-				break;
-			case 'Bot disconnected from voice channel':
-				message = '🔌 **Disconnected** - I was removed from the voice channel';
-				break;
-			default:
-				message = `🔌 **Disconnected** - ${reason}`;
-				break;
-		}
-
-		await channel.send(message);
-	} catch (error) {
-		logger.error('VoiceStateUpdate', 'Error sending disconnect notification:', error);
-	}
-                               }
