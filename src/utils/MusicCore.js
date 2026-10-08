@@ -83,7 +83,8 @@ export function musicContainer({ title = E("music", "🎵") + " **LIGHTCORE • 
 }
 
 export function v2Payload(container, extra = {}) {
-  return { ...extra, components: [container], flags: v2Flags };
+  const extraFlags = Number(extra.flags || 0);
+  return { ...extra, components: [container], flags: v2Flags | extraFlags };
 }
 
 export async function safeReply(x, title, description, color = MUSIC_COLOR) {
@@ -167,9 +168,45 @@ export async function resolveTrack(x, query, source) {
 export async function enqueue(x, result, position) {
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
-  if (result.loadType === "playlist") await p.addTracks(result.tracks, position);
-  else await p.addTracks(result.tracks[0], position);
-  if (idle && !p.isPlaying) await p.play();
+  if (result.loadType === "playlist") {
+    await p.addTracks(result.tracks, position);
+  } else {
+    await p.addTracks(result.tracks[0], position);
+  }
+
+  if (idle && !p.isPlaying) {
+    try {
+      // Lavalink-client recommends queue.add() followed by player.play().
+      await Promise.race([
+        p.play(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Playback start timed out.")), 12000))
+      ]);
+    } catch (error) {
+      // Give the engine a second playback-capable source before surfacing the failure.
+      const first = result.tracks?.[0];
+      const title = first?.info?.title || "";
+      const author = first?.info?.author || "";
+      const fallbackQuery = [author, title].filter(Boolean).join(" ").trim();
+      if (fallbackQuery) {
+        const fallback = await x.client.music.search(fallbackQuery, {
+          source: "scsearch",
+          requester: context(x).user
+        });
+        const fallbackTrack = fallback?.tracks?.find(track => track?.info?.identifier);
+        if (fallbackTrack) {
+          await p.addTracks(fallbackTrack, 0);
+          await Promise.race([
+            p.play(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Fallback playback start timed out.")), 12000))
+          ]);
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
+  }
   return { p, count: result.tracks?.length || 1, first: result.tracks[0] };
 }
 
