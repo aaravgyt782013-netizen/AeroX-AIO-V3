@@ -36,7 +36,7 @@ export function command({
   voiceRequired = false,
   dj = false,
   options = [],
-  slash = true,
+  slash = false,
   execute,
   slashExecute
 }) {
