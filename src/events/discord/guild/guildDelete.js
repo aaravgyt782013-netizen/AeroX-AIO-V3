@@ -41,19 +41,30 @@ export default {
           name: "LightCore • Server Removal",
           iconURL: client.user?.displayAvatarURL({ size: 128 }) || undefined,
         })
-        .setTitle("👋 LightCore has left " + (saved?.guild_name || guild.name))
+        .setTitle("👋 LightCore has left " + (saved?.guild_name || guild.name || "your server"))
         .setDescription(
-          "LightCore was removed from your server or the server was deleted.\n\n" +
-          "If this was intentional, no action is required. If you want LightCore back, " +
-          "you can add it again using the button below."
+          "LightCore is no longer in your server. This notification is sent to the server owner/administrators.\n\n" +
+          "If you removed LightCore intentionally, no action is required. If you want to bring it back, use the Re-add LightCore button below."
         )
         .addFields(
           { name: "🏠 Server", value: saved?.guild_name || guild.name || "Unknown Server", inline: true },
           { name: "🆔 Server ID", value: guild.id, inline: true },
-          { name: "📌 Reason", value: "Removed / kicked / server unavailable", inline: false },
+          { name: "👥 Members", value: String(guild.memberCount || "Unknown"), inline: true },
+          {
+            name: "📌 Event",
+            value: "Discord reported that LightCore is no longer a member of this server. Discord does not provide a reliable reason here, so LightCore will not falsely claim whether it was kicked or manually left.",
+            inline: false,
+          },
+          {
+            name: "🔄 Want LightCore back?",
+            value: "Re-add the bot and run " + config.prefix + "help to get started.",
+            inline: false,
+          },
         )
         .setFooter({ text: "LightCore • We hope to see you again" })
         .setTimestamp();
+
+      if (saved?.guild_icon) embed.setThumbnail(saved.guild_icon);
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setLabel("Support Server").setStyle(ButtonStyle.Link).setURL(support),
@@ -80,7 +91,7 @@ export default {
 
     if (client.inviteCache?.has(guild.id)) {
       client.inviteCache.delete(guild.id);
-      logger.debug("GuildDelete", `Cleaned invite cache for guild ${guild.id} (${guild.name})`);
+      logger.debug("GuildDelete", "Cleaned invite cache for guild " + guild.id + " (" + guild.name + ")");
     }
   },
 };
