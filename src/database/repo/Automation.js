@@ -12,8 +12,9 @@ export class Automation extends Database {
     this.exec(
       "CREATE TABLE IF NOT EXISTS welcome_settings (" +
       "guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message TEXT NOT NULL, " +
-      "enabled INTEGER DEFAULT 1, updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000))"
+      "enabled INTEGER DEFAULT 1, welcome_style TEXT DEFAULT 'embed', updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000))"
     );
+    try { this.exec("ALTER TABLE welcome_settings ADD COLUMN welcome_style TEXT DEFAULT 'embed'"); } catch {}
     this.exec(
       "CREATE TABLE IF NOT EXISTS leave_settings (" +
       "guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message TEXT NOT NULL, " +
@@ -35,13 +36,22 @@ export class Automation extends Database {
     return this.get("SELECT * FROM welcome_settings WHERE guild_id = ?", [guildId]) || null;
   }
 
-  setWelcome(guildId, channelId, message) {
+  setWelcome(guildId, channelId, message, style = "embed") {
     const now = Date.now();
+    const safeStyle = style === "direct" ? "direct" : "embed";
     return this.exec(
-      "INSERT INTO welcome_settings (guild_id, channel_id, message, enabled, updated_at) " +
-      "VALUES (?, ?, ?, 1, ?) ON CONFLICT(guild_id) DO UPDATE SET " +
-      "channel_id = excluded.channel_id, message = excluded.message, enabled = 1, updated_at = excluded.updated_at",
-      [guildId, channelId, message, now],
+      "INSERT INTO welcome_settings (guild_id, channel_id, message, enabled, welcome_style, updated_at) " +
+      "VALUES (?, ?, ?, 1, ?, ?) ON CONFLICT(guild_id) DO UPDATE SET " +
+      "channel_id = excluded.channel_id, message = excluded.message, enabled = 1, welcome_style = excluded.welcome_style, updated_at = excluded.updated_at",
+      [guildId, channelId, message, safeStyle, now],
+    );
+  }
+
+  setWelcomeStyle(guildId, style = "embed") {
+    const safeStyle = style === "direct" ? "direct" : "embed";
+    return this.exec(
+      "UPDATE welcome_settings SET welcome_style = ?, updated_at = ? WHERE guild_id = ?",
+      [safeStyle, Date.now(), guildId]
     );
   }
 
