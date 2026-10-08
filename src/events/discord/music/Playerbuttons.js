@@ -1,63 +1,45 @@
 import {
-  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder
+  TextInputStyle
 } from "discord.js";
+import { db } from "#database/DatabaseManager";
 import {
   getPlayer,
   djError,
   nowPlayingEmbed,
   queueEmbed,
-  controlRows,
   musicSettings,
+  settingsContainer,
   settingsRows,
-  sourceMenu
+  sourceMenu,
+  v2Payload
 } from "#utils/MusicCore";
 
-function settingsEmbed(x) {
-  const s = musicSettings(x);
-  return new EmbedBuilder()
-    .setColor(0x5865F2)
-    .setTitle("🎵 LightCore Music Settings")
-    .setDescription(
-      [
-        "**Playback**",
-        `├ 🔄 Autoplay: **${s.autoplay ? "ON" : "OFF"}**`,
-        `├ 📢 Song announcements: **${s.announceSongs ? "ON" : "OFF"}**`,
-        `├ 🗳️ Vote skip: **${s.voteSkip ? "ON" : "OFF"}**`,
-        `├ ♾️ 24/7: **${s.mode247 ? "ON" : "OFF"}**`,
-        `└ 🔎 Default source: **${s.source === "ytmsearch" ? "YouTube Music" : s.source}**`,
-        "",
-        "**Access**",
-        `└ 👑 DJ role: ${s.djRole ? "<@&" + s.djRole + ">" : "Disabled (everyone can control)"}`
-      ].join("\n")
-    );
-}
-
 function canManage(interaction) {
-  return interaction.member?.permissions?.has("Administrator") ||
-    interaction.member?.permissions?.has("ManageGuild");
+  return Boolean(
+    interaction.member?.permissions?.has("Administrator") ||
+    interaction.member?.permissions?.has("ManageGuild")
+  );
 }
 
-async function updateSettings(interaction, client) {
-  return interaction.update({
-    embeds: [settingsEmbed({ interaction, client })],
-    components: settingsRows(musicSettings({ interaction, client }))
-  });
+async function updateSettings(interaction, notice = "") {
+  const settings = musicSettings({ interaction, client: interaction.client });
+  return interaction.update(v2Payload(settingsContainer(settings, notice)));
 }
 
 export function createMusicPlayerV2(track, settings, paused = false, position = 0) {
-  const fake = {
+  return nowPlayingEmbed({
     currentTrack: track,
     isPaused: paused,
     position,
     volume: settings?.volume ?? 100,
     repeatMode: "off",
     queueSize: 0
-  };
-  return controlRows(fake);
+  });
 }
 
 export default {
@@ -68,39 +50,38 @@ export default {
     if (!interaction.isButton?.() && !interaction.isStringSelectMenu?.() && !interaction.isModalSubmit?.()) return;
     if (!interaction.customId?.startsWith("lc_music_")) return;
 
-    const isSetting = interaction.customId.startsWith("lc_music_setting_") ||
-      interaction.customId === "lc_music_source_select";
+    const id = interaction.customId;
 
-    if (isSetting) {
+    if (id.startsWith("lc_music_setting_") || id === "lc_music_source_select") {
       if (!canManage(interaction)) {
-        return interaction.reply({
-          content: "❌ You need **Manage Server** to change music settings.",
-          ephemeral: true
-        });
+        return interaction.reply(v2Payload(settingsContainer(
+          musicSettings({ interaction, client }),
+          "You need Manage Server to change music settings."
+        )));
       }
 
       try {
-        if (interaction.isStringSelectMenu() && interaction.customId === "lc_music_source_select") {
+        if (interaction.isStringSelectMenu() && id === "lc_music_source_select") {
           const source = interaction.values[0];
-          interaction.client.db.guild.setMusicSettings(interaction.guild.id, { source });
-          return updateSettings(interaction, client);
+          db.setMusicSettings(interaction.guild.id, { source });
+          return updateSettings(interaction, "Music source updated");
         }
 
-        if (interaction.isButton() && interaction.customId === "lc_music_setting_source") {
-          return interaction.reply({
-            components: [sourceMenu()],
-            ephemeral: true
-          });
+        if (interaction.isButton() && id === "lc_music_setting_source") {
+          const container = settingsContainer(musicSettings({ interaction, client }), "Choose the default search source below.");
+          // Put the source menu in its own V2 message so Discord never receives an embed/content with Components V2.
+          container.addActionRowComponents(sourceMenu());
+          return interaction.reply(v2Payload(container, { ephemeral: true }));
         }
 
-        if (interaction.isButton() && interaction.customId === "lc_music_setting_dj") {
+        if (interaction.isButton() && id === "lc_music_setting_dj") {
           const modal = new ModalBuilder()
             .setCustomId("lc_music_setting_dj_modal")
-            .setTitle("Set DJ Role");
+            .setTitle("Set LightCore DJ Role");
 
           const input = new TextInputBuilder()
             .setCustomId("role_id")
-            .setLabel("Role ID or @role (leave blank to disable)")
+            .setLabel("Role ID or @role (blank disables)")
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
             .setPlaceholder("123456789012345678");
@@ -109,18 +90,20 @@ export default {
           return interaction.showModal(modal);
         }
 
-        if (interaction.isModalSubmit() && interaction.customId === "lc_music_setting_dj_modal") {
+        if (interaction.isModalSubmit() && id === "lc_music_setting_dj_modal") {
           const raw = interaction.fields.getTextInputValue("role_id").trim();
           const roleId = raw.match(/\d{15,25}/)?.[0] || null;
           if (roleId && !interaction.guild.roles.cache.has(roleId)) {
-            return interaction.reply({ content: "❌ I couldn't find that role in this server.", ephemeral: true });
+            return interaction.reply(v2Payload(settingsContainer(
+              musicSettings({ interaction, client }),
+              "That role was not found."
+            ), { ephemeral: true }));
           }
-          interaction.client.db.guild.setDJRole(interaction.guild.id, roleId);
-          return interaction.reply({
-            embeds: [settingsEmbed({ interaction, client })],
-            components: settingsRows(musicSettings({ interaction, client })),
-            ephemeral: true
-          });
+          db.setDJRole(interaction.guild.id, roleId);
+          return interaction.reply(v2Payload(
+            settingsContainer(musicSettings({ interaction, client }), "DJ role updated"),
+            { ephemeral: true }
+          ));
         }
 
         const map = {
@@ -129,61 +112,72 @@ export default {
           lc_music_setting_voteskip: "voteSkip",
           lc_music_setting_247: "mode247"
         };
-        const key = map[interaction.customId];
+        const key = map[id];
         if (key) {
-          const s = musicSettings({ interaction, client });
-          interaction.client.db.guild.setMusicSettings(interaction.guild.id, { [key]: !s[key] });
-          return updateSettings(interaction, client);
+          const current = musicSettings({ interaction, client });
+          const enabled = !current[key];
+          db.setMusicSettings(interaction.guild.id, { [key]: enabled });
+
+          const player = client.music?.getPlayer?.(interaction.guild.id);
+          if (player && key === "autoplay") player.set("autoplayEnabled", enabled);
+
+          return updateSettings(interaction, `${key === "mode247" ? "24/7" : key} ${enabled ? "enabled" : "disabled"}`);
         }
+
+        return interaction.reply(v2Payload(settingsContainer(
+          musicSettings({ interaction, client }),
+          "Unknown music setting."
+        ), { ephemeral: true }));
       } catch (error) {
-        return interaction.reply({
-          content: "❌ Could not update music settings: " + (error?.message || "unknown error"),
-          ephemeral: true
-        }).catch(() => {});
+        return interaction.reply(v2Payload(settingsContainer(
+          musicSettings({ interaction, client }),
+          "Could not update music settings: " + (error?.message || "unknown error")
+        ), { ephemeral: true })).catch(() => {});
       }
     }
 
     const p = getPlayer({ interaction, client });
     if (!p) {
-      return interaction.reply({ content: "❌ No active music player.", ephemeral: true });
+      return interaction.reply(v2Payload(settingsContainer(
+        musicSettings({ interaction, client }),
+        "No active music player. Start playback with .play <song>."
+      ), { ephemeral: true }));
     }
 
     const needsDJ = [
       "lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous",
       "lc_music_rewind","lc_music_forward","lc_music_shuffle","lc_music_loop",
       "lc_music_volume_down","lc_music_volume_up","lc_music_search_select"
-    ].includes(interaction.customId);
+    ].includes(id);
 
     if (needsDJ) {
       const error = djError({ interaction, client });
-      if (error) return interaction.reply({ content: "❌ " + error, ephemeral: true });
+      if (error) return interaction.reply(v2Payload(settingsContainer(
+        musicSettings({ interaction, client }),
+        error
+      ), { ephemeral: true }));
     }
 
     try {
-      if (interaction.isStringSelectMenu() && interaction.customId === "lc_music_search_select") {
+      if (interaction.isStringSelectMenu() && id === "lc_music_search_select") {
         const index = Number(interaction.values[0]);
         const session = p.player?.get?.("searchSession");
 
         if (!session || session.userId !== interaction.user.id || !session.tracks?.[index]) {
-          return interaction.reply({
-            content: "❌ Search session expired. Run `.search <query>` again.",
-            ephemeral: true
-          });
+          return interaction.reply(v2Payload(settingsContainer(
+            musicSettings({ interaction, client }),
+            "Search session expired. Run .search again."
+          ), { ephemeral: true }));
         }
 
         await p.addTracks(session.tracks[index]);
         if (!p.currentTrack) await p.play();
-
-        return interaction.update({
-          content: "✅ Added **" + (session.tracks[index].info.title || "track") + "** to the queue.",
-          embeds: [],
-          components: []
-        });
+        return interaction.update(v2Payload(nowPlayingEmbed(p)));
       }
 
-      switch (interaction.customId) {
+      switch (id) {
         case "lc_music_previous":
-          if (!await p.playPrevious()) return interaction.reply({ content: "❌ No previous track is available.", ephemeral: true });
+          if (!await p.playPrevious()) return interaction.reply(v2Payload(nowPlayingEmbed(p), { ephemeral: true }));
           break;
         case "lc_music_pause":
           if (p.isPaused) await p.resume(); else await p.pause();
@@ -199,7 +193,7 @@ export default {
           break;
         case "lc_music_stop":
           await p.stop();
-          return interaction.update({ content: "⏹️ **Playback stopped.**", embeds: [], components: [] });
+          return interaction.update(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Playback stopped")));
         case "lc_music_shuffle":
           await p.shuffleQueue();
           break;
@@ -213,20 +207,19 @@ export default {
           await p.setVolume(Math.min(200, (p.volume ?? 100) + 10));
           break;
         case "lc_music_queue":
-          return interaction.reply({ embeds: [queueEmbed(p, 1)], ephemeral: true });
+          return interaction.reply(v2Payload(queueEmbed(p, 1), { ephemeral: true }));
         default:
           return;
       }
 
-      await interaction.update({
-        embeds: [nowPlayingEmbed(p)],
-        components: controlRows(p)
-      });
+      return interaction.update(v2Payload(nowPlayingEmbed(p)));
     } catch (error) {
-      if (interaction.replied || interaction.deferred) {
-        return interaction.followUp({ content: "❌ " + (error?.message || "Music action failed."), ephemeral: true }).catch(() => {});
-      }
-      return interaction.reply({ content: "❌ " + (error?.message || "Music action failed."), ephemeral: true }).catch(() => {});
+      const payload = v2Payload(settingsContainer(
+        musicSettings({ interaction, client }),
+        "Music action failed: " + (error?.message || "unknown error")
+      ), { ephemeral: true });
+      if (interaction.replied || interaction.deferred) return interaction.followUp(payload).catch(() => {});
+      return interaction.reply(payload).catch(() => {});
     }
   }
 };
