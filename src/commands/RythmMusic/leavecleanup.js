@@ -1,0 +1,3 @@
+import { command, getPlayer, context, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const p=getPlayer(x),c=context(x),v=c.member?.voice?.channel;if(!p?.queueSize||!v)return safeReply(x,"🧹 Leave cleanup","Queue is empty or you are not in voice.",0xED4245);let removed=0;for(let i=p.player.queue.tracks.length-1;i>=0;i--){const id=p.player.queue.tracks[i].requester?.id||p.player.queue.tracks[i].info?.userData?.requesterId;if(id&&!v.members.has(id)){await p.removeTrack(i);removed++;}}return safeReply(x,"🧹 Leave cleanup",removed+" track(s) removed from users who left.");};
+export default command({name:"leavecleanup",description:"Remove songs from users who left",aliases:["lc"],dj:true,voiceRequired:true,execute:run,slashExecute:run});
