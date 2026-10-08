@@ -68,6 +68,11 @@ export class PlayerManager {
     return this;
   }
 
+  async stopPlaying(clearQueue = false, executeAutoplay = false) {
+    await this.player.stopPlaying(clearQueue, executeAutoplay);
+    return this;
+  }
+
   async stop() {
     const { guildId } = this;
     const is247ModeEnabled = await this.is247ModeEnabled();
