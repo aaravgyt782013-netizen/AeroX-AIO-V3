@@ -127,6 +127,17 @@ export class AntiAbuse extends Database {
 			],
 		);
 
+		// Premium users keep their Premium access even if they hit a command
+		// cooldown repeatedly. Cooldown enforcement still applies, but the
+		// anti-abuse auto-blacklist must never turn Premium into a lockout.
+		if (db.isUserPremium(userId)) {
+			this.exec(
+				'UPDATE cooldowns SET violation_count = 0, violation_timestamps = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND command_name = ?',
+				['[]', userId, commandName],
+			);
+			return;
+		}
+
 		if (violations.length >= 3) {
 			this.blacklistUser(userId, messageOrInteraction);
 		}
