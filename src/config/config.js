@@ -2,18 +2,13 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
-  { id: "lightcore-heavencloud-ssl", host: "lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true },
-  { id: "lightcore-heavencloud-http", host: "lavalink.heavencloud.in", port: 2333, authorization: "heavencloud", secure: false },
-  { id: "lightcore-itzrandom", host: "node.itzrandom.cloud", port: 9000, authorization: "lavalink@itzrandomcloud", secure: false },
-  { id: "lightcore-apex-v4", host: "v4.bloggertasher.ru", port: 26040, authorization: "apexnodes.xyz", secure: false },
-  { id: "lightcore-lightsout-v4", host: "LavaLink4.lightsout.in", port: 40069, authorization: "LightsoutOwnsElves", secure: false },
-  { id: "lightcore-catfein", host: "lava.catfein.com", port: 4000, authorization: "catfein", secure: false },
-  { id: "lightcore-meww", host: "n2.meww.me", port: 2555, authorization: "meww.me", secure: false },
-  { id: "lightcore-rudracloud", host: "lavalink.rudracloud.com", port: 2333, authorization: "RudraCloud.com", secure: false },
-  { id: "lightcore-creavite", host: "us1.lavalink.creavite.co", port: 20080, authorization: "auto.creavite.co", secure: false },
-  { id: "lightcore-akshat", host: "lava.akshat.tech", port: 443, authorization: "admin", secure: true },
-  { id: "lightcore-charlesnaig", host: "lavahatry4.techbyte.host", port: 3000, authorization: "NAIGLAVA-dash.techbyte.host", secure: false },
-  { id: "lightcore-zoldy", host: "139.99.124.43", port: 7780, authorization: "PasswordIsZoldy", secure: false }
+  {
+    id: "lightcore-self-hosted",
+    host: "lightcore-lavalink.onrender.com",
+    port: 443,
+    authorization: "LightCore-Music-Node-2026",
+    secure: true
+  }
 ];
 
 export const config = {
