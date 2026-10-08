@@ -1,0 +1,3 @@
+import { command, context, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const c=context(x),list=x.client.music.getLikes(c.user.id);if(!list.length)return safeReply(x,"❤️ Liked Tracks","You have no liked tracks yet.");const body=list.slice(0,10).map((t,i)=>"**"+(i+1)+".** ["+t.title+"]("+(t.uri||"")+") — "+t.author).join("\n");return safeReply(x,"❤️ Your Liked Tracks",body+"\n\nShowing up to 10 tracks.");};
+export default command({name:"liked",description:"View your liked tracks",aliases:["likes","favorites","favourites"],execute:run,slashExecute:run});
