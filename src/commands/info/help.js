@@ -601,7 +601,7 @@ class HelpCommand extends Command {
               .setStyle(ButtonStyle.Secondary)
               .setDisabled(safePage === 0),
             new ButtonBuilder()
-              .setCustomId(`help_category_page_${category}_${safePage + 1}`)
+              .setCustomId(`help_category_page_current_${category}_${safePage}`)
               .setLabel(`Page ${safePage + 1}/${totalPages}`)
               .setStyle(ButtonStyle.Primary)
               .setDisabled(true),
