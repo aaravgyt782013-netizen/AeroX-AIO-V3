@@ -11,6 +11,8 @@ export class MusicManager {
     this.initialized = false;
     this.readyPromise = null;
     this.lastNodeWarning = 0;
+    this.history = new Map();
+    this.likes = new Map();
     this.init();
   }
 
@@ -56,6 +58,16 @@ export class MusicManager {
     this.lavalink.nodeManager?.on("reconnecting", node => logger.warn("MusicManager", "Lavalink reconnecting: " + (node?.id || "unknown")));
     this.lavalink.nodeManager?.on("disconnect", (node, reason) => logger.warn("MusicManager", "Lavalink disconnected: " + (node?.id || "unknown") + " — " + (reason?.message || reason || "unknown")));
     this.lavalink.nodeManager?.on("error", (node, error) => logger.error("MusicManager", "Lavalink node error [" + (node?.id || "unknown") + "]", error));
+    this.lavalink.on("trackStart", (player, track) => {
+      if (!track?.info?.title) return;
+      const list = this.history.get(player.guildId) || [];
+      list.unshift({ title:track.info.title, author:track.info.author || "Unknown", uri:track.info.uri || null, requester:track.requester?.id || track.info?.userData?.requesterId || null, at:Date.now() });
+      this.history.set(player.guildId, list.slice(0, 50));
+      const channel = this.client.channels.cache.get(player.textChannelId);
+      let announce = true;
+      try { announce = db.guild.getMusicSettings(player.guildId).announceSongs; } catch {}
+      if (announce && channel) channel.send({ content:"🎶 **Now Playing:** " + track.info.title }).catch(() => {});
+    });
     this.lavalink.on("trackError", (player, track, payload) => logger.error("MusicManager", "Track error in " + (player?.guildId || "unknown") + ": " + (payload?.exception?.message || payload?.message || "unknown")));
     this.lavalink.on("trackStuck", (player, track, payload) => logger.warn("MusicManager", "Track stuck in " + (player?.guildId || "unknown") + " after " + (payload?.thresholdMs || "?") + "ms"));
     this.lavalink.on("playerSocketClosed", (player, payload) => logger.warn("MusicManager", "Player voice socket closed for " + (player?.guildId || "unknown") + ": " + (payload?.reason || payload?.code || "unknown")));
@@ -123,4 +135,4 @@ export class MusicManager {
   getDefaultVolume(guildId) { try { return db.guild.getDefaultVolume(guildId) || 100; } catch { return 100; } }
   setDefaultVolume(guildId, volume) { try { db.guild.setDefaultVolume(guildId, Math.max(1, Math.min(100, Number(volume)))); return true; } catch { return false; } }
   async is247ModeEnabled(guildId) { try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; } }
-}
+}\n  getHistory(guildId) { return this.history.get(guildId) || []; }\n  toggleLike(userId, track) {\n    if (!userId || !track?.info?.identifier) return false;\n    const list = this.likes.get(userId) || [];\n    const index = list.findIndex(x => x.identifier === track.info.identifier);\n    if (index >= 0) { list.splice(index, 1); this.likes.set(userId, list); return false; }\n    list.unshift({ identifier:track.info.identifier, title:track.info.title, author:track.info.author || "Unknown", uri:track.info.uri || null });\n    this.likes.set(userId, list.slice(0, 100));\n    return true;\n  }\n  getLikes(userId) { return this.likes.get(userId) || []; }\n
