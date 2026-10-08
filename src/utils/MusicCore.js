@@ -6,6 +6,7 @@ import {
   MessageFlags,
   SeparatorBuilder,
   SeparatorSpacingSize,
+  SectionBuilder,
   StringSelectMenuBuilder,
   TextDisplayBuilder
 } from "discord.js";
@@ -238,16 +239,31 @@ export function nowPlayingEmbed(p) {
   const filled = Math.round(ratio * length);
   const bar = "━".repeat(Math.max(0, filled)) + "🔘" + "━".repeat(Math.max(0, length - filled));
 
-  return musicContainer({
-    title: "🎵 LightCore • NOW PLAYING",
+  const container = musicContainer({
+    title: "🎵 LIGHTCORE • NOW PLAYING",
     description: `**${t.info.title || "Unknown"}**\n${t.info.author || "Unknown artist"}`,
     sections: [
       `⏱️ **Progress**\n${bar}\n${formatDuration(position)} / ${formatDuration(duration)}`,
-      `🔊 **Volume:** ${p.volume ?? 100}%   •   🔁 **Loop:** ${p.repeatMode || "off"}   •   📜 **Queue:** ${p.queueSize} upcoming`,
-      "✨ **LightCore Music** • Rythm-style playback controls"
+      `🔊 **Volume:** ${p.volume ?? 100}%   •   🔁 **Loop:** ${p.repeatMode || "off"}   •   📜 **Queue:** ${p.queueSize ?? 0} upcoming`,
+      `✨ **LightCore Music** • ${p.isPaused ? "Paused" : "Playing"}`
     ],
     components: controlRows(p)
   });
+
+  const artwork = t.info.artworkUrl || t.info.thumbnail || t.info.image;
+  if (artwork) {
+    const section = new SectionBuilder()
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        `### 🎧 ${t.info.title || "Unknown"}\n**Artist:** ${t.info.author || "Unknown artist"}`
+      ))
+      .setThumbnailAccessory(thumbnail => thumbnail
+        .setDescription("Track artwork")
+        .setURL(artwork)
+      );
+    container.addSectionComponents(section);
+  }
+
+  return container;
 }
 
 export function controlRows(p) {
