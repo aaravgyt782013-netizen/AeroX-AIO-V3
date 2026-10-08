@@ -79,6 +79,8 @@ class HelpCommand extends Command {
         }
         this._injectVirtualChannelCategory(commands, categories, subcategories);
         this._normalizeHelpCategories(categories, subcategories);
+        this._ensureMusicHelpCategory(commands, categories);
+        this._normalizeHelpCategories(categories, subcategories);
         return { commands, categories, subcategories };
       }
 
@@ -111,6 +113,8 @@ class HelpCommand extends Command {
       }
 
       this._injectVirtualChannelCategory(commands, categories, subcategories);
+      this._normalizeHelpCategories(categories, subcategories);
+      this._ensureMusicHelpCategory(commands, categories);
       this._normalizeHelpCategories(categories, subcategories);
       return { commands, categories, subcategories };
     } catch (error) {
@@ -463,6 +467,33 @@ class HelpCommand extends Command {
     for (const [category, subs] of mergedSubcategories.entries()) {
       subcategories.set(category, subs);
     }
+  }
+
+  _ensureMusicHelpCategory(commands, categories) {
+    const musicCommands = [];
+    const seen = new Set();
+
+    for (const command of commands.values()) {
+      if (!command?.name) continue;
+      const category = String(command.category || "").toLowerCase();
+      if (!["music", "rythmmusic"].includes(category)) continue;
+      if (seen.has(command.name)) continue;
+      seen.add(command.name);
+      command.category = "Music";
+      musicCommands.push(command);
+    }
+
+    if (!musicCommands.length) return;
+
+    const existing = categories.get("Music") || [];
+    const merged = [...existing];
+    for (const command of musicCommands) {
+      if (!merged.some((item) => item?.name === command.name)) {
+        merged.push(command);
+      }
+    }
+
+    categories.set("Music", merged);
   }
 
   _injectVirtualChannelCategory(commands, categories, subcategories) {
