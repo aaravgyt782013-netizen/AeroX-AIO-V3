@@ -1,5 +1,12 @@
-import { command, context, musicSettings, safeReply, reply, settingsRows, sourceMenu } from "#utils/RythmCommands";
-import { EmbedBuilder } from "discord.js";
+import {
+  command,
+  context,
+  musicSettings,
+  safeReply,
+  reply,
+  settingsContainer,
+  v2Payload
+} from "#utils/RythmCommands";
 
 function bool(value) {
   const v = String(value ?? "").toLowerCase();
@@ -8,34 +15,7 @@ function bool(value) {
   return null;
 }
 
-const render = (x, message = null) => {
-  const s = musicSettings(x);
-  const embed = new EmbedBuilder()
-    .setColor(0x5865F2)
-    .setTitle("🎵 LightCore Music Settings")
-    .setDescription(
-      [
-        "**Playback**",
-        `├ 🔄 Autoplay: **${s.autoplay ? "ON" : "OFF"}**`,
-        `├ 📢 Song announcements: **${s.announceSongs ? "ON" : "OFF"}**`,
-        `├ 🗳️ Vote skip: **${s.voteSkip ? "ON" : "OFF"}**`,
-        `├ ♾️ 24/7: **${s.mode247 ? "ON" : "OFF"}**`,
-        `└ 🔎 Default source: **${s.source === "ytmsearch" ? "YouTube Music" : s.source}**`,
-        "",
-        "**Access**",
-        `└ 👑 DJ role: ${s.djRole ? "<@&" + s.djRole + ">" : "Disabled (everyone can control)"}`,
-        "",
-        "Use the buttons below or the text commands:",
-        `.settings autoplay on|off`,
-        `.settings announce on|off`,
-        `.settings voteskip on|off`,
-        `.settings source ytmsearch|ytsearch|spsearch|scsearch`
-      ].join("\n")
-    );
-  const payload = { embeds: [embed], components: settingsRows(s) };
-  if (message) return message.edit(payload);
-  return reply(x, payload);
-};
+const render = (x, notice = "") => reply(x, v2Payload(settingsContainer(musicSettings(x), notice)));
 
 const run = async x => {
   const c = context(x);
@@ -44,7 +24,6 @@ const run = async x => {
   const args = c.args || [];
   const sub = x.interaction?.options?.getString("setting") || args[0];
   const value = x.interaction?.options?.getString("value") || args[1];
-
   if (!sub) return render(x);
 
   if (!c.member?.permissions?.has("ManageGuild") && !c.member?.permissions?.has("Administrator")) {
@@ -56,24 +35,24 @@ const run = async x => {
 
   if (["autoplay","announce","announcesongs","voteskip","247"].includes(key)) {
     const enabled = bool(value);
-    if (enabled === null) return safeReply(x, "⚙️ Settings", "Use **on** or **off**.", 0xED4245);
+    if (enabled === null) return safeReply(x, "⚙️ Settings", "Use on or off.", 0xED4245);
     if (key === "autoplay") c.client.db.guild.setAutoplay(guild, enabled);
     if (key === "announce" || key === "announcesongs") c.client.db.guild.setAnnounceSongs(guild, enabled);
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
     if (key === "247") c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
-    return render(x);
+    const player = c.client.music?.getPlayer?.(guild);
+    if (player) player.set("autoplayEnabled", enabled);
+    return render(x, `${key} ${enabled ? "enabled" : "disabled"}`);
   }
 
   if (key === "source") {
     const allowed = ["ytmsearch","ytsearch","spsearch","scsearch"];
-    if (!allowed.includes(value)) {
-      return safeReply(x, "⚙️ Settings", "Sources: ytmsearch, ytsearch, spsearch, scsearch.", 0xED4245);
-    }
+    if (!allowed.includes(value)) return safeReply(x, "⚙️ Settings", "Sources: ytmsearch, ytsearch, spsearch, scsearch.", 0xED4245);
     c.client.db.guild.setMusicSettings(guild, { source: value });
-    return render(x);
+    return render(x, `Source changed to ${value}`);
   }
 
-  return safeReply(x, "⚙️ Settings", "Unknown setting.", 0xED4245);
+  return safeReply(x, "⚙️ Settings", "Unknown setting. Use the settings panel or .settings <setting> <value>.", 0xED4245);
 };
 
 export default command({
