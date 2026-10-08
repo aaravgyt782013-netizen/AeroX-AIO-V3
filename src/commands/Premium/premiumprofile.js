@@ -129,7 +129,10 @@ class PremiumProfileCommand extends Command {
     }
 
     const value = args.slice(1).join(" ").trim();
-    if (!value) return message.reply({ content: `${emoji.get("cross")} Please provide a value.` });
+    const attachment = message.attachments.first();
+    if (!value && !attachment && action !== "reset") {
+      return message.reply({ content: `${emoji.get("cross")} Please provide a value or attach an image.` });
+    }
 
     if (action === "name") {
       if (value.length > 32) {
@@ -147,7 +150,6 @@ class PremiumProfileCommand extends Command {
         });
       }
     } else if (action === "avatar" || action === "banner") {
-      const attachment = message.attachments.first();
       const imageUrl = validUrl(value) ? value : (attachment?.url || "");
 
       if (!imageUrl) {
