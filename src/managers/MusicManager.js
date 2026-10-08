@@ -5,26 +5,17 @@ import { logger } from "#utils/logger";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const spotifyOEmbed = async url => {
-  try {
-    const r = await fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(url));
-    if (!r.ok) return null;
-    const data = await r.json();
-    return data?.title || null;
-  } catch { return null; }
-};
-
 export class MusicManager {
   constructor(client) {
     this.client = client;
+    this.lavalink = null;
     this.initialized = false;
     this.readyPromise = null;
-    this.lastNodeWarning = 0;
+    this.nodeCooldowns = new Map();
+    this.nodeFailures = new Map();
     this.history = new Map();
     this.likes = new Map();
-    this.emptyVoiceTimers = new Map();
-    this.nodeCooldowns = new Map();
-    this.nodeFailureCounts = new Map();
+    this.emptyTimers = new Map();
     this.init();
   }
 
@@ -33,8 +24,8 @@ export class MusicManager {
       ...node,
       retryAmount: Infinity,
       retryDelay: Number(node.retryDelay || 5000),
-      resumeTimeout: 120000,
-      requestTimeout: 12000
+      requestTimeout: 8000,
+      resumeTimeout: 300000
     }));
 
     this.lavalink = new LavalinkManager({
@@ -52,157 +43,173 @@ export class MusicManager {
         }
         return this.client.guilds.cache.get(guildId)?.shard?.send(payload);
       },
+      client: {
+        id: config.clientId || this.client.user?.id,
+        username: this.client.user?.username || "LightCore"
+      },
       autoSkip: true,
       autoSkipOnResolveError: true,
       emitNewSongsOnly: false,
-      client: { id: config.clientId || this.client.user?.id, username: this.client.user?.username || "LightCore" },
+      linksAllowed: true,
       playerOptions: {
         defaultSearchPlatform: "ytmsearch",
         useUnresolvedData: true,
-        maxErrorsPerTime: { threshold: 15000, maxAmount: 5 },
         onDisconnect: { autoReconnect: true, destroyPlayer: false },
-        onEmptyQueue: { destroyAfterMs: -1, minAutoPlayMs: 3000 }
+        onEmptyQueue: { destroyAfterMs: -1, minAutoPlayMs: 3000 },
+        maxErrorsPerTime: { threshold: 15000, maxAmount: 5 }
       },
-      queueOptions: { maxPreviousTracks: 50 },
-      linksAllowed: true,
-      linksBlacklist: [],
-      linksWhitelist: []
+      queueOptions: { maxPreviousTracks: 50 }
     });
 
-    this.lavalink.nodeManager?.on("connect", node => {
+    const nm = this.lavalink.nodeManager;
+    nm?.on("connect", node => {
       const id = node?.id || "unknown";
       this.nodeCooldowns.delete(id);
-      this.nodeFailureCounts.delete(id);
-      try { node.updateSession?.(true, 360000); } catch {}
-      logger.success("MusicManager", "Lavalink connected: " + id);
+      this.nodeFailures.delete(id);
+      try { node.updateSession?.(true, 300000); } catch {}
+      logger.success("Music", "Lavalink node connected: " + id);
     });
-    this.lavalink.nodeManager?.on("resumed", node => logger.info("MusicManager", "Lavalink session resumed: " + (node?.id || "unknown")));
-    this.lavalink.nodeManager?.on("reconnecting", node => logger.warn("MusicManager", "Lavalink reconnecting: " + (node?.id || "unknown")));
-    this.lavalink.nodeManager?.on("disconnect", (node, reason) => {
-      this._markNodeFailure(node, reason?.message || reason || "disconnect");
-      logger.warn("MusicManager", "Lavalink disconnected [" + (node?.id || "unknown") + "]: " + (reason?.message || reason || "unknown"));
-    });
-    this.lavalink.nodeManager?.on("error", (node, error) => {
-      this._markNodeFailure(node, error?.message || error || "error");
-      logger.error("MusicManager", "Lavalink node error [" + (node?.id || "unknown") + "]", error);
-    });
+    nm?.on("ready", node => logger.success("Music", "Lavalink node ready: " + (node?.id || "unknown")));
+    nm?.on("reconnecting", node => logger.warn("Music", "Reconnecting to " + (node?.id || "unknown")));
+    nm?.on("disconnect", (node, reason) => this.markNodeFailure(node, reason));
+    nm?.on("error", (node, error) => this.markNodeFailure(node, error));
 
     this.lavalink.on("trackStart", (player, track) => {
       if (!track?.info?.title) return;
       const list = this.history.get(player.guildId) || [];
-      list.unshift({ title: track.info.title, author: track.info.author || "Unknown", uri: track.info.uri || null, requester: track.requester?.id || track.info?.userData?.requesterId || null, at: Date.now() });
+      list.unshift({
+        title: track.info.title,
+        author: track.info.author || "Unknown",
+        uri: track.info.uri || null,
+        at: Date.now()
+      });
       this.history.set(player.guildId, list.slice(0, 50));
-      let announce = true;
-      try { announce = db.guild.getMusicSettings(player.guildId).announceSongs !== false; } catch {}
-      player.set("announceSongs", announce);
+      try {
+        player.set("announceSongs", db.guild.getMusicSettings(player.guildId).announceSongs !== false);
+      } catch {}
     });
 
-    this.lavalink.on("trackEnd", (player, track) => {
-      logger.debug("MusicManager", "Track ended in " + (player?.guildId || "unknown") + ": " + (track?.info?.title || "unknown"));
-      this._refreshVoiceStayAlive(player);
+    this.lavalink.on("trackEnd", player => this.refreshVoiceStayAlive(player.guildId));
+    this.lavalink.on("trackError", (player, track, payload) => {
+      logger.error("Music", "Track error [" + (player?.guildId || "unknown") + "]: " + (payload?.exception?.message || payload?.message || "unknown"));
     });
-    this.lavalink.on("playerVoiceJoin", player => this._refreshVoiceStayAlive(player, true));
-    this.lavalink.on("playerVoiceLeave", player => this._refreshVoiceStayAlive(player, false));
-    this.lavalink.on("trackError", (player, track, payload) => logger.error("MusicManager", "Track error [" + (player?.guildId || "unknown") + "]: " + (payload?.exception?.message || payload?.message || "unknown")));
-    this.lavalink.on("trackStuck", (player, track, payload) => logger.warn("MusicManager", "Track stuck [" + (player?.guildId || "unknown") + "] after " + (payload?.thresholdMs || "?") + "ms"));
-    this.lavalink.on("playerSocketClosed", (player, payload) => logger.warn("MusicManager", "Voice socket closed [" + (player?.guildId || "unknown") + "]: " + (payload?.reason || payload?.code || "unknown")));
+    this.lavalink.on("trackStuck", (player, track, payload) => {
+      logger.warn("Music", "Track stuck [" + (player?.guildId || "unknown") + "] after " + (payload?.thresholdMs || "?") + "ms");
+    });
+    this.lavalink.on("playerVoiceJoin", player => this.refreshVoiceStayAlive(player.guildId, true));
+    this.lavalink.on("playerVoiceLeave", player => this.refreshVoiceStayAlive(player.guildId, false));
 
     this.readyPromise = new Promise(resolve => {
-      const onReady = async () => {
+      const start = async () => {
         try {
-          await this.lavalink.init({ id: this.client.user.id, username: this.client.user.username });
-          logger.success("MusicManager", "LightCore music core initialized.");
+          await this.lavalink.init({
+            id: this.client.user.id,
+            username: this.client.user.username
+          });
+          logger.success("Music", "LightCore music engine initialized.");
         } catch (error) {
-          logger.error("MusicManager", "Lavalink initialization failed", error);
+          logger.error("Music", "Music engine initialization failed", error);
         } finally {
           this.initialized = true;
           resolve();
         }
       };
-      if (this.client.isReady?.()) onReady(); else this.client.once("ready", onReady);
+      if (this.client.isReady?.()) start();
+      else this.client.once("ready", start);
     });
   }
 
-  _markNodeFailure(node, reason = "failure") {
+  markNodeFailure(node, error = "unknown") {
     const id = node?.id;
     if (!id) return;
-    const failures = (this.nodeFailureCounts.get(id) || 0) + 1;
-    this.nodeFailureCounts.set(id, failures);
-    const cooldown = Math.min(120000, 15000 * Math.max(1, failures));
-    this.nodeCooldowns.set(id, Date.now() + cooldown);
-    logger.warn("MusicManager", "Temporarily cooling down node " + id + " for " + Math.round(cooldown / 1000) + "s: " + reason);
+    const failures = (this.nodeFailures.get(id) || 0) + 1;
+    this.nodeFailures.set(id, failures);
+    this.nodeCooldowns.set(id, Date.now() + Math.min(30000, 5000 * failures));
+    logger.warn("Music", "Lavalink node failed [" + id + "]: " + (error?.message || error));
   }
 
-  _isNodeCoolingDown(node) {
-    const id = node?.id;
-    if (!id) return true;
-    const until = this.nodeCooldowns.get(id) || 0;
-    if (until && until <= Date.now()) {
-      this.nodeCooldowns.delete(id);
-      return false;
-    }
-    return until > Date.now();
-  }
-
-  getConnectedNodes() {
+  getAvailableNodes() {
     try {
-      const nodes = this.lavalink?.nodeManager?.leastUsedNodes?.("players") || [];
-      return (Array.isArray(nodes) ? nodes : []).filter(node => !this._isNodeCoolingDown(node));
-    } catch { return []; }
+      const nodes = this.lavalink?.nodeManager?.leastUsedNodes?.("players");
+      if (!Array.isArray(nodes)) return [];
+      const now = Date.now();
+      return nodes.filter(node => (this.nodeCooldowns.get(node.id) || 0) <= now);
+    } catch {
+      return [];
+    }
   }
 
-  async waitForNode(timeout = 25000) {
-    if (this.readyPromise && !this.initialized) await Promise.race([this.readyPromise, sleep(Math.min(timeout, 10000))]);
+  async waitForNode(timeout = 12000) {
+    if (this.readyPromise && !this.initialized) {
+      await Promise.race([this.readyPromise, sleep(5000)]);
+    }
     const started = Date.now();
     while (Date.now() - started < timeout) {
-      const nodes = this.getConnectedNodes();
+      const nodes = this.getAvailableNodes();
       if (nodes.length) return nodes;
-      await sleep(500);
+      await sleep(400);
     }
-    if (Date.now() - this.lastNodeWarning > 30000) {
-      this.lastNodeWarning = Date.now();
-      logger.warn("MusicManager", "No connected Lavalink node is available after " + timeout + "ms.");
-    }
+    logger.warn("Music", "No Lavalink node became ready within " + timeout + "ms.");
     return [];
   }
 
-  refreshVoiceStayAlive(guildId, joined = true) {
-    const player = this.getPlayer(guildId);
-    if (player) this._refreshVoiceStayAlive(player, joined);
-    return player || null;
+  getSettings(guildId) {
+    try {
+      const s = db.guild.getMusicSettings(guildId);
+      return {
+        volume: Number(db.guild.getDefaultVolume(guildId)) || 100,
+        autoplay: Boolean(s.autoplay),
+        mode247: Boolean(s.mode247)
+      };
+    } catch {
+      return { volume: 100, autoplay: false, mode247: false };
+    }
   }
 
-  _refreshVoiceStayAlive(player, joined = false) {
-    if (!player?.guildId) return;
-    const guild = this.client.guilds.cache.get(player.guildId);
-    const channel = guild?.channels?.cache?.get(player.voiceChannelId);
-    const humans = channel?.members?.filter(member => !member.user.bot).size ?? 0;
-    let autoplay = player.get("autoplayEnabled") === true;
-    let mode247 = player.get("stay247") === true || player.get("stayAlive") === true;
-    try {
-      const settings = db.guild.getMusicSettings(player.guildId);
-      autoplay = autoplay || Boolean(settings.autoplay);
-      mode247 = mode247 || Boolean(settings.mode247);
-    } catch {}
-    player.set("autoplayEnabled", autoplay);
-    player.set("stay247", mode247);
-    player.set("stayAlive", autoplay || mode247);
-    const oldTimer = this.emptyVoiceTimers.get(player.guildId);
-    if (oldTimer) { clearTimeout(oldTimer); this.emptyVoiceTimers.delete(player.guildId); }
-    if (humans > 0 || joined || autoplay || mode247) return;
-    const timer = setTimeout(async () => {
-      this.emptyVoiceTimers.delete(player.guildId);
-      const latestGuild = this.client.guilds.cache.get(player.guildId);
-      const latestChannel = latestGuild?.channels?.cache?.get(player.voiceChannelId);
-      const latestHumans = latestChannel?.members?.filter(member => !member.user.bot).size ?? 0;
-      let keepAlive = player.get("stayAlive") === true;
+  async createPlayer({ guildId, textChannelId, voiceChannelId }) {
+    if (!guildId || !textChannelId || !voiceChannelId) return null;
+
+    const existing = this.getPlayer(guildId);
+    if (existing) {
+      if (existing.voiceChannelId !== voiceChannelId) {
+        await existing.changeVoiceState?.({ channelId: voiceChannelId }).catch(() => {});
+      }
+      return existing;
+    }
+
+    const nodes = await this.waitForNode();
+    if (!nodes.length) return null;
+
+    const settings = this.getSettings(guildId);
+    const volume = Math.max(1, Math.min(200, settings.volume));
+
+    for (const node of nodes) {
       try {
-        const settings = db.guild.getMusicSettings(player.guildId);
-        keepAlive = keepAlive || Boolean(settings.autoplay || settings.mode247);
-      } catch {}
-      if (latestHumans === 0 && !keepAlive) await player.destroy("Voice channel empty for 60 seconds", true).catch(() => {});
-    }, 60000);
-    this.emptyVoiceTimers.set(player.guildId, timer);
+        const player = this.lavalink.createPlayer({
+          guildId,
+          voiceChannelId,
+          textChannelId,
+          selfDeaf: true,
+          selfMute: false,
+          volume,
+          node
+        });
+        player.set("autoplayEnabled", settings.autoplay);
+        player.set("stay247", settings.mode247);
+        player.set("stayAlive", settings.autoplay || settings.mode247);
+
+        await Promise.race([
+          player.connect(),
+          sleep(10000).then(() => { throw new Error("Discord voice connection timed out"); })
+        ]);
+        this.refreshVoiceStayAlive(guildId, true);
+        return player;
+      } catch (error) {
+        this.markNodeFailure(node, error);
+        try { await this.lavalink.getPlayer(guildId)?.destroy("Music node failover", true); } catch {}
+      }
+    }
+    return null;
   }
 
   isUrl(value) {
@@ -210,95 +217,141 @@ export class MusicManager {
   }
 
   normalizeSource(source = "ytmsearch") {
-    const map = { yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch", sp: "spsearch", spotify: "spsearch", sc: "scsearch", soundcloud: "scsearch" };
+    const map = {
+      yt: "ytsearch",
+      youtube: "ytsearch",
+      ytm: "ytmsearch",
+      youtubemusic: "ytmsearch",
+      sp: "spsearch",
+      spotify: "spsearch",
+      sc: "scsearch",
+      soundcloud: "scsearch"
+    };
     return map[String(source).toLowerCase()] || source || "ytmsearch";
   }
 
-  async createPlayer({ guildId, textChannelId, voiceChannelId }) {
-    if (!guildId || !textChannelId || !voiceChannelId) return null;
-    const existing = this.lavalink?.getPlayer(guildId);
-    if (existing) {
-      if (existing.voiceChannelId !== voiceChannelId) await existing.changeVoiceState?.({ channelId: voiceChannelId }).catch(() => {});
-      return existing;
-    }
-    const nodes = await this.waitForNode();
-    if (!nodes.length) return null;
-    let volume = 100, autoplay = false, mode247 = false;
-    try {
-      volume = Number(db.guild.getDefaultVolume(guildId)) || 100;
-      const settings = db.guild.getMusicSettings(guildId);
-      autoplay = Boolean(settings.autoplay);
-      mode247 = Boolean(settings.mode247);
-    } catch {}
-    volume = Math.max(1, Math.min(200, volume));
-    for (const node of nodes) {
+  async searchNode(node, query, sources, requester) {
+    for (const source of [...new Set(sources)]) {
       try {
-        const player = this.lavalink.createPlayer({ guildId, voiceChannelId, textChannelId, selfDeaf: true, selfMute: false, volume, node });
-        player.set("autoplayEnabled", autoplay);
-        player.set("stay247", mode247);
-        player.set("stayAlive", autoplay || mode247);
-        await player.connect();
-        this._refreshVoiceStayAlive(player, true);
-        return player;
+        const result = await Promise.race([
+          node.search({ query, source }, requester),
+          sleep(7000).then(() => null)
+        ]);
+        if (result?.tracks?.length || result?.loadType === "playlist") return result;
       } catch (error) {
-        logger.warn("MusicManager", "Player creation failed on " + (node?.id || "unknown") + ": " + (error?.message || error));
-        try { await this.lavalink.getPlayer(guildId)?.destroy("Node failover", true); } catch {}
+        logger.warn("Music", "Search failed [" + node.id + "/" + source + "]: " + (error?.message || error));
       }
     }
-    return null;
+    throw new Error("No playable result from " + node.id);
   }
 
   async search(query, { source = "ytmsearch", requester } = {}) {
-    const nodes = await this.waitForNode();
-    if (!nodes.length) return null;
     const q = String(query || "").trim();
     if (!q) return null;
-    let requested = this.normalizeSource(source);
-    if (this.isUrl(q) && /open\.spotify\.com/i.test(q)) {
-      const title = await spotifyOEmbed(q);
-      if (title) return this.search(title, { source: "ytmsearch", requester });
-    }
+
+    const nodes = await this.waitForNode();
+    if (!nodes.length) return null;
+
+    const requested = this.normalizeSource(source);
     const sources = [requested];
     if (requested === "ytmsearch") sources.push("ytsearch");
     if (requested === "spsearch") sources.push("ytmsearch", "ytsearch");
     if (requested === "scsearch") sources.push("ytsearch");
-    const searchNode = async node => {
-      for (const src of [...new Set(sources)]) {
-        try {
-          const result = await Promise.race([
-            node.search({ query: q, source: src }, requester),
-            sleep(10000).then(() => null)
-          ]);
-          if (result?.tracks?.length || result?.loadType === "playlist") return result;
-        } catch (error) {
-          this._markNodeFailure(node, "search: " + (error?.message || error));
-          logger.warn("MusicManager", "Search failed [" + node.id + "/" + src + "]: " + (error?.message || error));
-        }
-      }
-      throw new Error("No result from " + node.id);
-    };
 
     try {
-      return await Promise.any(nodes.map(searchNode));
+      return await Promise.any(nodes.map(node => this.searchNode(node, q, sources, requester)));
     } catch {
       return null;
     }
   }
 
-  async resolve(query, options = {}) { return this.search(query, options); }
-  getPlayer(guildId) { return this.lavalink?.getPlayer(guildId) || null; }
-  getDefaultVolume(guildId) { try { return db.guild.getDefaultVolume(guildId) || 100; } catch { return 100; } }
-  setDefaultVolume(guildId, volume) { try { db.guild.setDefaultVolume(guildId, Math.max(1, Math.min(200, Number(volume)))); return true; } catch { return false; } }
-  async is247ModeEnabled(guildId) { try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; } }
-  getHistory(guildId) { return this.history.get(guildId) || []; }
+  async resolve(query, options = {}) {
+    return this.search(query, options);
+  }
+
+  getPlayer(guildId) {
+    return this.lavalink?.getPlayer(guildId) || null;
+  }
+
+  getDefaultVolume(guildId) {
+    try { return db.guild.getDefaultVolume(guildId) || 100; } catch { return 100; }
+  }
+
+  setDefaultVolume(guildId, volume) {
+    try {
+      db.guild.setDefaultVolume(guildId, Math.max(1, Math.min(200, Number(volume))));
+      return true;
+    } catch { return false; }
+  }
+
+  async is247ModeEnabled(guildId) {
+    try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; }
+  }
+
+  refreshVoiceStayAlive(guildId, joined = false) {
+    const player = typeof guildId === "string" ? this.getPlayer(guildId) : guildId;
+    if (player) this.refreshEmptyTimer(player, joined);
+    return player || null;
+  }
+
+  refreshEmptyTimer(player, joined = false) {
+    if (!player?.guildId) return;
+
+    const old = this.emptyTimers.get(player.guildId);
+    if (old) clearTimeout(old);
+    this.emptyTimers.delete(player.guildId);
+
+    const guild = this.client.guilds.cache.get(player.guildId);
+    const channel = guild?.channels?.cache?.get(player.voiceChannelId);
+    const humans = channel?.members?.filter(member => !member.user.bot).size || 0;
+
+    let keepAlive = player.get("stayAlive") === true;
+    try {
+      const s = db.guild.getMusicSettings(player.guildId);
+      keepAlive = keepAlive || Boolean(s.autoplay || s.mode247);
+    } catch {}
+
+    if (joined || humans > 0 || keepAlive) return;
+
+    const timer = setTimeout(async () => {
+      this.emptyTimers.delete(player.guildId);
+      const latest = this.getPlayer(player.guildId);
+      if (!latest) return;
+      const latestGuild = this.client.guilds.cache.get(player.guildId);
+      const latestChannel = latestGuild?.channels?.cache?.get(latest.voiceChannelId);
+      const latestHumans = latestChannel?.members?.filter(member => !member.user.bot).size || 0;
+      if (latestHumans === 0 && !latest.get("stayAlive")) {
+        await latest.destroy("Voice channel empty", true).catch(() => {});
+      }
+    }, 60000);
+
+    this.emptyTimers.set(player.guildId, timer);
+  }
+
+  getHistory(guildId) {
+    return this.history.get(guildId) || [];
+  }
+
   toggleLike(userId, track) {
     if (!userId || !track?.info?.identifier) return false;
     const list = this.likes.get(userId) || [];
     const index = list.findIndex(x => x.identifier === track.info.identifier);
-    if (index >= 0) { list.splice(index, 1); this.likes.set(userId, list); return false; }
-    list.unshift({ identifier: track.info.identifier, title: track.info.title, author: track.info.author || "Unknown", uri: track.info.uri || null });
+    if (index >= 0) {
+      list.splice(index, 1);
+      this.likes.set(userId, list);
+      return false;
+    }
+    list.unshift({
+      identifier: track.info.identifier,
+      title: track.info.title,
+      author: track.info.author || "Unknown",
+      uri: track.info.uri || null
+    });
     this.likes.set(userId, list.slice(0, 100));
     return true;
   }
-  getLikes(userId) { return this.likes.get(userId) || []; }
+
+  getLikes(userId) {
+    return this.likes.get(userId) || [];
+  }
 }
