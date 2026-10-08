@@ -151,6 +151,11 @@ export class MusicEngine {
     });
     this.lavalink.on("trackStuck", (player, track, payload) => {
       logger.warn("MusicEngine", "Track stuck [" + player?.guildId + "] after " + (payload?.thresholdMs || "?") + "ms");
+      if (player && !player.playing && player.queue?.current) {
+        try { await player.play(); } catch (error) {
+          logger.warn("MusicEngine", "Retry after stuck track failed: " + (error?.message || error));
+        }
+      }
     });
     this.lavalink.on("playerVoiceJoin", player => this.refreshVoiceStayAlive(player.guildId, true));
     this.lavalink.on("playerVoiceLeave", player => this.refreshVoiceStayAlive(player.guildId, false));
@@ -207,12 +212,12 @@ export class MusicEngine {
     const sources = this.isUrl(q)
       ? [selected]
       : selected === "ytmsearch"
-        ? ["ytmsearch", "ytsearch"]
+        ? ["ytsearch", "ytmsearch", "scsearch"]
         : selected === "spsearch"
-          ? ["spsearch", "ytmsearch", "ytsearch"]
+          ? ["spsearch", "ytsearch", "ytmsearch", "scsearch"]
           : selected === "scsearch"
-            ? ["scsearch", "ytsearch"]
-            : [selected, "ytsearch"];
+            ? ["scsearch", "ytsearch", "ytmsearch"]
+            : [selected, "ytsearch", "ytmsearch", "scsearch"];
 
     const attempt = async node => {
       for (const src of [...new Set(sources)]) {
