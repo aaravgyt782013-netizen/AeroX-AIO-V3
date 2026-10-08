@@ -95,6 +95,7 @@ export class MusicEngine {
 
     this.lavalink.on("trackStart", (player, track) => {
       if (!track?.info?.title) return;
+      player.set("lightcorePlaybackFallbackUsed", false);
       const list = this.history.get(player.guildId) || [];
       list.unshift({
         title: track.info.title,
@@ -109,8 +110,44 @@ export class MusicEngine {
     });
 
     this.lavalink.on("trackEnd", player => this.refreshVoiceStayAlive(player.guildId));
-    this.lavalink.on("trackError", (player, track, payload) => {
-      logger.error("MusicEngine", "Track error [" + player?.guildId + "]: " + (payload?.exception?.message || payload?.message || "unknown"));
+    this.lavalink.on("trackError", async (player, track, payload) => {
+      const reason = payload?.exception?.message || payload?.message || "unknown";
+      logger.error("MusicEngine", "Track error [" + player?.guildId + "]: " + reason);
+
+      // YouTube can return a valid search result while rejecting playback from a
+      // datacenter IP. Make one controlled SoundCloud fallback instead of leaving
+      // the user stuck in voice with a silent player.
+      if (!player || player.get("lightcorePlaybackFallbackUsed") === true) return;
+      player.set("lightcorePlaybackFallbackUsed", true);
+
+      try {
+        const title = track?.info?.title || "";
+        const author = track?.info?.author || "";
+        const query = [author, title].filter(Boolean).join(" ").trim();
+        if (!query) return;
+
+        const nodes = await this.waitForNode(5000);
+        for (const node of nodes) {
+          try {
+            const result = await timeout(
+              node.search({ query, source: "scsearch" }, track?.requester),
+              7000,
+              "Fallback search timed out."
+            );
+            const fallback = result?.tracks?.find(item => item?.info?.identifier);
+            if (!fallback) continue;
+
+            await player.queue.add(fallback);
+            if (!player.playing) await player.play();
+            logger.warn("MusicEngine", "Switched to SoundCloud fallback for [" + query + "].");
+            return;
+          } catch {}
+        }
+      } catch (fallbackError) {
+        logger.warn("MusicEngine", "Playback fallback failed: " + (fallbackError?.message || fallbackError));
+      } finally {
+        if (!player.playing) player.set("lightcorePlaybackFallbackUsed", false);
+      }
     });
     this.lavalink.on("trackStuck", (player, track, payload) => {
       logger.warn("MusicEngine", "Track stuck [" + player?.guildId + "] after " + (payload?.thresholdMs || "?") + "ms");
