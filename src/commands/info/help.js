@@ -395,7 +395,7 @@ class HelpCommand extends Command {
 
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
-          `## ${emoji.get("aerox")} **Help Menu**`,
+          `## ${emoji.get("aerox")} **LIGHTCORE • HELP CENTER**`,
         ),
       );
 
@@ -456,9 +456,9 @@ class HelpCommand extends Command {
         .setPlaceholder("Select a category")
         .addOptions(
           categoryArray.map((category) => {
-            const categoryEmoji = this._getEmojiObject(`category_${category.toLowerCase()}`);
+            const emojiKeyMap = { rythmMusic: "category_music", RythmMusic: "category_music" };\n            const categoryEmoji = this._getEmojiObject(emojiKeyMap[category] || `category_${category.toLowerCase()}`);
             return {
-              label: this._capitalize(category),
+              label: this._displayCategory(category),
               value: category,
               emoji: categoryEmoji,
               description: `View ${this._capitalize(category)} commands`,
@@ -1263,13 +1263,30 @@ class HelpCommand extends Command {
 
   _getCategoryEmoji(category) {
     const categoryLower = category.toLowerCase();
-    const emojiKey = `category_${categoryLower}`;
-    const categoryEmoji = emoji.get(emojiKey);
-    
-    if (categoryEmoji) {
-      return categoryEmoji;
-    }
-    return emoji.get("folder");
+    const aliases = {
+      rythmMusic: "category_music",
+      music: "category_music",
+      pfps: "category_pfps",
+      info: "category_info",
+      utility: "category_utility",
+      moderation: "category_moderation",
+      voice: "category_voice",
+      ticket: "category_ticket",
+      owner: "category_owner",
+      premium: "category_premium",
+      logging: "category_logging",
+      invites: "category_invites",
+      extra: "category_extra",
+      fun: "category_fun",
+      giveaway: "category_giveaway"
+    };
+    const emojiKey = aliases[category] || aliases[categoryLower] || `category_${categoryLower}`;
+    return emoji.get(emojiKey) || emoji.get("folder");
+  }
+
+  _displayCategory(category) {
+    const names = { rythmMusic: "Music", RythmMusic: "Music" };
+    return names[category] || this._capitalize(category);
   }
 
   _getEmojiObject(name) {
