@@ -716,7 +716,8 @@ class HelpCommand extends Command {
       let content = `**Command Information**\n\n`;
       content += `┌─ **${emoji.get("info")} Basic Info**\n`;
       content += `├─ Description: ${command.description || "No description provided"}\n`;
-      const helpUsage = this._getHelpUsage(command);\n      content += `├─ Usage: \`${helpUsage}\`\n`;
+      const helpUsage = this._getHelpUsage(command);
+      content += `├─ Usage: \`${helpUsage}\`\n`;
       content += `├─ Category: ${this._capitalize(command.category || "misc")}\n`;
       content += `└─ Cooldown: ${command.cooldown || 3}s\n\n`;
 
