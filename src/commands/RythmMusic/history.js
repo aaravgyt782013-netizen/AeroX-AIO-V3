@@ -1,0 +1,3 @@
+import { command, context, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const c=context(x),list=x.client.music.getHistory(c.guild.id);if(!list.length)return safeReply(x,"📜 History","No tracks have been played in this session yet.");const body=list.slice(0,10).map((t,i)=>"**"+(i+1)+".** ["+t.title+"]("+(t.uri||"")+") — "+t.author).join("\n");return safeReply(x,"📜 Listening History",body+"\n\nShowing the latest 10 tracks.");};
+export default command({name:"history",description:"View recent listening history",aliases:["hist","recent"],execute:run,slashExecute:run});
