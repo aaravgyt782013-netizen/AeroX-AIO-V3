@@ -198,12 +198,12 @@ async function waitForLavalink(client, maxAttempts = 30) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       if (client.music && client.music.lavalink) {
-        const nodes = client.music.lavalink.nodeManager.nodes;
+        const nodes = client.music.nodes?.() || [];
 
-        if (nodes) {
+        if (nodes.length > 0) {
           logger.success(
             "247Mode",
-            `Lavalink ready! ${nodes.length} node(s) connected`,
+            `Lavalink ready! ${nodes.length} connected node(s)`,
           );
           return true;
         }
@@ -320,8 +320,23 @@ async function connect247Guild(client, guildData) {
       );
       const existingPm = new PlayerManager(existingPlayer);
       existingPm.setData("247Mode", true);
+      existingPm.setData("stay247", true);
       existingPm.setData("247VoiceChannel", voiceChannel.id);
       existingPm.setData("247TextChannel", textChannel.id);
+
+      const settings = db.guild.getMusicSettings(guild.id);
+      if (settings.autoplay && !existingPlayer.queue?.current && !(existingPlayer.queue?.tracks?.length)) {
+        try {
+          const next = await client.music._pickAutoplayTrack(existingPlayer, existingPlayer.get("lastPlayedTrack"));
+          if (next) {
+            await existingPlayer.queue.add(next);
+            await existingPlayer.play({ noReplace: true });
+            logger.info("247Mode", `Autoplay started after reconnect in ${guild.name}: ${next.info?.title || "Unknown"}`);
+          }
+        } catch (error) {
+          logger.warn("247Mode", `Could not start autoplay in ${guild.name}: ${error.message}`);
+        }
+      }
       return;
     }
 
@@ -350,9 +365,24 @@ async function connect247Guild(client, guildData) {
 
     const player = new PlayerManager(rawPlayer);
     player.setData("247Mode", true);
+    player.setData("stay247", true);
     player.setData("247VoiceChannel", voiceChannel.id);
     player.setData("247TextChannel", textChannel.id);
     player.setData("247LastConnected", Date.now());
+
+    const settings = db.guild.getMusicSettings(guild.id);
+    if (settings.autoplay && rawPlayer && !rawPlayer.queue?.current && !(rawPlayer.queue?.tracks?.length)) {
+      try {
+        const next = await client.music._pickAutoplayTrack(rawPlayer, null);
+        if (next) {
+          await rawPlayer.queue.add(next);
+          await rawPlayer.play({ noReplace: true });
+          logger.info("247Mode", `Autoplay started in ${guild.name}: ${next.info?.title || "Unknown"}`);
+        }
+      } catch (error) {
+        logger.warn("247Mode", `Could not start autoplay in ${guild.name}: ${error.message}`);
+      }
+    }
 
     logger.success(
       "247Mode",
@@ -447,9 +477,24 @@ async function checkSingle247Connection(client, guildData) {
       }
       const newPlayer = new PlayerManager(rawNewPlayer);
       newPlayer.setData("247Mode", true);
+      newPlayer.setData("stay247", true);
       newPlayer.setData("247VoiceChannel", voiceChannel.id);
       newPlayer.setData("247TextChannel", textChannel.id);
       newPlayer.setData("247LastReconnected", Date.now());
+
+      const settings = db.guild.getMusicSettings(guild.id);
+      if (settings.autoplay && !rawNewPlayer.queue?.current && !(rawNewPlayer.queue?.tracks?.length)) {
+        try {
+          const next = await client.music._pickAutoplayTrack(rawNewPlayer, null);
+          if (next) {
+            await rawNewPlayer.queue.add(next);
+            await rawNewPlayer.play({ noReplace: true });
+            logger.info("247Mode", `Autoplay started after reconnect in ${guild.name}: ${next.info?.title || "Unknown"}`);
+          }
+        } catch (error) {
+          logger.warn("247Mode", `Could not start autoplay after reconnect in ${guild.name}: ${error.message}`);
+        }
+      }
 
       logger.success(
         "247Mode",
@@ -465,6 +510,7 @@ async function checkSingle247Connection(client, guildData) {
   } else {
     const pm = new PlayerManager(player);
     pm.setData("247Mode", true);
+    pm.setData("stay247", true);
     pm.setData("247VoiceChannel", voiceChannel.id);
     if (guildData.stay_247_text_channel) {
       pm.setData("247TextChannel", guildData.stay_247_text_channel);
