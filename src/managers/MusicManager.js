@@ -134,6 +134,15 @@ export class MusicManager {
   getPlayer(guildId) { return this.lavalink?.getPlayer(guildId) || null; }
   getDefaultVolume(guildId) { try { return db.guild.getDefaultVolume(guildId) || 100; } catch { return 100; } }
   setDefaultVolume(guildId, volume) { try { db.guild.setDefaultVolume(guildId, Math.max(1, Math.min(100, Number(volume)))); return true; } catch { return false; } }
-  async is247ModeEnabled(guildId) { try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; } }
-}\n  getHistory(guildId) { return this.history.get(guildId) || []; }\n  toggleLike(userId, track) {\n    if (!userId || !track?.info?.identifier) return false;\n    const list = this.likes.get(userId) || [];\n    const index = list.findIndex(x => x.identifier === track.info.identifier);\n    if (index >= 0) { list.splice(index, 1); this.likes.set(userId, list); return false; }\n    list.unshift({ identifier:track.info.identifier, title:track.info.title, author:track.info.author || "Unknown", uri:track.info.uri || null });\n    this.likes.set(userId, list.slice(0, 100));\n    return true;\n  }\n  getLikes(userId) { return this.likes.get(userId) || []; }\n
-}
+  async is247ModeEnabled(guildId) { try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; } }\n  getHistory(guildId) { return this.history.get(guildId) || []; }
+  toggleLike(userId, track) {
+    if (!userId || !track?.info?.identifier) return false;
+    const list = this.likes.get(userId) || [];
+    const index = list.findIndex(x => x.identifier === track.info.identifier);
+    if (index >= 0) { list.splice(index, 1); this.likes.set(userId, list); return false; }
+    list.unshift({ identifier:track.info.identifier, title:track.info.title, author:track.info.author || "Unknown", uri:track.info.uri || null });
+    this.likes.set(userId, list.slice(0, 100));
+    return true;
+  }
+  getLikes(userId) { return this.likes.get(userId) || []; }
+}\n}\n
