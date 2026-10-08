@@ -124,7 +124,7 @@ export default {
             if (player) {
               player.set("autoplayEnabled", enabled);
               player.set("stayAlive", enabled);
-              if (enabled) client.music?._refreshVoiceStayAlive?.(player, true);
+              if (enabled) client.music?.refreshVoiceStayAlive?.(interaction.guild.id, true);
             }
           }
           if (key === "mode247") {
