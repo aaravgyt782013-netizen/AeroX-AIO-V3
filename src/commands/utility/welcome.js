@@ -1,5 +1,5 @@
 import { Command } from "#structures/classes/Command";
-import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags, EmbedBuilder } from "discord.js";
+import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SeparatorBuilder, SeparatorSpacingSize } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/AutomationUtils";
@@ -22,12 +22,58 @@ function resolveChannel(message, raw) {
   return id ? message.guild.channels.cache.get(id) || null : null;
 }
 
+function welcomePanel(channelId, message, style = "embed") {
+  const container = new ContainerBuilder().setAccentColor(0x5865F2);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## 👋 LIGHTCORE • WELCOME SETUP"));
+  container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    "**Channel:** <#" + channelId + ">\n**Style:** " +
+    (style === "direct" ? "💬 Direct Message" : "🖼️ Embed") +
+    "\n\n**Message:**\n" + message
+  ));
+  container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("lc_welcome_direct").setLabel("Direct Message").setEmoji("💬").setStyle(style === "direct" ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("lc_welcome_embed").setLabel("Embed").setEmoji("🖼️").setStyle(style === "embed" ? ButtonStyle.Success : ButtonStyle.Secondary)
+  ));
+  return container;
+}
+
+async function sendWelcomeSetup(message, userId) {
+  const current = db.getWelcome(message.guild.id);
+  const sent = await message.reply({
+    components: [welcomePanel(current.channel_id, current.message, current.welcome_style || "embed")],
+    flags: MessageFlags.IsComponentsV2,
+    fetchReply: true
+  });
+  const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
+  collector.on("collect", async interaction => {
+    if (interaction.user.id !== userId) {
+      return interaction.reply({ content: "Only the person who opened this setup panel can use it.", ephemeral: true });
+    }
+    const style = interaction.customId === "lc_welcome_direct" ? "direct" :
+      interaction.customId === "lc_welcome_embed" ? "embed" : null;
+    if (!style) return;
+    try {
+      db.setWelcomeStyle(message.guild.id, style);
+      const updated = db.getWelcome(message.guild.id);
+      await interaction.update({
+        components: [welcomePanel(updated.channel_id, updated.message, updated.welcome_style)],
+        flags: MessageFlags.IsComponentsV2
+      });
+    } catch (error) {
+      await interaction.reply({ content: "Could not update welcome style: " + (error?.message || "unknown error"), ephemeral: true }).catch(() => {});
+    }
+  });
+  return sent;
+}
+
 class WelcomeCommand extends Command {
   constructor() {
     super({
       name: "welcome",
       description: "Configure automatic member welcome messages",
-      usage: "welcome <setup|message|channel|view|test|off|placeholders>",
+      usage: "welcome <setup|message|channel|style|view|test|off|placeholders>",
       aliases: ["welcomer", "greet", "greeting"],
       category: "Utility",
       cooldown: 3,
@@ -63,7 +109,7 @@ class WelcomeCommand extends Command {
       const current = db.getWelcome(guildId);
       if (!text) return message.reply(replyBox(emoji.get("cross") + " Provide a welcome message."));
       if (!current) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup #channel message first."));
-      db.setWelcome(guildId, current.channel_id, text);
+      db.setWelcome(guildId, current.channel_id, text, current.welcome_style || "embed");
       return message.reply(replyBox(emoji.get("check") + " Welcome message updated."));
     }
 
@@ -71,8 +117,17 @@ class WelcomeCommand extends Command {
       const channel = resolveChannel(message, args[1]);
       const current = db.getWelcome(guildId);
       if (!channel || !current) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup #channel message first."));
-      db.setWelcome(guildId, channel.id, current.message);
+      db.setWelcome(guildId, channel.id, current.message, current.welcome_style || "embed");
       return message.reply(replyBox(emoji.get("check") + " Welcome channel changed to <#" + channel.id + ">."));
+    }
+
+    if (sub === "style") {
+      const style = String(args[1] || "").toLowerCase();
+      const current = db.getWelcome(guildId);
+      if (!current) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup first."));
+      if (!["direct", "embed"].includes(style)) return message.reply(replyBox(emoji.get("cross") + " Use .welcome style direct or .welcome style embed."));
+      db.setWelcomeStyle(guildId, style);
+      return message.reply(replyBox(emoji.get("check") + " Welcome style set to **" + (style === "direct" ? "Direct Message" : "Embed") + "**."));
     }
 
     if (sub === "test") {
@@ -81,7 +136,14 @@ class WelcomeCommand extends Command {
       const channel = message.guild.channels.cache.get(current.channel_id);
       if (!channel || !channel.isTextBased()) return message.reply(replyBox(emoji.get("cross") + " The configured welcome channel no longer exists."));
       const rendered = renderAutomationMessage(current.message, { member: message.member, guild: message.guild, channel });
-      await channel.send({ content: rendered, allowedMentions: { parse: ["users", "roles"] } });
+      if (current.welcome_style === "direct") {
+        await channel.send({ content: rendered, allowedMentions: { parse: ["users", "roles"] } });
+      } else {
+        await channel.send({
+          embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("👋 Welcome to " + message.guild.name).setDescription(rendered).setThumbnail(message.member.user.displayAvatarURL({ size: 256 })).setFooter({ text: "LightCore • Welcome System" }).setTimestamp()],
+          allowedMentions: { parse: ["users", "roles"] }
+        });
+      }
       return message.reply(replyBox(emoji.get("check") + " Welcome test sent to <#" + channel.id + ">."));
     }
 
