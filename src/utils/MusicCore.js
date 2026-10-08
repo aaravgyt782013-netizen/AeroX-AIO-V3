@@ -281,6 +281,21 @@ export function settingsContainer(settings, notice = "") {
   });
 }
 
+export function sourceFromFlag(value) {
+  const v = String(value || "").toLowerCase();
+  const map = {
+    yt: "ytsearch",
+    youtube: "ytsearch",
+    ytm: "ytmsearch",
+    youtubemusic: "ytmsearch",
+    sp: "spsearch",
+    spotify: "spsearch",
+    sc: "scsearch",
+    soundcloud: "scsearch"
+  };
+  return map[v] || "ytmsearch";
+}
+
 export function sourceMenu() {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder().setCustomId("lc_music_source_select").setPlaceholder("🎧 Choose a music source").addOptions(
