@@ -100,9 +100,9 @@ function ensureBotManageChannels(guild) {
 function resolveTarget(guild, token) {
   const roleId = String(token || "").match(/^<@&(\d+)>$/)?.[1];
   if (roleId) return guild.roles.cache.get(roleId) || null;
-  const userId = String(token || "").match(/^<@!?(\\d+)>$/)?.[1];
+  const userId = String(token || "").match(/^<@!?(\d+)>$/)?.[1];
   if (userId) return guild.members.cache.get(userId)?.user || null;
-  const id = String(token || "").match(/^(\\d{15,25})$/)?.[1];
+  const id = String(token || "").match(/^(\d{15,25})$/)?.[1];
   return id ? (guild.roles.cache.get(id) || guild.members.cache.get(id)?.user || null) : null;
 }
 
@@ -289,90 +289,58 @@ export default {
   enabledSlash: true,
 
   slashData: {
-    name: ["channel", "create"],
-    description: "Create a new channel",
-    groupDescription: "Channel Manager",
+    name: "channel",
+    description: "Full Discord channel management system",
     options: [
-      { name: "name", description: "Channel name", type: 3, required: true },
-      { name: "type", description: "Channel type", type: 3, required: false, choices: [
-        { name: "Text", value: "text" },
-        { name: "Voice", value: "voice" },
-        { name: "Announcement", value: "announcement" },
-        { name: "Forum", value: "forum" },
-        { name: "Stage", value: "stage" },
-        { name: "Category", value: "category" },
+      {
+        name: "create",
+        description: "Create a new channel",
+        type: 1,
+        options: [
+          { name: "name", description: "Channel name", type: 3, required: true },
+          { name: "type", description: "Channel type", type: 3, required: false, choices: [
+            { name: "Text", value: "text" },
+            { name: "Voice", value: "voice" },
+            { name: "Announcement", value: "announcement" },
+            { name: "Forum", value: "forum" },
+            { name: "Stage", value: "stage" },
+            { name: "Category", value: "category" },
+          ]},
+          { name: "category", description: "Parent category", type: 7, required: false, channel_types: [ChannelType.GuildCategory] },
+        ],
+      },
+      { name: "delete", description: "Delete a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }] },
+      { name: "clone", description: "Clone a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "name", description: "New channel name", type: 3, required: false }] },
+      { name: "rename", description: "Rename a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "name", description: "New name", type: 3, required: true }] },
+      { name: "topic", description: "Change a channel topic", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "topic", description: "New topic", type: 3, required: true }] },
+      { name: "slowmode", description: "Set channel slowmode", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "seconds", description: "0-21600 seconds", type: 4, required: true }] },
+      { name: "lock", description: "Lock a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: false }] },
+      { name: "unlock", description: "Unlock a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: false }] },
+      { name: "hide", description: "Hide a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: false }] },
+      { name: "show", description: "Show a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: false }] },
+      { name: "move", description: "Move a channel into a category", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "category", description: "Category", type: 7, required: true, channel_types: [ChannelType.GuildCategory] }] },
+      { name: "nsfw", description: "Enable or disable NSFW flag", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "state", description: "on or off", type: 3, required: true, choices: [{ name: "On", value: "on" }, { name: "Off", value: "off" }] }] },
+      { name: "permission", description: "Set a channel permission for a role or user", type: 1, options: [
+        { name: "channel", description: "Channel", type: 7, required: true },
+        { name: "target", description: "Role or user", type: 9, required: true },
+        { name: "mode", description: "Allow or deny", type: 3, required: true, choices: [{ name: "Allow", value: "allow" }, { name: "Deny", value: "deny" }] },
+        { name: "permission", description: "Permission name", type: 3, required: true, choices: [
+          { name: "View Channel", value: "viewchannel" },
+          { name: "Send Messages", value: "sendmessages" },
+          { name: "Read Message History", value: "readmessagehistory" },
+          { name: "Embed Links", value: "embedlinks" },
+          { name: "Attach Files", value: "attachfiles" },
+          { name: "Add Reactions", value: "addreactions" },
+          { name: "Create Public Threads", value: "createpublicthreads" },
+          { name: "Create Private Threads", value: "createprivatethreads" },
+          { name: "Send Messages in Threads", value: "sendmessagesinthreads" },
+          { name: "Connect", value: "connect" },
+          { name: "Speak", value: "speak" },
+          { name: "Stream", value: "stream" },
+          { name: "Mention Everyone", value: "mentioneveryone" },
+        ]},
       ]},
-      { name: "category", description: "Parent category", type: 7, required: false, channel_types: [ChannelType.GuildCategory] },
+      { name: "info", description: "Show channel information", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: false }] },
+      { name: "list", description: "List all server channels", type: 1 },
     ],
-  },
-
-  async execute({ message, args }) {
-    const subcommand = String(args[0] || "").toLowerCase();
-    if (!subcommand) return message.reply({ embeds: [helpEmbed()] });
-
-    let channelToken = null;
-    const channelFirst = ["delete", "clone", "rename", "topic", "slowmode", "lock", "unlock", "hide", "show", "move", "nsfw", "permission", "info"].includes(subcommand);
-    if (channelFirst) channelToken = args[1];
-
-    const channel = ["lock", "unlock", "hide", "show", "info"].includes(subcommand)
-      ? resolveChannel(message.guild, channelToken, message.channel)
-      : resolveChannel(message.guild, channelToken);
-
-    try {
-      return await runAction({ guild: message.guild, member: message.member, subcommand, channel, args });
-    } catch (error) {
-      return message.reply({ embeds: [errorEmbed("Operation failed: **" + (error?.message || error) + "**")] });
-    }
-  },
-
-  async slashExecute({ interaction }) {
-    const sub = interaction.options.getSubcommand();
-
-    try {
-      if (sub === "create") {
-        const name = cleanName(interaction.options.getString("name"));
-        const typeKey = interaction.options.getString("type") || "text";
-        const type = TYPE_MAP[typeKey];
-        const parent = interaction.options.getChannel("category");
-
-        if (!ensureManageChannels(interaction.member)) {
-          return interaction.reply({ embeds: [errorEmbed("You need **Manage Channels** to use Channel Manager.")], ephemeral: true });
-        }
-        if (!ensureBotManageChannels(interaction.guild)) {
-          return interaction.reply({ embeds: [errorEmbed("I need **Manage Channels** to manage channels.")], ephemeral: true });
-        }
-        if (!name || !type) return interaction.reply({ embeds: [errorEmbed("Invalid channel name or type.")], ephemeral: true });
-        if (parent && parent.type !== ChannelType.GuildCategory) return interaction.reply({ embeds: [errorEmbed("The parent must be a category.")], ephemeral: true });
-
-        const options = { name, type, reason: "LightCore Channel Manager • " + interaction.user.tag };
-        if (parent && type !== ChannelType.GuildCategory) options.parent = parent.id;
-        const created = await interaction.guild.channels.create(options);
-        return interaction.reply({ embeds: [successEmbed("Channel Created", "Created " + channelMention(created) + " • **" + typeName(created.type) + "**.")] });
-      }
-
-      if (sub === "list") {
-        return interaction.reply(await runAction({ guild: interaction.guild, member: interaction.member, subcommand: sub, channel: null, args: [sub] }));
-      }
-
-      const channel = getSlashChannel(interaction);
-      const args = [sub, channel?.id];
-
-      if (sub === "clone") args.push(interaction.options.getString("name") || "");
-      if (sub === "rename") args.push(interaction.options.getString("name") || "");
-      if (sub === "topic") args.push(interaction.options.getString("topic") || "");
-      if (sub === "slowmode") args.push(String(interaction.options.getInteger("seconds") ?? 0));
-      if (sub === "move") args.push(interaction.options.getChannel("category")?.id || "");
-      if (sub === "nsfw") args.push(interaction.options.getString("state") || "");
-      if (sub === "permission") {
-        const target = interaction.options.getMentionable("target");
-        args.push(target?.id || "", interaction.options.getString("mode") || "", interaction.options.getString("permission") || "");
-      }
-
-      return interaction.reply(await runAction({ guild: interaction.guild, member: interaction.member, subcommand: sub, channel, args }));
-    } catch (error) {
-      const payload = { embeds: [errorEmbed("Operation failed: **" + (error?.message || error) + "**")] };
-      if (interaction.replied || interaction.deferred) return interaction.followUp({ ...payload, ephemeral: true });
-      return interaction.reply({ ...payload, ephemeral: true });
-    }
-  },
-};
+  },;
