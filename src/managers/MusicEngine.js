@@ -73,7 +73,7 @@ export class MusicEngine {
       }
     };
     if (this.client.isReady?.()) await start();
-    else await new Promise(resolve => this.client.once("ready", async () => { await start(); resolve(); }));
+    else await new Promise(resolve => this.client.once("clientReady", async () => { await start(); resolve(); }));
   }
 
   _bindEvents() {
@@ -149,7 +149,7 @@ export class MusicEngine {
         if (!player.playing) player.set("lightcorePlaybackFallbackUsed", false);
       }
     });
-    this.lavalink.on("trackStuck", (player, track, payload) => {
+    this.lavalink.on("trackStuck", async (player, track, payload) => {
       logger.warn("MusicEngine", "Track stuck [" + player?.guildId + "] after " + (payload?.thresholdMs || "?") + "ms");
       if (player && !player.playing && player.queue?.current) {
         try { await player.play(); } catch (error) {
