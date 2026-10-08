@@ -1,0 +1,3 @@
+import { command, getPlayer, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const p=getPlayer(x);if(!p?.queueSize)return safeReply(x,"🧹 Duplicates","The queue is empty.",0xED4245);const seen=new Set(),tracks=p.player.queue.tracks;let removed=0;for(let i=tracks.length-1;i>=0;i--){const t=tracks[i],key=(t.info.identifier||t.info.uri||t.info.title||"").toLowerCase();if(seen.has(key)){await p.removeTrack(i);removed++;}else seen.add(key);}return safeReply(x,"🧹 Duplicates removed",removed+" duplicate track(s) removed.");};
+export default command({name:"removedupes",description:"Remove duplicate tracks",aliases:["rmd","rd","drm"],dj:true,execute:run,slashExecute:run});
