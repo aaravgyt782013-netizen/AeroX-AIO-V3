@@ -81,7 +81,7 @@ class PremiumCommand extends Command {
         `\`premiumprofile reset\` • Reset server profile`
       ),
       new TextDisplayBuilder().setContent(
-        `-# Premium access is granted and managed by the bot owner. Discord bot account avatars/banners remain global; the Premium server profile customizes LightCore's server-specific presentation.`
+        `-# Premium access is granted and managed by the bot owner. Guild Premium can now set LightCore's server nickname, server avatar and server banner through Discord's current-member profile API.`
       )
     );
 
