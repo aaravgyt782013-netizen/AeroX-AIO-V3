@@ -392,6 +392,51 @@ export class Guild extends Database {
     return this.setHoneypot(guildId, current.channelId, action);
   }
 
+  initReactionRoleSettings() {
+    this._ensureGuildColumns("reactionroles", [
+      ["reaction_roles", "TEXT DEFAULT '{}'"],
+    ]);
+  }
+
+  getReactionRoles(guildId) {
+    this.ensureGuild(guildId);
+    this.initReactionRoleSettings();
+    const guild = this.getGuild(guildId);
+    try {
+      const parsed = JSON.parse(guild?.reaction_roles || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  setReactionRole(guildId, messageId, emojiKey, roleId, channelId = null) {
+    const data = this.getReactionRoles(guildId);
+    const entry = data[messageId] || { channelId: null, roles: {} };
+    entry.channelId = channelId || entry.channelId || null;
+    entry.roles = entry.roles || {};
+    entry.roles[emojiKey] = roleId;
+    data[messageId] = entry;
+    return this.exec("UPDATE guilds SET reaction_roles = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [JSON.stringify(data), guildId]);
+  }
+
+  removeReactionRole(guildId, messageId, emojiKey) {
+    const data = this.getReactionRoles(guildId);
+    if (!data[messageId]) return false;
+    delete data[messageId].roles?.[emojiKey];
+    if (!data[messageId].roles || Object.keys(data[messageId].roles).length === 0) delete data[messageId];
+    this.exec("UPDATE guilds SET reaction_roles = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [JSON.stringify(data), guildId]);
+    return true;
+  }
+
+  clearReactionRoles(guildId, messageId) {
+    const data = this.getReactionRoles(guildId);
+    const existed = Boolean(data[messageId]);
+    delete data[messageId];
+    this.exec("UPDATE guilds SET reaction_roles = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [JSON.stringify(data), guildId]);
+    return existed;
+  }
+
   initMusicSettings() {
     this._ensureGuildColumns("music", [
       ["dj_role", "TEXT DEFAULT NULL"],
