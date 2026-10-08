@@ -11,7 +11,7 @@ function resolveChannel(guild, raw) {
   return matches.size === 1 ? matches.first() : null;
 }
 
-export default new Command({
+export default {
   name: "honeypot",
   description: "Configure the LightCore honeypot security system.",
   usage: "honeypot setup #channel [ban|kick|timeout]",
