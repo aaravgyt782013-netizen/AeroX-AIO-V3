@@ -1,20 +1,23 @@
 import { Command } from "#structures/classes/Command";
-import { PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, MessageFlags, EmbedBuilder } from "discord.js";
+import { PermissionFlagsBits, EmbedBuilder } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
-import { automationPlaceholderHelp } from "#utils/AutomationUtils";
+import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/AutomationUtils";
 
 function replyBox(content) {
-  const embed = new EmbedBuilder()
-    .setTitle("🤖 Autoresponder")
-    .setDescription(content)
-    .setColor(0x5865F2)
-    .setTimestamp();
-  return { embeds: [embed] };
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🤖 LightCore • Autoresponder")
+        .setDescription(content)
+        .setColor(0x5865F2)
+        .setTimestamp(),
+    ],
+  };
 }
 
 function parseRule(raw, allowMode = false) {
-  let input = raw.trim();
+  let input = String(raw || "").trim();
   let matchType = "contains";
   if (allowMode && /^exact\s+/i.test(input)) {
     matchType = "exact";
@@ -27,12 +30,20 @@ function parseRule(raw, allowMode = false) {
   return trigger && response ? { trigger, response, matchType } : null;
 }
 
+function findRule(guildId, raw) {
+  const value = String(raw || "").trim();
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0
+    ? db.getAutoresponder(guildId, id)
+    : db.findAutoresponder(guildId, value);
+}
+
 class AutoResponderCommand extends Command {
   constructor() {
     super({
       name: "autoresponder",
-      description: "Create automatic replies to messages",
-      usage: "autoresponder <add|edit|remove|list|clear|placeholders>",
+      description: "Create Mimu-style automatic replies to messages",
+      usage: "autoresponder <add|edit|remove|enable|disable|test|list|clear|placeholders>",
       aliases: ["ar", "autoresponse", "autorespond"],
       category: "Utility",
       cooldown: 3,
@@ -61,10 +72,23 @@ class AutoResponderCommand extends Command {
 
     if (sub === "add") {
       const rule = parseRule(args.slice(1).join(" "), true);
-      if (!rule) return message.reply(replyBox(emoji.get("cross") + " Use: .autoresponder add [exact] trigger | response\nExample: .autoresponder add hello | Hey {user}!"));
+      if (!rule) {
+        return message.reply(replyBox(
+          emoji.get("cross") +
+          " Use: .autoresponder add [exact] trigger | response\n" +
+          "Example: .autoresponder add hello | Hey {user}!\n" +
+          "Tip: use exact when you only want a response to the whole message."
+        ));
+      }
       try {
         db.addAutoresponder(guildId, rule.trigger, rule.response, rule.matchType);
-        return message.reply(replyBox(emoji.get("check") + " Autoresponder added.\n**Trigger:** " + rule.trigger + "\n**Match:** " + rule.matchType + "\n**Response:** " + rule.response));
+        const created = db.findAutoresponder(guildId, rule.trigger);
+        return message.reply(replyBox(
+          emoji.get("check") + " Autoresponder #" + (created?.id || "?") + " created.\n\n" +
+          "**Trigger:** " + rule.trigger +
+          "\n**Match:** " + rule.matchType +
+          "\n**Response:** " + rule.response
+        ));
       } catch (error) {
         if (String(error.message).toLowerCase().includes("unique")) {
           return message.reply(replyBox(emoji.get("cross") + " That trigger already exists. Use .autoresponder edit <id> | new response."));
@@ -76,20 +100,47 @@ class AutoResponderCommand extends Command {
     if (sub === "edit") {
       const rule = parseRule(args.slice(1).join(" "));
       if (!rule) return message.reply(replyBox(emoji.get("cross") + " Use: .autoresponder edit <id> | new response"));
-      const id = Number(rule.trigger);
-      const found = Number.isInteger(id) ? db.getAutoresponder(guildId, id) : db.findAutoresponder(guildId, rule.trigger);
+      const found = findRule(guildId, rule.trigger);
       if (!found) return message.reply(replyBox(emoji.get("cross") + " Autoresponder not found."));
       db.updateAutoresponder(guildId, found.id, rule.response);
-      return message.reply(replyBox(emoji.get("check") + " Autoresponder #" + found.id + " updated."));
+      return message.reply(replyBox(emoji.get("check") + " Autoresponder #" + found.id + " updated and enabled."));
     }
 
     if (sub === "remove" || sub === "delete") {
-      const raw = args.slice(1).join(" ").trim();
-      const id = Number(raw);
-      const found = Number.isInteger(id) && id > 0 ? db.getAutoresponder(guildId, id) : db.findAutoresponder(guildId, raw);
+      const found = findRule(guildId, args.slice(1).join(" "));
       if (!found) return message.reply(replyBox(emoji.get("cross") + " Autoresponder not found."));
       db.deleteAutoresponder(guildId, found.id);
       return message.reply(replyBox(emoji.get("check") + " Autoresponder #" + found.id + " removed."));
+    }
+
+    if (sub === "enable" || sub === "on") {
+      const found = findRule(guildId, args.slice(1).join(" "));
+      if (!found) return message.reply(replyBox(emoji.get("cross") + " Autoresponder not found."));
+      db.setAutoresponderEnabled(guildId, found.id, true);
+      return message.reply(replyBox(emoji.get("check") + " Autoresponder #" + found.id + " is now ON."));
+    }
+
+    if (sub === "disable" || sub === "off") {
+      const found = findRule(guildId, args.slice(1).join(" "));
+      if (!found) return message.reply(replyBox(emoji.get("cross") + " Autoresponder not found."));
+      db.setAutoresponderEnabled(guildId, found.id, false);
+      return message.reply(replyBox(emoji.get("check") + " Autoresponder #" + found.id + " is now OFF."));
+    }
+
+    if (sub === "test") {
+      const found = findRule(guildId, args.slice(1).join(" "));
+      if (!found) return message.reply(replyBox(emoji.get("cross") + " Autoresponder not found."));
+      const rendered = renderAutomationMessage(found.response, {
+        member: message.member,
+        guild: message.guild,
+        channel: message.channel,
+        message: found.trigger_text,
+      });
+      await message.channel.send({
+        content: rendered,
+        allowedMentions: { parse: ["users", "roles"] },
+      });
+      return message.reply(replyBox(emoji.get("check") + " Test sent for autoresponder #" + found.id + "."));
     }
 
     if (sub === "clear") {
@@ -101,12 +152,25 @@ class AutoResponderCommand extends Command {
       return message.reply(replyBox("**Autoresponder placeholders**\n\n" + automationPlaceholderHelp()));
     }
 
-    const rules = db.getAutoresponders(guildId);
-    if (!rules.length) return message.reply(replyBox(emoji.get("info") + " No autoresponders are configured.\n\nUse .autoresponder add hello | Hey {user}!"));
+    const rules = db.getAllAutoresponders(guildId);
+    if (!rules.length) {
+      return message.reply(replyBox(
+        emoji.get("info") + " No autoresponders are configured.\n\n" +
+        "Use .autoresponder add hello | Hey {user}!"
+      ));
+    }
+
     const lines = rules.map(rule =>
-      "**#" + rule.id + "** · " + rule.trigger_text + " · " + rule.match_type + "\n↳ " + rule.response
+      "**#" + rule.id + "** · " + rule.trigger_text + " · " +
+      (rule.enabled ? "🟢 ON" : "🔴 OFF") + " · " + rule.match_type +
+      "\n↳ " + rule.response
     );
-    return message.reply(replyBox("**Autoresponders (" + rules.length + ")**\n\n" + lines.join("\n\n") + "\n\nUse .autoresponder remove <id> to delete one."));
+
+    return message.reply(replyBox(
+      "**Autoresponders (" + rules.length + ")**\n\n" +
+      lines.join("\n\n") +
+      "\n\nManage: .autoresponder enable <id> • .autoresponder disable <id> • .autoresponder test <id>"
+    ));
   }
 
   async slashExecute({ interaction }) {
@@ -115,7 +179,9 @@ class AutoResponderCommand extends Command {
     const match = interaction.options.getString("match") || "contains";
     try {
       db.addAutoresponder(interaction.guild.id, trigger, reply, match);
-      return interaction.reply(replyBox(emoji.get("check") + " Autoresponder added for " + trigger + " (" + match + ")."));
+      return interaction.reply(replyBox(
+        emoji.get("check") + " Autoresponder added for " + trigger + " (" + match + ")."
+      ));
     } catch (error) {
       if (String(error.message).toLowerCase().includes("unique")) {
         return interaction.reply(replyBox(emoji.get("cross") + " That trigger already exists in this server."));
