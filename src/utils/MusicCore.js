@@ -11,12 +11,24 @@ import {
   TextDisplayBuilder
 } from "discord.js";
 import { PlayerManager } from "#managers/PlayerManager";
+import emoji from "#config/emoji";
 
 export const MUSIC_COLOR = 0x5865F2;
 export const ERROR_COLOR = 0xED4245;
 export const SUCCESS_COLOR = 0x57F287;
-
 export const v2Flags = MessageFlags.IsComponentsV2;
+
+const text = value => new TextDisplayBuilder().setContent(String(value ?? ""));
+
+function emojiObject(name, fallback = null) {
+  const raw = emoji.get(name, fallback || "");
+  const match = String(raw).match(/^<a?:[^:>]+:(\d+)>$/);
+  return match
+    ? { id: match[1], animated: String(raw).startsWith("<a:") }
+    : (raw || undefined);
+}
+
+const E = (name, fallback) => emoji.get(name, fallback);
 
 export function formatDuration(ms) {
   if (ms == null || ms < 0 || !Number.isFinite(Number(ms))) return "LIVE";
@@ -80,12 +92,8 @@ export async function reply(x, payload) {
   return c.source.reply(payload);
 }
 
-function text(value) {
-  return new TextDisplayBuilder().setContent(String(value ?? ""));
-}
-
 export function musicContainer({
-  title = "🎵 LightCore Music",
+  title = `${E("music","🎵")} **LIGHTCORE • MUSIC**`,
   description = "",
   sections = [],
   components = [],
@@ -93,34 +101,32 @@ export function musicContainer({
 } = {}) {
   const container = new ContainerBuilder().setAccentColor(accent);
   container.addTextDisplayComponents(text(title));
-  if (description) container.addTextDisplayComponents(text(description));
-  for (const section of sections) {
-    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
-    container.addTextDisplayComponents(text(section));
+
+  if (description) {
+    container.addTextDisplayComponents(text(description));
   }
-  if (components.length) {
+
+  if (sections.length) {
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
-    for (const component of components) {
-      container.addActionRowComponents(component);
+    for (const section of sections) {
+      container.addTextDisplayComponents(text(section));
     }
   }
+
+  if (components.length) {
+    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
+    for (const component of components) container.addActionRowComponents(component);
+  }
+
   return container;
 }
 
 export function v2Payload(container, extra = {}) {
-  return {
-    ...extra,
-    components: [container],
-    flags: v2Flags
-  };
+  return { ...extra, components: [container], flags: v2Flags };
 }
 
 export async function safeReply(x, title, description, color = MUSIC_COLOR) {
-  return reply(x, v2Payload(musicContainer({
-    title,
-    description,
-    accent: color
-  })));
+  return reply(x, v2Payload(musicContainer({ title, description, accent: color })));
 }
 
 export function voiceChannel(x) {
@@ -140,14 +146,7 @@ export function musicSettings(x) {
       mode247: Boolean(s.mode247)
     };
   } catch {
-    return {
-      djRole: null,
-      autoplay: false,
-      announceSongs: true,
-      voteSkip: false,
-      source: "ytmsearch",
-      mode247: false
-    };
+    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false };
   }
 }
 
@@ -178,9 +177,7 @@ export async function ensurePlayer(x) {
       textChannelId: c.channel.id,
       voiceChannelId: voice.id
     });
-    if (!raw) {
-      throw new Error("Music is temporarily unavailable: no Lavalink node is connected.");
-    }
+    if (!raw) throw new Error("Music is temporarily unavailable: no Lavalink node is connected.");
     p = new PlayerManager(raw);
   }
 
@@ -212,11 +209,8 @@ export async function enqueue(x, result, position) {
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
 
-  if (result.loadType === "playlist") {
-    await p.addTracks(result.tracks, position);
-  } else {
-    await p.addTracks(result.tracks[0], position);
-  }
+  if (result.loadType === "playlist") await p.addTracks(result.tracks, position);
+  else await p.addTracks(result.tracks[0], position);
 
   if (idle && !p.isPlaying) await p.play();
   return { p, count: result.tracks?.length || 1, first: result.tracks[0] };
@@ -226,7 +220,7 @@ export function nowPlayingEmbed(p) {
   const t = p?.currentTrack;
   if (!t) {
     return musicContainer({
-      title: "🎵 Nothing is playing",
+      title: `${E("music","🎵")} **LIGHTCORE • NOTHING PLAYING**`,
       description: "Use `.play <song>` to start listening.",
       accent: ERROR_COLOR
     });
@@ -235,32 +229,27 @@ export function nowPlayingEmbed(p) {
   const duration = Number(t.info.duration || 0);
   const position = Number(p.position || 0);
   const ratio = duration ? Math.min(1, Math.max(0, position / duration)) : 0;
-  const length = 20;
+  const length = 18;
   const filled = Math.round(ratio * length);
   const bar = "━".repeat(Math.max(0, filled)) + "🔘" + "━".repeat(Math.max(0, length - filled));
 
+  const artwork = t.info.artworkUrl || t.info.thumbnail || t.info.image;
   const container = musicContainer({
-    title: "🎵 LIGHTCORE • NOW PLAYING",
-    description: `**${t.info.title || "Unknown"}**\n${t.info.author || "Unknown artist"}`,
+    title: `${E("music","🎵")} **LIGHTCORE • NOW PLAYING**`,
+    description: `### ${t.info.title || "Unknown"}\n${t.info.author || "Unknown artist"}`,
     sections: [
-      `⏱️ **Progress**\n${bar}\n${formatDuration(position)} / ${formatDuration(duration)}`,
-      `🔊 **Volume:** ${p.volume ?? 100}%   •   🔁 **Loop:** ${p.repeatMode || "off"}   •   📜 **Queue:** ${p.queueSize ?? 0} upcoming`,
-      `✨ **LightCore Music** • ${p.isPaused ? "Paused" : "Playing"}`
+      `${E("timer","⏱️")} **Progress**\n${bar}\n${formatDuration(position)} / ${formatDuration(duration)}`,
+      `${E("status","🔊")} **Volume:** ${p.volume ?? 100}%  •  ${E("list","📜")} **Queue:** ${p.queueSize ?? 0} upcoming  •  🔁 **Loop:** ${p.repeatMode || "off"}`
     ],
     components: controlRows(p)
   });
 
-  const artwork = t.info.artworkUrl || t.info.thumbnail || t.info.image;
   if (artwork) {
-    const section = new SectionBuilder()
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-        `### 🎧 ${t.info.title || "Unknown"}\n**Artist:** ${t.info.author || "Unknown artist"}`
-      ))
-      .setThumbnailAccessory(thumbnail => thumbnail
-        .setDescription("Track artwork")
-        .setURL(artwork)
-      );
-    container.addSectionComponents(section);
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(text(`${E("music","🎵")} **Playing now**\n${t.info.title || "Unknown"}\n${t.info.author || "Unknown artist"}`))
+        .setThumbnailAccessory(thumbnail => thumbnail.setDescription("Track artwork").setURL(artwork))
+    );
   }
 
   return container;
@@ -269,9 +258,9 @@ export function nowPlayingEmbed(p) {
 export function controlRows(p) {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_previous").setLabel("Prev").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_previous").setLabel("Prev").setEmoji(emojiObject("left","◀️")).setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_rewind").setLabel("10s").setEmoji("⏪").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_pause").setLabel(p?.isPaused ? "Play" : "Pause").setEmoji(p?.isPaused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("lc_music_pause").setLabel(p?.isPaused ? "Play" : "Pause").setEmoji(emojiObject(p?.isPaused ? "play" : "pause",p?.isPaused ? "▶️" : "⏸️")).setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("lc_music_forward").setLabel("10s").setEmoji("⏩").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_skip").setLabel("Skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary)
     ),
@@ -280,7 +269,7 @@ export function controlRows(p) {
       new ButtonBuilder().setCustomId("lc_music_loop").setLabel("Loop").setEmoji("🔁").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_volume_down").setLabel("Vol −").setEmoji("🔉").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_volume_up").setLabel("Vol +").setEmoji("🔊").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_queue").setLabel("Queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("lc_music_queue").setLabel("Queue").setEmoji(emojiObject("list","📜")).setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -292,15 +281,14 @@ export function queueEmbed(p, page = 1) {
   const pages = Math.max(1, Math.ceil(tracks.length / perPage));
   const pg = Math.max(1, Math.min(Number(page) || 1, pages));
   const start = (pg - 1) * perPage;
-
   const body = tracks.slice(start, start + perPage)
     .map((t, i) => `${start + i + 1}. **${t.info.title || "Unknown"}** — ${formatDuration(t.info.duration)}`)
     .join("\n") || "No songs are waiting.";
 
   return musicContainer({
-    title: "📜 LightCore • QUEUE",
-    description: current ? `🎵 **Playing:** ${current.info.title || "Unknown"}\n\n${body}` : body,
-    sections: [`📦 ${tracks.length} queued • page ${pg}/${pages}`]
+    title: `${E("list","📜")} **LIGHTCORE • QUEUE**`,
+    description: current ? `${E("music","🎵")} **Playing:** ${current.info.title || "Unknown"}\n\n${body}` : body,
+    sections: [`${E("total","📦")} ${tracks.length} queued • page ${pg}/${pages}`]
   });
 }
 
@@ -308,14 +296,14 @@ export function settingsRows(settings) {
   const on = v => v ? "ON" : "OFF";
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_setting_autoplay").setLabel(`Autoplay: ${on(settings.autoplay)}`).setEmoji("🔄").setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_autoplay").setLabel(`Autoplay: ${on(settings.autoplay)}`).setEmoji(emojiObject("reload","🔄")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_setting_announce").setLabel(`Announcements: ${on(settings.announceSongs)}`).setEmoji("📢").setStyle(settings.announceSongs ? ButtonStyle.Success : ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_setting_voteskip").setLabel(`Vote Skip: ${on(settings.voteSkip)}`).setEmoji("🗳️").setStyle(settings.voteSkip ? ButtonStyle.Success : ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("lc_music_setting_247").setLabel(`24/7: ${on(settings.mode247)}`).setEmoji("♾️").setStyle(settings.mode247 ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel(`Source: ${settings.source === "ytmsearch" ? "YouTube Music" : settings.source}`).setEmoji("🔎").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("DJ Role").setEmoji("👑").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel(`Source: ${settings.source === "ytmsearch" ? "YouTube Music" : settings.source}`).setEmoji(emojiObject("music","🎵")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("DJ Role").setEmoji(emojiObject("owner","👑")).setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -323,13 +311,11 @@ export function settingsRows(settings) {
 export function settingsContainer(settings, notice = "") {
   const s = settings || {};
   return musicContainer({
-    title: "🎵 LIGHTCORE • MUSIC SETTINGS",
-    description: notice ? `✅ **${notice}**` : "Configure playback, access and search behavior from one panel.",
+    title: `${E("music","🎵")} **LIGHTCORE • MUSIC SETTINGS**`,
+    description: notice ? `${E("check","✅")} **${notice}**` : "Rythm-style playback controls, access and search settings.",
     sections: [
-      `🎶 **Playback**\n🔄 Autoplay: **${s.autoplay ? "ON" : "OFF"}**\n📢 Announcements: **${s.announceSongs ? "ON" : "OFF"}**\n🗳️ Vote Skip: **${s.voteSkip ? "ON" : "OFF"}**`,
-      `♾️ **Stay Connected**\n24/7 mode: **${s.mode247 ? "ON" : "OFF"}**\n🔎 Source: **${s.source === "ytmsearch" ? "YouTube Music" : s.source}**`,
-      `👑 **Access**\nDJ role: ${s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control music"}`,
-      "💡 **Tip:** Autoplay ON keeps the player alive and automatically finds another song when the queue ends."
+      `${E("music","🎵")} **PLAYBACK**\n${E("reload","🔄")} Autoplay: **${s.autoplay ? "ON" : "OFF"}**  •  📢 Announcements: **${s.announceSongs ? "ON" : "OFF"}**  •  🗳️ Vote Skip: **${s.voteSkip ? "ON" : "OFF"}**`,
+      `♾️ **STAY CONNECTED**\n24/7: **${s.mode247 ? "ON" : "OFF"}**  •  🔎 Source: **${s.source === "ytmsearch" ? "YouTube Music" : s.source}**\n${E("owner","👑")} DJ role: ${s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control"}`
     ],
     components: settingsRows(s)
   });
@@ -341,9 +327,9 @@ export function sourceMenu() {
       .setCustomId("lc_music_source_select")
       .setPlaceholder("🎧 Choose a music source")
       .addOptions(
-        { label: "YouTube Music", value: "ytmsearch", emoji: "▶️" },
-        { label: "YouTube", value: "ytsearch", emoji: "📺" },
-        { label: "Spotify", value: "spsearch", emoji: "🟢" },
+        { label: "YouTube Music", value: "ytmsearch", emoji: emojiObject("youtube","▶️") },
+        { label: "YouTube", value: "ytsearch", emoji: emojiObject("youtube","📺") },
+        { label: "Spotify", value: "spsearch", emoji: emojiObject("spotify","🟢") },
         { label: "SoundCloud", value: "scsearch", emoji: "🟠" }
       )
   );
