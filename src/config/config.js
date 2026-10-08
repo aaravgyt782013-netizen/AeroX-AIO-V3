@@ -7,16 +7,48 @@ const PUBLIC_LAVALINK_NODES = [
     host: "free-lava.heavencloud.in",
     port: 4000,
     authorization: "heavencloud.in",
+    auth: "heavencloud.in",
     secure: false,
     retryAmount: Infinity,
     retryDelay: 5000
   },
   {
-    id: "lightcore-heavencloud-fallback",
-    host: "lavalink.heavencloud.in",
-    port: 2333,
-    authorization: "heavencloud",
-    secure: false,
+    id: "lightcore-nazha-sg1",
+    host: "sg-1.nazha.online",
+    port: 443,
+    authorization: "https://discord.gg/XeSCnk57ZF",
+    auth: "https://discord.gg/XeSCnk57ZF",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 5000
+  },
+  {
+    id: "lightcore-nazha-sg2",
+    host: "sg-2.nazha.online",
+    port: 443,
+    authorization: "https://discord.gg/XeSCnk57ZF",
+    auth: "https://discord.gg/XeSCnk57ZF",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 5000
+  },
+  {
+    id: "lightcore-nazha-sg3",
+    host: "sg-3.nazha.online",
+    port: 443,
+    authorization: "https://discord.gg/XeSCnk57ZF",
+    auth: "https://discord.gg/XeSCnk57ZF",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 5000
+  },
+  {
+    id: "lightcore-nazha-global",
+    host: "lavalink.nazha.online",
+    port: 443,
+    authorization: "nazhafreelava",
+    auth: "nazhafreelava",
+    secure: true,
     retryAmount: Infinity,
     retryDelay: 5000
   }
