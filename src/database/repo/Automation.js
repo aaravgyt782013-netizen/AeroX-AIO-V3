@@ -140,6 +140,10 @@ export class Automation extends Database {
     return this.all("SELECT * FROM autoresponders WHERE guild_id = ? AND enabled = 1 ORDER BY id ASC", [guildId]);
   }
 
+  getAllAutoresponders(guildId) {
+    return this.all("SELECT * FROM autoresponders WHERE guild_id = ? ORDER BY id ASC", [guildId]);
+  }
+
   getAutoresponder(guildId, id) {
     return this.get("SELECT * FROM autoresponders WHERE guild_id = ? AND id = ?", [guildId, id]) || null;
   }
@@ -163,8 +167,15 @@ export class Automation extends Database {
     if (!current) return null;
     const nextType = matchType && ["contains", "exact"].includes(matchType) ? matchType : current.match_type;
     return this.exec(
-      "UPDATE autoresponders SET response = ?, match_type = ?, updated_at = ? WHERE guild_id = ? AND id = ?",
+      "UPDATE autoresponders SET response = ?, match_type = ?, enabled = 1, updated_at = ? WHERE guild_id = ? AND id = ?",
       [response, nextType, Date.now(), guildId, id],
+    );
+  }
+
+  setAutoresponderEnabled(guildId, id, enabled) {
+    return this.exec(
+      "UPDATE autoresponders SET enabled = ?, updated_at = ? WHERE guild_id = ? AND id = ?",
+      [enabled ? 1 : 0, Date.now(), guildId, id],
     );
   }
 
