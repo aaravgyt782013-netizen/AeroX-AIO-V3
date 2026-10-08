@@ -1,6 +1,7 @@
 import { db } from "#database/DatabaseManager";
 import { renderAutomationMessage } from "#utils/AutomationUtils";
 import { logger } from "#utils/logger";
+import { EmbedBuilder } from "discord.js";
 
 export default {
   name: "guildMemberAdd",
@@ -38,10 +39,25 @@ export default {
         inviter,
       });
 
-      await channel.send({
-        content,
-        allowedMentions: { parse: ["users", "roles"] },
-      });
+      if (setting.welcome_style === "direct") {
+        await channel.send({
+          content,
+          allowedMentions: { parse: ["users", "roles"] },
+        });
+      } else {
+        await channel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x5865F2)
+              .setTitle("👋 Welcome to " + member.guild.name)
+              .setDescription(content)
+              .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+              .setFooter({ text: "LightCore • Welcome System" })
+              .setTimestamp()
+          ],
+          allowedMentions: { parse: ["users", "roles"] },
+        });
+      }
     } catch (error) {
       logger.error("WelcomeMessage", "Failed to send welcome message:", error);
     }
