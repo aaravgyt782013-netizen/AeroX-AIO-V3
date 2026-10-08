@@ -105,25 +105,47 @@ export async function playQuery(x, query, opts = {}) {
   const q = String(query || "").trim();
   if (!q) return safeReply(x, "🎵 Play", "Usage: .play <song name or URL>", 0xED4245);
 
-  const result = await resolveTrack(x, q, opts.source);
-  const added = await enqueue(x, result, opts.position);
-  const first = added.first;
-  const isNowPlaying = added.p.currentTrack?.info?.identifier === first?.info?.identifier;
+  const ctx = context(x);
+  let pending = null;
+  try {
+    const loading = v2Payload(musicContainer({
+      title: "🔎 LIGHTCORE • SEARCHING",
+      description: "Searching for **" + q.slice(0, 180) + "** and preparing the voice connection..."
+    }));
+    if (ctx.slash) {
+      if (!ctx.source.deferred && !ctx.source.replied) await ctx.source.deferReply();
+    } else {
+      pending = await ctx.source.reply(loading);
+    }
 
-  if (result.loadType === "playlist") {
-    return safeReply(
-      x,
-      isNowPlaying ? "🎵 NOW PLAYING" : "📥 ADDED TO QUEUE",
-      `Added **${added.count} tracks** to the queue.\nUse the controls on the music panel to manage playback.`
-    );
+    const result = await resolveTrack(x, q, opts.source);
+    const added = await enqueue(x, result, opts.position);
+    const first = added.first;
+
+    let payload;
+    if (result.loadType === "playlist") {
+      payload = v2Payload(musicContainer({
+        title: "📥 LIGHTCORE • ADDED TO QUEUE",
+        description: "Added **" + added.count + " tracks** to the queue."
+      }));
+    } else {
+      payload = v2Payload(nowPlayingEmbed(added.p));
+    }
+
+    if (ctx.slash) return ctx.source.editReply(payload);
+    return pending?.edit ? pending.edit(payload) : ctx.source.reply(payload);
+  } catch (error) {
+    const message = error?.message || "Music request failed.";
+    const payload = v2Payload(musicContainer({
+      title: "⚠️ LIGHTCORE • MUSIC ERROR",
+      description: message,
+      accent: 0xED4245
+    }));
+    if (ctx.slash) {
+      if (ctx.source.deferred || ctx.source.replied) return ctx.source.editReply(payload);
+      return ctx.source.reply(payload);
+    }
+    if (pending?.edit) return pending.edit(payload);
+    return ctx.source.reply(payload);
   }
-
-  const title = first?.info?.title || "Unknown track";
-  const author = first?.info?.author || "Unknown artist";
-  const duration = formatDuration(first?.info?.duration);
-
-  return reply(x, v2Payload(nowPlayingEmbed(added.p), {
-    // V2 messages cannot contain content/embeds/stickers.
-    // The container itself is the complete message.
-  }));
 }
