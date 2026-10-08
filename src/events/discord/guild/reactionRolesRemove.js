@@ -13,7 +13,7 @@ export default {
     if (reaction.message?.partial) await reaction.message.fetch().catch(() => null);
     const guild = reaction.message?.guild;
     if (!guild) return;
-    const roleId = db.guild.getReactionRoles(guild.id)[reaction.message.id]?.[keyOf(reaction)];
+    const roleId = db.guild.getReactionRoles(guild.id)[reaction.message.id]?.roles?.[keyOf(reaction)];
     if (!roleId) return;
     const member = await guild.members.fetch(user.id).catch(() => null);
     const role = guild.roles.cache.get(roleId);
