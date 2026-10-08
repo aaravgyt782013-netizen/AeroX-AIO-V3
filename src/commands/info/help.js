@@ -1386,50 +1386,107 @@ class HelpCommand extends Command {
     const name = String(command?.name || "").toLowerCase();
     const cat = String(category || command?.category || "").toLowerCase();
 
-    if (cat === "channel") {
-      const map = {
-        channel: "🛠️", create: "➕", delete: "🗑️", clone: "📋", copy: "📄",
-        rename: "✏️", topic: "📝", slowmode: "🐢", lock: "🔒", unlock: "🔓",
-        hide: "🙈", show: "👁️", move: "↔️", nsfw: "🔞", permission: "🔐",
-        info: "ℹ️", list: "📚", categorydelete: "🗑️", catdelete: "🗑️",
-        delcategory: "🗑️", categorydel: "🗑️", unhide: "👁️",
-        unhideall: "👀", unlockall: "🔓", nuke: "💥", purge: "🧹",
-        purgebots: "🤖",
-      };
-      return map[name] || "🛠️";
-    }
+    const maps = {
+      channel: {
+        channel: "channel", create: "add", delete: "trash", clone: "copy", copy: "copy",
+        rename: "edit", topic: "edit", slowmode: "timer", lock: "lock", unlock: "unlock",
+        hide: "hide", show: "unhide", move: "right", nsfw: "info", permission: "settings",
+        info: "info", list: "list", categorydelete: "trash", catdelete: "trash",
+        delcategory: "trash", categorydel: "trash", unhide: "unhide", unhideall: "unhide",
+        unlockall: "unlock", nuke: "nuke", purge: "purge", purgebots: "moderation",
+      },
+      moderation: {
+        ban: "ban", unban: "unban", kick: "kick", warn: "warn", mute: "mute",
+        unmute: "unmute", purge: "purge", nuke: "nuke", lock: "lock", unlock: "unlock",
+        timeout: "timer", untimeout: "reset", reason: "reason", duration: "duration",
+      },
+      ticket: { ticket: "ticket", ticketsetup: "ticketPanel", close: "ticketClose", claim: "ticketClaim" },
+      voice: { tempvoice: "category_voice", voice: "category_voice", setup: "settings", claim: "owner" },
+      pfps: { avatar: "avatar", banner: "banner", pfp: "pfp", gif: "gif", anime: "anime", girl: "girl", boy: "boy" },
+      invites: { invite: "invite", invites: "invites", leaderboard: "leaderboard", rank: "trophy" },
+      premium: { premium: "premium", premiumuser: "premium", premiumprofile: "premium" },
+      owner: { owner: "owner", noprefix: "owner", reload: "reload", restart: "restart", backup: "backup" },
+      logging: { logsetup: "info", logs: "info", showlogs: "info" },
+      fun: { game: "game", dice: "dice", roll: "dice", heart: "heart", love: "heart" },
+      utility: { settings: "settings", server: "server", role: "role", user: "user", nick: "nick", remind: "remind" },
+      info: { help: "info", about: "info", ping: "status", stats: "total" },
+    };
 
     if (cat.includes("music") || cat.includes("rythm")) {
-      const map = {
-        play:"▶️", search:"🔎", nowplaying:"🎵", queue:"📜", control:"⚙️",
-        pause:"⏸️", resume:"▶️", skip:"⏭️", stop:"⏹️", disconnect:"⏹️",
-        previous:"⏮️", replay:"🔄", seek:"⏩", forward:"⏩", rewind:"⏪",
-        volume:"🔊", shuffle:"🔀", loop:"🔁", queueloop:"🔁", clear:"🗑️",
-        remove:"🗑️", removedupes:"🗑️", move:"↔️", playtop:"⬆️", playskip:"⏭️",
-        bump:"⬆️", autoplay:"🔄", announce:"📢", forceskip:"⏭️",
-        settings:"⚙️", "247":"♾️", setdefaultvolume:"🔊", voteskip:"⏭️",
-        source:"🎵", history:"📜", skipto:"⏭️",
-      };
-      return map[name] || "🎵";
+      return emoji.get(this._getCommandEmojiKey(command, category)) || emoji.get("music") || "🎵";
     }
 
-    return "ℹ️";
+    const categoryMap = Object.keys(maps).find(key => cat.includes(key));
+    const key = categoryMap ? (maps[categoryMap][name] || maps[categoryMap][name.split("-")[0]]) : null;
+    if (key) return emoji.get(key) || emoji.get("info") || "ℹ️";
+
+    // Meaningful fallback for any newly-added command/category.
+    if (name.includes("ban")) return emoji.get("ban") || "🔨";
+    if (name.includes("ticket")) return emoji.get("ticket") || "🎫";
+    if (name.includes("role")) return emoji.get("role") || "🎭";
+    if (name.includes("channel")) return emoji.get("channel") || "📺";
+    if (name.includes("server") || name.includes("guild")) return emoji.get("server") || "🖥️";
+    if (name.includes("user") || name.includes("member")) return emoji.get("user") || "👤";
+    if (name.includes("invite")) return emoji.get("invite") || "📨";
+    if (name.includes("avatar") || name.includes("pfp")) return emoji.get("avatar") || "🖼️";
+    return this._getCategoryEmoji(category);
   }
 
   _getCategoryEmoji(category) {
     const key = String(category || "").toLowerCase();
-    const map = {
-      channel: "🛠️",
-      rythmusic: "🎵", music: "🎵",
-      owner: "👑", premium: "💎",
-      info: "ℹ️", utility: "🔧",
-      moderation: "🛡️", logging: "📋",
-      ticket: "🎫", pfps: "🖼️",
-      voice: "🔊", invites: "📨",
-      extra: "✨", fun: "🎮",
-      giveaway: "🎉", developer: "💻",
+
+    const direct = {
+      channel: "channel",
+      rythmusic: "category_music",
+      music: "category_music",
+      owner: "category_owner",
+      premium: "category_premium",
+      info: "category_info",
+      utility: "category_utility",
+      moderation: "category_moderation",
+      logging: "category_logging",
+      ticket: "category_ticket",
+      pfps: "category_pfps",
+      voice: "category_voice",
+      invites: "category_invites",
+      extra: "category_extra",
+      fun: "category_fun",
+      giveaway: "category_giveaway",
     };
-    return map[key] || "📁";
+
+    if (direct[key]) return emoji.get(direct[key]) || emoji.get("folder") || "📁";
+
+    // Categories added later should still get a meaningful LightCore emoji.
+    const keywordMap = [
+      [["security", "antinuke", "automod"], "moderation"],
+      [["music", "audio", "sound"], "music"],
+      [["ticket", "support"], "ticket"],
+      [["voice", "temp"], "category_voice"],
+      [["invite"], "invites"],
+      [["premium"], "premium"],
+      [["owner", "developer", "dev"], "owner"],
+      [["image", "avatar", "pfp", "profile"], "pfp"],
+      [["game", "fun"], "fun"],
+      [["giveaway"], "category_giveaway"],
+      [["log", "audit"], "category_logging"],
+      [["role"], "role"],
+      [["server", "guild"], "server"],
+      [["user", "member"], "user"],
+      [["setting", "config", "utility"], "category_utility"],
+    ];
+
+    for (const [words, emojiKey] of keywordMap) {
+      if (words.some(word => key.includes(word))) {
+        return emoji.get(emojiKey) || emoji.get("folder") || "📁";
+      }
+    }
+
+    // Deterministic pseudo-random fallback from the bot's existing emoji set.
+    const fallbackKeys = ["folder", "sparkle", "game", "server", "role", "settings", "star", "badge"];
+    let hash = 0;
+    for (const char of key) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+    const fallback = fallbackKeys[Math.abs(hash) % fallbackKeys.length];
+    return emoji.get(fallback) || emoji.get("folder") || "📁";
   }
 
   _displayCategory(category) {
