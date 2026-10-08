@@ -78,7 +78,6 @@ export class MusicEngine {
 
   _bindEvents() {
     this.lavalink.nodeManager?.on("connect", node => {
-      try { node.updateSession?.(true, 300000); } catch {}
       logger.success("MusicEngine", "Lavalink connected: " + node.id);
     });
     this.lavalink.nodeManager?.on("reconnecting", node => {
