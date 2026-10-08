@@ -525,7 +525,7 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
-      let content = `**${this._capitalize(category)} Category**\n\n`;
+      let content = `**${this._displayCategory(category)} Category**\n\n`;
 
       const directCommands = commands.filter((cmd) => {
         if (!subcats) return true;
@@ -641,7 +641,7 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
-      let content = `**${this._capitalize(category)} > ${this._capitalize(subcatName)}**\n\n`;
+      let content = `**${this._displayCategory(category)} > ${this._capitalize(subcatName)}**\n\n`;
 
       subcatCommands.forEach((cmd, index) => {
         const isLast = index === subcatCommands.length - 1;
@@ -716,7 +716,7 @@ class HelpCommand extends Command {
       let content = `**Command Information**\n\n`;
       content += `┌─ **${emoji.get("info")} Basic Info**\n`;
       content += `├─ Description: ${command.description || "No description provided"}\n`;
-      content += `├─ Usage: \`${command.usage || command.name}\`\n`;
+      const helpUsage = this._getHelpUsage(command);\n      content += `├─ Usage: \`${helpUsage}\`\n`;
       content += `├─ Category: ${this._capitalize(command.category || "misc")}\n`;
       content += `└─ Cooldown: ${command.cooldown || 3}s\n\n`;
 
@@ -1286,21 +1286,36 @@ class HelpCommand extends Command {
     }
   }
 
+  _getHelpUsage(command) {
+    const name = String(command?.name || "command");
+    const configured = String(command?.usage || "").trim();
+    if (configured && configured !== name) return "." + configured;
+
+    const options = command?.options || command?.slashData?.options || [];
+    const args = options
+      .filter(option => option?.name && option.name !== "source")
+      .map(option => option.required ? "<" + option.name + ">" : "[" + option.name + "]");
+    const source = (command?.options || []).some(option => option?.name === "source")
+      ? " [--source ytmsearch|ytsearch|spsearch|scsearch]"
+      : "";
+    return "." + name + (args.length ? " " + args.join(" ") : "") + source;
+  }
+
   _getCommandEmojiKey(command, category) {
     const name = String(command?.name || "").toLowerCase();
     const cat = String(category || command?.category || "").toLowerCase();
     if (cat.includes("music") || cat.includes("rythm")) {
       const map = {
-      play: "play", search: "search", nowplaying: "music", queue: "list", control: "settings",
-      pause: "pause", resume: "play", skip: "skip", stop: "stop", disconnect: "stop",
-      previous: "left", replay: "reload", seek: "forward", forward: "forward", rewind: "rewind",
-      volume: "volume", shuffle: "shuffle", loop: "loop", queueloop: "loop", clear: "trash",
-      remove: "trash", removedupes: "trash", move: "right", playtop: "play", playskip: "skip",
-      bump: "right", autoplay: "reload", announce: "megaphone", join: "music",
-      leavecleanup: "reset", like: "heart", liked: "heart", effects: "settings",
-      forceskip: "skip", settings: "settings", "247": "infinity", setdefaultvolume: "volume",
-      voteskip: "check", source: "music", history: "list", skipto: "skip"
-    };
+        play: "play", search: "search", nowplaying: "music", queue: "list", control: "settings",
+        pause: "pause", resume: "play", skip: "skip", stop: "stop", disconnect: "stop",
+        previous: "left", replay: "reload", seek: "forward", forward: "forward", rewind: "rewind",
+        volume: "volume", shuffle: "shuffle", loop: "loop", queueloop: "loop", clear: "trash",
+        remove: "trash", removedupes: "trash", move: "right", playtop: "play", playskip: "skip",
+        bump: "right", autoplay: "reload", announce: "megaphone", join: "music",
+        leavecleanup: "reset", like: "heart", liked: "heart", effects: "settings",
+        forceskip: "skip", settings: "settings", "247": "infinity", setdefaultvolume: "volume",
+        voteskip: "check", source: "music", history: "list", skipto: "skip"
+      };
       return map[name] || "music";
     }
     return "info";
