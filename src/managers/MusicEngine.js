@@ -2,6 +2,8 @@ import { LavalinkManager } from "lavalink-client";
 import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
 import { logger } from "#utils/logger";
+import { PlayerManager } from "#managers/PlayerManager";
+import { nowPlayingEmbed, v2Payload } from "#utils/MusicCore";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const AUTOPLAY_QUERIES = [
@@ -118,6 +120,47 @@ export class MusicEngine {
       });
       this.history.set(player.guildId, list.slice(0, 50));
       player.set("lastPlayedTrack", track);
+
+      // Always start every new track at normal 1x playback. Lavalink's
+      // timescale filter controls speed/pitch/rate and its documented defaults
+      // are all 1.0. Resetting it here prevents a previous filter state from
+      // leaking into the next song.
+      try {
+        if (typeof player.setFilters === "function") {
+          await player.setFilters({
+            timescale: { speed: 1.0, pitch: 1.0, rate: 1.0 }
+          });
+        } else if (player.filterManager?.resetFilters) {
+          await player.filterManager.resetFilters();
+        }
+        player.set("lightcorePlaybackSpeed", 1);
+      } catch (filterError) {
+        logger.warn(
+          "MusicEngine",
+          "Could not normalize playback speed for [" + player.guildId + "]: " +
+          (filterError?.message || filterError)
+        );
+      }
+
+      // Every newly started track gets its own fresh LightCore control panel.
+      // We intentionally send a new message instead of editing the previous
+      // panel, so each song has a dedicated set of controls.
+      try {
+        const textChannel = player.textChannelId
+          ? await this.client.channels.fetch(player.textChannelId).catch(() => null)
+          : null;
+        if (textChannel?.isTextBased?.()) {
+          const panel = nowPlayingEmbed(new PlayerManager(player));
+          await textChannel.send(v2Payload(panel));
+        }
+      } catch (panelError) {
+        logger.warn(
+          "MusicEngine",
+          "Could not send new-song control panel [" + player.guildId + "]: " +
+          (panelError?.message || panelError)
+        );
+      }
+
       this.stuckRetries.delete(player.guildId);
       this.refreshVoiceStayAlive(player.guildId, true);
     });
