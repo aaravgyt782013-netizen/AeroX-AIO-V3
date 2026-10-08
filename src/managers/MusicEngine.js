@@ -267,12 +267,39 @@ export class MusicEngine {
     const attempt = async node => {
       for (const src of [...new Set(sources)]) {
         try {
-          const result = await timeout(
-            node.search({ query: q, source: src }, requester),
-            8000,
-            "Search timed out."
-          );
-          if (result?.tracks?.length || result?.loadType === "playlist") return result;
+          try {
+            const result = await timeout(
+              node.search({ query: q, source: src }, requester),
+              8000,
+              "Search timed out."
+            );
+            if (result?.tracks?.length || result?.loadType === "playlist") return result;
+          } catch (searchError) {
+            logger.warn("MusicEngine", "Client search failed on " + node.id + " [" + src + "]: " + (searchError?.message || searchError));
+          }
+
+          // Direct Lavalink v4 REST fallback. This uses the documented
+          // /v4/loadtracks search prefixes and avoids client-side source
+          // transformation differences between lavalink-client versions.
+          try {
+            const identifier = this.isUrl(q) ? q : src + ":" + q;
+            const raw = await timeout(
+              node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
+              8000,
+              "Direct Lavalink search timed out."
+            );
+            if (raw?.loadType === "search" && Array.isArray(raw.data) && raw.data.length) {
+              return { loadType: "search", tracks: raw.data, data: raw.data };
+            }
+            if (raw?.loadType === "playlist" && raw.data?.tracks?.length) {
+              return { loadType: "playlist", tracks: raw.data.tracks, data: raw.data };
+            }
+            if (raw?.loadType === "track" && raw.data) {
+              return { loadType: "track", tracks: [raw.data], data: raw.data };
+            }
+          } catch (restError) {
+            logger.warn("MusicEngine", "Direct Lavalink search failed on " + node.id + " [" + src + "]: " + (restError?.message || restError));
+          }
         } catch (error) {
           logger.warn("MusicEngine", "Search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
         }

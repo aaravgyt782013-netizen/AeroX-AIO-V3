@@ -36,7 +36,7 @@ async function updateSettings(interaction, client, notice = "") {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferUpdate();
     }
-    return await interaction.message.edit(payload);
+    return await interaction.editReply(payload);
   } catch (error) {
     client?.logger?.error?.("MusicSettings", "Failed to refresh settings panel", error);
     try {
