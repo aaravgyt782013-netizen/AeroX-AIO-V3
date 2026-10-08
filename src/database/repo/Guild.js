@@ -5,10 +5,34 @@ import { logger } from "#utils/logger";
 export class Guild extends Database {
   constructor() {
     super(config.database.guild);
+    this._schemaFlags = {
+      role: false,
+      logging: false,
+      tempvoice: false,
+      honeypot: false,
+      music: false,
+    };
     this.initTable();
     this.initRoleSettings();
     this.initLoggingSettings();
     this.initMusicSettings();
+  }
+
+  _ensureGuildColumns(flag, columns) {
+    if (this._schemaFlags?.[flag]) return;
+    const existing = new Set(
+      this.all("PRAGMA table_info(guilds)").map(column => column.name)
+    );
+    for (const [name, definition] of columns) {
+      if (existing.has(name)) continue;
+      try {
+        this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition);
+        existing.add(name);
+      } catch (error) {
+        logger.warn("[GuildDB] Could not add guild column " + name + ": " + (error?.message || error));
+      }
+    }
+    if (this._schemaFlags) this._schemaFlags[flag] = true;
   }
 
   initTable() {
@@ -31,7 +55,9 @@ export class Guild extends Database {
 
 
   initRoleSettings() {
-    try { this.exec("ALTER TABLE guilds ADD COLUMN autorole_id TEXT DEFAULT NULL"); } catch {}
+    this._ensureGuildColumns("role", [
+      ["autorole_id", "TEXT DEFAULT NULL"],
+    ]);
   }
 
   getAutorole(guildId) {
@@ -46,8 +72,10 @@ export class Guild extends Database {
 
 
   initLoggingSettings() {
-    try { this.exec("ALTER TABLE guilds ADD COLUMN logging_channels TEXT DEFAULT '{}'"); } catch {}
-    try { this.exec("ALTER TABLE guilds ADD COLUMN logging_enabled BOOLEAN DEFAULT FALSE"); } catch {}
+    this._ensureGuildColumns("logging", [
+      ["logging_channels", "TEXT DEFAULT '{}'"],
+      ["logging_enabled", "BOOLEAN DEFAULT FALSE"],
+    ]);
   }
 
   getLogging(guildId) {
@@ -252,18 +280,15 @@ export class Guild extends Database {
   }
 
   initTempVoiceTables() {
-    const columns = [
-      ["tempvoice_join_channel","TEXT DEFAULT NULL"],
-      ["tempvoice_category","TEXT DEFAULT NULL"],
-      ["tempvoice_name","TEXT DEFAULT '🔊 {username}''s Room'"],
-      ["tempvoice_limit","INTEGER DEFAULT 0"],
-      ["tempvoice_bitrate","INTEGER DEFAULT 64000"],
-      ["tempvoice_auto_delete","BOOLEAN DEFAULT TRUE"],
-      ["tempvoice_claim","BOOLEAN DEFAULT TRUE"],
-    ];
-    for (const [name, definition] of columns) {
-      try { this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition); } catch {}
-    }
+    this._ensureGuildColumns("tempvoice", [
+      ["tempvoice_join_channel", "TEXT DEFAULT NULL"],
+      ["tempvoice_category", "TEXT DEFAULT NULL"],
+      ["tempvoice_name", "TEXT DEFAULT '🔊 {username}''s Room'"],
+      ["tempvoice_limit", "INTEGER DEFAULT 0"],
+      ["tempvoice_bitrate", "INTEGER DEFAULT 64000"],
+      ["tempvoice_auto_delete", "BOOLEAN DEFAULT TRUE"],
+      ["tempvoice_claim", "BOOLEAN DEFAULT TRUE"],
+    ]);
     this.exec(`CREATE TABLE IF NOT EXISTS tempvoice_channels (
       channel_id TEXT PRIMARY KEY,
       guild_id TEXT NOT NULL,
@@ -332,13 +357,10 @@ export class Guild extends Database {
 
   // ─── Honeypot security ──────────────────────────────────────────────────────
   initHoneypotSettings() {
-    const columns = [
+    this._ensureGuildColumns("honeypot", [
       ["honeypot_channel", "TEXT DEFAULT NULL"],
       ["honeypot_action", "TEXT DEFAULT 'ban'"],
-    ];
-    for (const [name, definition] of columns) {
-      try { this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition); } catch {}
-    }
+    ]);
   }
 
   getHoneypotSettings(guildId) {
@@ -369,7 +391,7 @@ export class Guild extends Database {
   }
 
   initMusicSettings() {
-    const columns = [
+    this._ensureGuildColumns("music", [
       ["dj_role", "TEXT DEFAULT NULL"],
       ["autoplay", "BOOLEAN DEFAULT FALSE"],
       ["announce_songs", "BOOLEAN DEFAULT TRUE"],
@@ -377,10 +399,7 @@ export class Guild extends Database {
       ["request_channel", "TEXT DEFAULT NULL"],
       ["music_source", "TEXT DEFAULT 'ytmsearch'"],
       ["music_247", "BOOLEAN DEFAULT FALSE"],
-    ];
-    for (const [name, definition] of columns) {
-      try { this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition); } catch {}
-    }
+    ]);
   }
 
   getMusicSettings(guildId) {
