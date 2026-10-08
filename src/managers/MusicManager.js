@@ -24,6 +24,7 @@ export class MusicManager {
     this.lastNodeWarning = 0;
     this.history = new Map();
     this.likes = new Map();
+    this.emptyVoiceTimers = new Map();
     this.init();
   }
 
@@ -64,7 +65,8 @@ export class MusicManager {
         maxErrorsPerTime: { threshold: 15000, maxAmount: 5 },
         onDisconnect: { autoReconnect: true, destroyPlayer: false },
         onEmptyQueue: {
-          destroyAfterMs: 30000,
+          destroyAfterMs: -1,
+          minAutoPlayMs: 5000,
           autoPlayFunction: async player => {
             if (!player.get("autoplayEnabled")) return;
             const last = player.queue.previous?.[0] || player.queue.current;
@@ -127,9 +129,16 @@ export class MusicManager {
       }
     });
 
-    this.lavalink.on("trackEnd", (player, track) =>
-      logger.debug("MusicManager", "Track ended in " + (player?.guildId || "unknown") + ": " + (track?.info?.title || "unknown"))
-    );
+    this.lavalink.on("trackEnd", (player, track) => {
+      logger.debug("MusicManager", "Track ended in " + (player?.guildId || "unknown") + ": " + (track?.info?.title || "unknown"));
+      this._refreshVoiceStayAlive(player);
+    });
+
+    // Rythm-style voice behavior:
+    // autoplay or 24/7 means the player is allowed to remain alone and continue.
+    // Otherwise an empty player is cleaned up after 60 seconds.
+    this.lavalink.on("playerVoiceJoin", player => this._refreshVoiceStayAlive(player, true));
+    this.lavalink.on("playerVoiceLeave", player => this._refreshVoiceStayAlive(player, false));
     this.lavalink.on("trackError", (player, track, payload) =>
       logger.error("MusicManager", "Track error [" + (player?.guildId || "unknown") + "]: " + (payload?.exception?.message || payload?.message || "unknown"))
     );
@@ -188,6 +197,48 @@ export class MusicManager {
       logger.warn("MusicManager", "No connected Lavalink node is available.");
     }
     return [];
+  }
+
+  _refreshVoiceStayAlive(player, joined = false) {
+    if (!player?.guildId) return;
+    const guild = this.client.guilds.cache.get(player.guildId);
+    const channel = guild?.channels?.cache?.get(player.voiceChannelId);
+    const humans = channel?.members?.filter(member => !member.user.bot).size ?? 0;
+
+    let autoplay = false;
+    let mode247 = false;
+    try {
+      const settings = db.guild.getMusicSettings(player.guildId);
+      autoplay = Boolean(settings.autoplay);
+      mode247 = Boolean(settings.mode247);
+    } catch {}
+
+    player.set("autoplayEnabled", autoplay);
+    player.set("stayAlive", autoplay || mode247);
+
+    const oldTimer = this.emptyVoiceTimers.get(player.guildId);
+    if (oldTimer) {
+      clearTimeout(oldTimer);
+      this.emptyVoiceTimers.delete(player.guildId);
+    }
+
+    if (humans > 0 || joined || autoplay || mode247) return;
+
+    const timer = setTimeout(async () => {
+      this.emptyVoiceTimers.delete(player.guildId);
+      const latestGuild = this.client.guilds.cache.get(player.guildId);
+      const latestChannel = latestGuild?.channels?.cache?.get(player.voiceChannelId);
+      const latestHumans = latestChannel?.members?.filter(member => !member.user.bot).size ?? 0;
+      let keepAlive = false;
+      try {
+        const settings = db.guild.getMusicSettings(player.guildId);
+        keepAlive = Boolean(settings.autoplay || settings.mode247);
+      } catch {}
+      if (latestHumans === 0 && !keepAlive) {
+        await player.destroy("Voice channel empty for 60 seconds", true).catch(() => {});
+      }
+    }, 60000);
+    this.emptyVoiceTimers.set(player.guildId, timer);
   }
 
   isUrl(value) {
