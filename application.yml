@@ -6,8 +6,8 @@ server:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:2be8e542d3f6f178e048dca565892684c2e40177-SNAPSHOT"
-      snapshot: true
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+      snapshot: false
   pluginsDir: "./plugins"
   server:
     password: "LightCore-Music-Node-2026"
@@ -44,7 +44,6 @@ plugins:
     allowSearch: true
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
-    # Playback-capable clients first. MUSIC is search-only and stays last.
     clients:
       - IOS
       - ANDROID_MUSIC
