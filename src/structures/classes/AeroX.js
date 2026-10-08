@@ -74,6 +74,15 @@ export class LightCore extends Client {
                 this.music = new MusicManager(this);
                 this.lavalink = this.music.lavalink;
 
+                // Lavalink v4 needs the Discord gateway voice packets forwarded to it.
+                this.on('raw', packet => {
+                        try {
+                                this.lavalink?.sendRawData?.(packet);
+                        } catch (error) {
+                                this.logger.debug?.('MusicGateway', 'Failed to forward gateway packet: ' + (error?.message || error));
+                        }
+                });
+
                 this.commandHandler = new CommandHandler(this);
                 this.eventHandler = new EventLoader(this);
 
