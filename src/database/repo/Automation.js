@@ -34,7 +34,30 @@ export class Automation extends Database {
       "updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000), " +
       "UNIQUE(guild_id, trigger_text))"
     );
+    this.exec(
+      "CREATE TABLE IF NOT EXISTS bot_guild_contacts (" +
+      "guild_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, guild_name TEXT NOT NULL, " +
+      "guild_icon TEXT DEFAULT NULL, joined_at INTEGER DEFAULT (strftime('%s', 'now') * 1000), " +
+      "updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000))"
+    );
     logger.success("AutomationDatabase", "Automation tables initialized");
+  }
+
+  saveBotGuildContact(guildId, ownerId, guildName, guildIcon = null) {
+    if (!guildId || !ownerId) return null;
+    return this.exec(
+      "INSERT INTO bot_guild_contacts (guild_id, owner_id, guild_name, guild_icon, joined_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT joined_at FROM bot_guild_contacts WHERE guild_id = ?), ?), ?) " +
+      "ON CONFLICT(guild_id) DO UPDATE SET owner_id = excluded.owner_id, guild_name = excluded.guild_name, guild_icon = excluded.guild_icon, updated_at = excluded.updated_at",
+      [guildId, ownerId, guildName || "Unknown Server", guildIcon, guildId, Date.now(), Date.now()]
+    );
+  }
+
+  getBotGuildContact(guildId) {
+    return this.get("SELECT * FROM bot_guild_contacts WHERE guild_id = ?", [guildId]) || null;
+  }
+
+  deleteBotGuildContact(guildId) {
+    return this.exec("DELETE FROM bot_guild_contacts WHERE guild_id = ?", [guildId]);
   }
 
   getWelcome(guildId) {
