@@ -3,14 +3,13 @@ dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
   {
-    id: "lightcore-nazha-global",
-    host: "lavalink.nazha.online",
-    port: 443,
-    authorization: "nazhafreelava",
-    auth: "nazhafreelava",
-    secure: true,
+    id: "lightcore-heavencloud-in",
+    host: "lavalink.heavencloud.in",
+    port: 2333,
+    authorization: "heavencloud",
+    secure: false,
     retryAmount: Infinity,
-    retryDelay: 5000
+    retryDelay: 10000
   }
 ];
 
