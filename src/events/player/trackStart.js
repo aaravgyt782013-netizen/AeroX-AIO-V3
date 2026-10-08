@@ -1,267 +1,52 @@
-import { AttachmentBuilder, MessageFlags } from 'discord.js';
-import { EventUtils } from '#utils/EventUtils';
-import { db } from '#database/DatabaseManager';
-import MusicCard from '#structures/classes/MusicCard';
-import { logger } from '#utils/logger';
-import { createMusicPlayerV2 } from '#events/discord/music/Playerbuttons';
+import { MessageFlags } from "discord.js";
+import { EventUtils } from "#utils/EventUtils";
+import { db } from "#database/DatabaseManager";
+import { logger } from "#utils/logger";
+import { createMusicPlayerV2 } from "#events/discord/music/Playerbuttons";
 
 export default {
   name: "trackStart",
   once: false,
   async execute(player, track, payload, musicManager, client) {
     try {
-      if (!track || !track.info) {
-        logger.error('TrackStart', 'Invalid track data received:', track);
+      if (!track?.info) {
+        logger.warn("TrackStart", "Ignoring invalid track payload.");
         return;
       }
 
-      player.set('lastPlayedTrack', track);
-
-      if (!player.get('sessionStartTime')) {
-        player.set('sessionStartTime', Date.now());
-        player.set('totalTracksPlayed', 0);
-      }
-
-      const currentCount = player.get('totalTracksPlayed') || 0;
-      player.set('totalTracksPlayed', currentCount + 1);
+      player.set("lastPlayedTrack", track);
+      player.set("sessionStartTime", player.get("sessionStartTime") || Date.now());
+      player.set("totalTracksPlayed", (player.get("totalTracksPlayed") || 0) + 1);
 
       if (track.requester?.id && track.info.identifier) {
         try {
-          logger.debug('TrackStart', `Adding to history: ${JSON.stringify({
-            userId: track.requester.id,
-            trackInfo: {
-              identifier: track.info.identifier,
-              title: track.info.title,
-              author: track.info.author,
-              uri: track.info.uri,
-           },
-          })}`);
-
           db.user.addTrackToHistory(track.requester.id, track.info);
-        } catch (historyError) {
-          logger.error('TrackStart', 'Error adding track to history:', historyError);
+        } catch (error) {
+          logger.debug("TrackStart", "History write failed: " + (error?.message || error));
         }
       }
-
-      let message;
-
-      const announceSongs = db.guild.getMusicSettings(player.guildId).announceSongs;
-      if (!announceSongs) {
-        player.set('nowPlayingMessageId', null);
-        player.set('nowPlayingChannelId', player.textChannelId);
-        logger.info('TrackStart', `Track started silently because announcements are disabled: "${track.info.title}"`);
-        return;
-      }
-
-      try {
-        const musicCard = new MusicCard();
-        const buffer = await musicCard.createMusicCard(track, 0);
-        const attachment = new AttachmentBuilder(buffer, { name: 'errorx-nowplaying.png' });
-        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
-
-        message = await EventUtils.sendPlayerMessage(client, player, {
-          files: [attachment],
-          components,
-          flags: MessageFlags.IsComponentsV2,
-        });
-      } catch (cardError) {
-        logger.error('TrackStart', 'Error creating music card:', cardError);
-
-        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
-        message = await EventUtils.sendPlayerMessage(client, player, {
-          content: `🎵 **Now Playing**\n**${track.info.title}** by **${track.info.author}**`,
-          components,
-          flags: MessageFlags.IsComponentsV2,
-        });
-      }
-
-      if (message?.id) {
-        player.set('nowPlayingMessageId', message.id);
-        player.set('nowPlayingChannelId', player.textChannelId);
-      }
-
-      logger.info('TrackStart', `Track started: "${track.info.title}" by ${track.info.author} in guild ${player.guildId} (Autoplay: ${player.get('autoplayEnabled') ? 'ON' : 'OFF'})`);
-    } catch (error) {
-      logger.error('TrackStart', 'Error in trackStart event:', error);
 
       const settings = db.guild.getMusicSettings(player.guildId);
-      const fallbackComponents = createMusicPlayerV2(track, settings, false);
+      if (settings.announceSongs === false) {
+        player.set("nowPlayingMessageId", null);
+        player.set("nowPlayingChannelId", player.textChannelId);
+        return;
+      }
+
+      // Pure Components V2: no content/embeds are mixed into this message.
       const message = await EventUtils.sendPlayerMessage(client, player, {
-        components: fallbackComponents,
-        flags: MessageFlags.IsComponentsV2,
+        components: createMusicPlayerV2(track, settings, false, 0),
+        flags: MessageFlags.IsComponentsV2
       });
-      if (message?.id) {
-        player.set('nowPlayingMessageId', message.id);
-        player.set('nowPlayingChannelId', player.textChannelId);
-      } { AttachmentBuilder, MessageFlags } from 'discord.js';
-import { EventUtils } from '#utils/EventUtils';
-import { db } from '#database/DatabaseManager';
-import MusicCard from '#structures/classes/MusicCard';
-import { logger } from '#utils/logger';
-import { createMusicPlayerV2 } from '#events/discord/music/Playerbuttons';
-
-export default {
-  name: "trackStart",
-  once: false,
-  async execute(player, track, payload, musicManager, client) {
-    try {
-      if (!track || !track.info) {
-        logger.error('TrackStart', 'Invalid track data received:', track);
-        return;
-      }
-
-      player.set('lastPlayedTrack', track);
-
-      if (!player.get('sessionStartTime')) {
-        player.set('sessionStartTime', Date.now());
-        player.set('totalTracksPlayed', 0);
-      }
-
-      const currentCount = player.get('totalTracksPlayed') || 0;
-      player.set('totalTracksPlayed', currentCount + 1);
-
-      if (track.requester?.id && track.info.identifier) {
-        try {
-          logger.debug('TrackStart', `Adding to history: ${JSON.stringify({
-            userId: track.requester.id,
-            trackInfo: {
-              identifier: track.info.identifier,
-              title: track.info.title,
-              author: track.info.author,
-              uri: track.info.uri,
-           },
-          })}`);
-
-          db.user.addTrackToHistory(track.requester.id, track.info);
-        } catch (historyError) {
-          logger.error('TrackStart', 'Error adding track to history:', historyError);
-        }
-      }
-
-      let message;
-
-      const announceSongs = db.guild.getMusicSettings(player.guildId).announceSongs;
-      if (!announceSongs) {
-        player.set('nowPlayingMessageId', null);
-        player.set('nowPlayingChannelId', player.textChannelId);
-        logger.info('TrackStart', `Track started silently because announcements are disabled: "${track.info.title}"`);
-        return;
-      }
-
-      try {
-        const musicCard = new MusicCard();
-        const buffer = await musicCard.createMusicCard(track, 0);
-        const attachment = new AttachmentBuilder(buffer, { name: 'errorx-nowplaying.png' });
-        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
-
-        message = await EventUtils.sendPlayerMessage(client, player, {
-          files: [attachment],
-          components,
-          flags: MessageFlags.IsComponentsV2,
-        });
-      } catch (cardError) {
-        logger.error('TrackStart', 'Error creating music card:', cardError);
-
-        const components = createMusicPlayerV2(track, db.guild.getMusicSettings(player.guildId), false);
-        message = await EventUtils.sendPlayerMessage(client, player, {
-          content: `🎵 **Now Playing**\n**${track.info.title}** by **${track.info.author}**`,
-          components,
-          flags: MessageFlags.IsComponentsV2,
-        });
-      }
 
       if (message?.id) {
-        player.set('nowPlayingMessageId', message.id);
-        player.set('nowPlayingChannelId', player.textChannelId);
+        player.set("nowPlayingMessageId", message.id);
+        player.set("nowPlayingChannelId", player.textChannelId);
       }
 
-      logger.info('TrackStart', `Track started: "${track.info.title}" by ${track.info.author} in guild ${player.guildId} (Autoplay: ${player.get('autoplayEnabled') ? 'ON' : 'OFF'})`);
+      logger.info("TrackStart", `Now playing "${track.info.title}" in guild ${player.guildId}`);
     } catch (error) {
-      logger.error('TrackStart', 'Error in trackStart event:', error);
-
-      const title = track?.info?.title || track?.title || 'Unknown Track';
-      const author = track?.info?.author || track?.author || 'Unknown Artist';
-
-      try {
-        if (track) {
-          player.set('lastPlayedTrack', track);
-        }
-
-        const message = await EventUtils.sendPlayerMessage(client, player, {
-          content: `🎵 **Now Playing**\n**${title}** by **${author}**`,
-          components: createControlComponents(),
-        });
-
-        if (message?.id) {
-          player.set('nowPlayingMessageId', message.id);
-          player.set('nowPlayingChannelId', player.textChannelId);
-        }
-      } catch (fallbackError) {
-        logger.error('TrackStart', 'Even fallback message failed:', fallbackError);
-      }
+      logger.error("TrackStart", "Track-start handler failed:", error);
     }
   }
 };
-
-function createControlComponents() {
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId('music_controls_select')
-    .setPlaceholder('Select an option...')
-    .addOptions([
-      {
-        label: 'Shuffle Queue',
-        description: 'Randomize the order of songs',
-        value: 'shuffle',
-      },
-      {
-        label: 'Loop: Off',
-        description: 'No repeat',
-        value: 'loop_off',
-      },
-      {
-        label: 'Loop: Track',
-        description: 'Repeat current song',
-        value: 'loop_track',
-      },
-      {
-        label: 'Loop: Queue',
-        description: 'Repeat entire queue',
-        value: 'loop_queue',
-      },
-      {
-        label: 'Volume -20%',
-        description: 'Decrease volume',
-        value: 'volume_down',
-      },
-      {
-        label: 'Volume +20%',
-        description: 'Increase volume',
-        value: 'volume_up',
-      },
-    ]);
-
-  const controlButtons = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('music_previous')
-        .setLabel('Prev')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId('music_pause')
-        .setLabel('Pause')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('music_skip')
-        .setLabel('Skip')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId('music_stop')
-        .setLabel('Stop')
-        .setStyle(ButtonStyle.Danger),
-    );
-
-  return [
-    new ActionRowBuilder().addComponents(selectMenu),
-    controlButtons,
-  ];
-}
