@@ -39,9 +39,26 @@ const run = async x => {
     if (key === "autoplay") c.client.db.guild.setAutoplay(guild, enabled);
     if (key === "announce" || key === "announcesongs") c.client.db.guild.setAnnounceSongs(guild, enabled);
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
-    if (key === "247") c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
+    if (key === "247") {
+      c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
+      const p = c.client.music?.getPlayer?.(guild);
+      if (enabled) {
+        const v = c.member?.voice?.channel;
+        if (v) c.client.db.guild.set247Mode(guild, true, v.id, c.channel.id);
+      } else {
+        c.client.db.guild.set247Mode(guild, false);
+      }
+      if (p) {
+        p.set("stayAlive", enabled || Boolean(c.client.db.guild.getMusicSettings(guild).autoplay));
+        c.client.music?.refreshVoiceStayAlive?.(guild, true);
+      }
+    }
     const player = c.client.music?.getPlayer?.(guild);
-    if (player) player.set("autoplayEnabled", enabled); if (key === "autoplay") c.client.music?.refreshVoiceStayAlive?.(guild, true);
+    if (player) {
+      player.set("autoplayEnabled", enabled);
+      player.set("stayAlive", enabled || Boolean(c.client.db.guild.getMusicSettings(guild).mode247));
+    }
+    if (key === "autoplay") c.client.music?.refreshVoiceStayAlive?.(guild, true);
     return render(x, `${key} ${enabled ? "enabled" : "disabled"}`);
   }
 
