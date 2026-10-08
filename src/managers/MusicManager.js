@@ -134,7 +134,8 @@ export class MusicManager {
   getPlayer(guildId) { return this.lavalink?.getPlayer(guildId) || null; }
   getDefaultVolume(guildId) { try { return db.guild.getDefaultVolume(guildId) || 100; } catch { return 100; } }
   setDefaultVolume(guildId, volume) { try { db.guild.setDefaultVolume(guildId, Math.max(1, Math.min(100, Number(volume)))); return true; } catch { return false; } }
-  async is247ModeEnabled(guildId) { try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; } }\n  getHistory(guildId) { return this.history.get(guildId) || []; }
+  async is247ModeEnabled(guildId) { try { return db.guild.get247Settings(guildId).enabled === true; } catch { return false; } }
+  getHistory(guildId) { return this.history.get(guildId) || []; }
   toggleLike(userId, track) {
     if (!userId || !track?.info?.identifier) return false;
     const list = this.likes.get(userId) || [];
@@ -145,4 +146,4 @@ export class MusicManager {
     return true;
   }
   getLikes(userId) { return this.likes.get(userId) || []; }
-}\n}\n
+}
