@@ -79,4 +79,4 @@ export default {
     if (sub === "setup") { const ch=interaction.options.getChannel("channel",true); const action=interaction.options.getString("action") || settings.action; db.guild.setHoneypot(interaction.guild.id,ch.id,action); return interaction.reply({content:"🍯 Honeypot enabled in <#" + ch.id + "> with " + action + ".",ephemeral:true}); }
     if (sub === "create") { const action=interaction.options.getString("action") || settings.action; const existing=interaction.guild.channels.cache.find(c=>c.type===ChannelType.GuildText&&c.name==="🍯・honeypot"); const ch=existing || await interaction.guild.channels.create({name:"🍯・honeypot",type:ChannelType.GuildText,topic:"LightCore security honeypot. Do not use this channel.",reason:"LightCore honeypot setup"}); db.guild.setHoneypot(interaction.guild.id,ch.id,action); return interaction.reply({content:"🍯 Honeypot enabled in <#" + ch.id + "> with " + action + ".",ephemeral:true}); }
   },
-});
+}};
