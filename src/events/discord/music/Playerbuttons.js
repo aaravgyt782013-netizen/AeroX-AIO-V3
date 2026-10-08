@@ -1,50 +1,232 @@
-import { EmbedBuilder } from "discord.js";
-import { getPlayer, djError, nowPlayingEmbed, queueEmbed, controlRows } from "#utils/MusicCore";
+import {
+  EmbedBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder
+} from "discord.js";
+import {
+  getPlayer,
+  djError,
+  nowPlayingEmbed,
+  queueEmbed,
+  controlRows,
+  musicSettings,
+  settingsRows,
+  sourceMenu
+} from "#utils/MusicCore";
 
-export function createMusicPlayerV2(track, settings, paused=false, position=0) {
-  const fake={ currentTrack:track, isPaused:paused, position, volume:settings?.volume??100, repeatMode:"off", queueSize:0 };
+function settingsEmbed(x) {
+  const s = musicSettings(x);
+  return new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle("🎵 LightCore Music Settings")
+    .setDescription(
+      [
+        "**Playback**",
+        `├ 🔄 Autoplay: **${s.autoplay ? "ON" : "OFF"}**`,
+        `├ 📢 Song announcements: **${s.announceSongs ? "ON" : "OFF"}**`,
+        `├ 🗳️ Vote skip: **${s.voteSkip ? "ON" : "OFF"}**`,
+        `├ ♾️ 24/7: **${s.mode247 ? "ON" : "OFF"}**`,
+        `└ 🔎 Default source: **${s.source === "ytmsearch" ? "YouTube Music" : s.source}**`,
+        "",
+        "**Access**",
+        `└ 👑 DJ role: ${s.djRole ? "<@&" + s.djRole + ">" : "Disabled (everyone can control)"}`
+      ].join("\n")
+    );
+}
+
+function canManage(interaction) {
+  return interaction.member?.permissions?.has("Administrator") ||
+    interaction.member?.permissions?.has("ManageGuild");
+}
+
+async function updateSettings(interaction, client) {
+  return interaction.update({
+    embeds: [settingsEmbed({ interaction, client })],
+    components: settingsRows(musicSettings({ interaction, client }))
+  });
+}
+
+export function createMusicPlayerV2(track, settings, paused = false, position = 0) {
+  const fake = {
+    currentTrack: track,
+    isPaused: paused,
+    position,
+    volume: settings?.volume ?? 100,
+    repeatMode: "off",
+    queueSize: 0
+  };
   return controlRows(fake);
 }
 
 export default {
-  name:"interactionCreate",
-  once:false,
+  name: "interactionCreate",
+  once: false,
+
   async execute(interaction, client) {
-    if (!interaction.isButton?.() && !interaction.isStringSelectMenu?.()) return;
-    if (!interaction.customId.startsWith("lc_music_")) return;
-    const p=getPlayer({interaction,client});
-    if (!p) return interaction.reply({content:"❌ No active music player.",ephemeral:true});
-    const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_rewind","lc_music_forward","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up","lc_music_search_select"].includes(interaction.customId);
-    if (needsDJ) {
-      const e=djError({interaction,client});
-      if (e) return interaction.reply({content:"❌ "+e,ephemeral:true});
+    if (!interaction.isButton?.() && !interaction.isStringSelectMenu?.() && !interaction.isModalSubmit?.()) return;
+    if (!interaction.customId?.startsWith("lc_music_")) return;
+
+    const isSetting = interaction.customId.startsWith("lc_music_setting_") ||
+      interaction.customId === "lc_music_source_select";
+
+    if (isSetting) {
+      if (!canManage(interaction)) {
+        return interaction.reply({
+          content: "❌ You need **Manage Server** to change music settings.",
+          ephemeral: true
+        });
+      }
+
+      try {
+        if (interaction.isStringSelectMenu() && interaction.customId === "lc_music_source_select") {
+          const source = interaction.values[0];
+          interaction.client.db.guild.setMusicSettings(interaction.guild.id, { source });
+          return updateSettings(interaction, client);
+        }
+
+        if (interaction.isButton() && interaction.customId === "lc_music_setting_source") {
+          return interaction.reply({
+            components: [sourceMenu()],
+            ephemeral: true
+          });
+        }
+
+        if (interaction.isButton() && interaction.customId === "lc_music_setting_dj") {
+          const modal = new ModalBuilder()
+            .setCustomId("lc_music_setting_dj_modal")
+            .setTitle("Set DJ Role");
+
+          const input = new TextInputBuilder()
+            .setCustomId("role_id")
+            .setLabel("Role ID or @role (leave blank to disable)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setPlaceholder("123456789012345678");
+
+          modal.addComponents(new ActionRowBuilder().addComponents(input));
+          return interaction.showModal(modal);
+        }
+
+        if (interaction.isModalSubmit() && interaction.customId === "lc_music_setting_dj_modal") {
+          const raw = interaction.fields.getTextInputValue("role_id").trim();
+          const roleId = raw.match(/\d{15,25}/)?.[0] || null;
+          if (roleId && !interaction.guild.roles.cache.has(roleId)) {
+            return interaction.reply({ content: "❌ I couldn't find that role in this server.", ephemeral: true });
+          }
+          interaction.client.db.guild.setDJRole(interaction.guild.id, roleId);
+          return interaction.reply({
+            embeds: [settingsEmbed({ interaction, client })],
+            components: settingsRows(musicSettings({ interaction, client })),
+            ephemeral: true
+          });
+        }
+
+        const map = {
+          lc_music_setting_autoplay: "autoplay",
+          lc_music_setting_announce: "announceSongs",
+          lc_music_setting_voteskip: "voteSkip",
+          lc_music_setting_247: "mode247"
+        };
+        const key = map[interaction.customId];
+        if (key) {
+          const s = musicSettings({ interaction, client });
+          interaction.client.db.guild.setMusicSettings(interaction.guild.id, { [key]: !s[key] });
+          return updateSettings(interaction, client);
+        }
+      } catch (error) {
+        return interaction.reply({
+          content: "❌ Could not update music settings: " + (error?.message || "unknown error"),
+          ephemeral: true
+        }).catch(() => {});
+      }
     }
+
+    const p = getPlayer({ interaction, client });
+    if (!p) {
+      return interaction.reply({ content: "❌ No active music player.", ephemeral: true });
+    }
+
+    const needsDJ = [
+      "lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous",
+      "lc_music_rewind","lc_music_forward","lc_music_shuffle","lc_music_loop",
+      "lc_music_volume_down","lc_music_volume_up","lc_music_search_select"
+    ].includes(interaction.customId);
+
+    if (needsDJ) {
+      const error = djError({ interaction, client });
+      if (error) return interaction.reply({ content: "❌ " + error, ephemeral: true });
+    }
+
     try {
-      if (interaction.isStringSelectMenu?.() && interaction.customId === "lc_music_search_select") {
-        const index=Number(interaction.values[0]);
-        const session=p.player?.get?.("searchSession");
-        if (!session || session.userId !== interaction.user.id || !session.tracks?.[index]) return interaction.reply({content:"❌ Search session expired. Run search again.",ephemeral:true});
+      if (interaction.isStringSelectMenu() && interaction.customId === "lc_music_search_select") {
+        const index = Number(interaction.values[0]);
+        const session = p.player?.get?.("searchSession");
+
+        if (!session || session.userId !== interaction.user.id || !session.tracks?.[index]) {
+          return interaction.reply({
+            content: "❌ Search session expired. Run `.search <query>` again.",
+            ephemeral: true
+          });
+        }
+
         await p.addTracks(session.tracks[index]);
         if (!p.currentTrack) await p.play();
-        return interaction.update({content:"✅ Added **"+(session.tracks[index].info.title||"track")+"** to the queue.",embeds:[],components:[]});
+
+        return interaction.update({
+          content: "✅ Added **" + (session.tracks[index].info.title || "track") + "** to the queue.",
+          embeds: [],
+          components: []
+        });
       }
-      switch(interaction.customId) {
-        case "lc_music_previous": if (!await p.playPrevious()) return interaction.reply({content:"❌ No previous track is available.",ephemeral:true}); break;
-        case "lc_music_pause": if(p.isPaused) await p.resume(); else await p.pause(); break;
-        case "lc_music_rewind": await p.rewind(10000); break;
-        case "lc_music_forward": await p.forward(10000); break;
-        case "lc_music_skip": await p.skip(); break;
-        case "lc_music_stop": await p.stop(); return interaction.update({content:"⏹️ **Playback stopped.**",embeds:[],components:[]});
-        case "lc_music_shuffle": await p.shuffleQueue(); break;
-        case "lc_music_loop": await p.setRepeatMode(p.repeatMode==="track"?"off":"track"); break;
-        case "lc_music_volume_down": await p.setVolume(Math.max(1,(p.volume??100)-10)); break;
-        case "lc_music_volume_up": await p.setVolume(Math.min(200,(p.volume??100)+10)); break;
-        case "lc_music_queue": return interaction.reply({embeds:[queueEmbed(p,1)],ephemeral:true});
+
+      switch (interaction.customId) {
+        case "lc_music_previous":
+          if (!await p.playPrevious()) return interaction.reply({ content: "❌ No previous track is available.", ephemeral: true });
+          break;
+        case "lc_music_pause":
+          if (p.isPaused) await p.resume(); else await p.pause();
+          break;
+        case "lc_music_rewind":
+          await p.rewind(10000);
+          break;
+        case "lc_music_forward":
+          await p.forward(10000);
+          break;
+        case "lc_music_skip":
+          await p.skip();
+          break;
+        case "lc_music_stop":
+          await p.stop();
+          return interaction.update({ content: "⏹️ **Playback stopped.**", embeds: [], components: [] });
+        case "lc_music_shuffle":
+          await p.shuffleQueue();
+          break;
+        case "lc_music_loop":
+          await p.setRepeatMode(p.repeatMode === "track" ? "off" : "track");
+          break;
+        case "lc_music_volume_down":
+          await p.setVolume(Math.max(1, (p.volume ?? 100) - 10));
+          break;
+        case "lc_music_volume_up":
+          await p.setVolume(Math.min(200, (p.volume ?? 100) + 10));
+          break;
+        case "lc_music_queue":
+          return interaction.reply({ embeds: [queueEmbed(p, 1)], ephemeral: true });
+        default:
+          return;
       }
-      await interaction.update({embeds:[nowPlayingEmbed(p)],components:controlRows(p)});
-    } catch(e) {
-      if (interaction.replied || interaction.deferred) return interaction.followUp({content:"❌ "+e.message,ephemeral:true}).catch(()=>{});
-      return interaction.reply({content:"❌ "+e.message,ephemeral:true}).catch(()=>{});
+
+      await interaction.update({
+        embeds: [nowPlayingEmbed(p)],
+        components: controlRows(p)
+      });
+    } catch (error) {
+      if (interaction.replied || interaction.deferred) {
+        return interaction.followUp({ content: "❌ " + (error?.message || "Music action failed."), ephemeral: true }).catch(() => {});
+      }
+      return interaction.reply({ content: "❌ " + (error?.message || "Music action failed."), ephemeral: true }).catch(() => {});
     }
   }
 };
