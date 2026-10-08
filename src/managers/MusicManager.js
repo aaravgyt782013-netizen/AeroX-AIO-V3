@@ -75,11 +75,15 @@ export class MusicManager {
               const query = [last.info.title, last.info.author].filter(Boolean).join(" ");
               const result = await player.search({ query, source: "ytmsearch" });
               const previous = new Set(
-                (player.queue.previous || []).slice(0, 10)
+                (player.queue.previous || []).slice(0, 20)
                   .map(t => t?.info?.identifier).filter(Boolean)
               );
               const next = result?.tracks?.find(t => t?.info?.identifier && !previous.has(t.info.identifier));
-              if (next) await player.queue.add(next);
+              if (next) {
+                await player.queue.add(next);
+              } else {
+                await player.queue.add(last);
+              }
             } catch (error) {
               logger.warn("MusicManager", "Autoplay failed: " + (error?.message || error));
             }
@@ -211,12 +215,12 @@ export class MusicManager {
     const channel = guild?.channels?.cache?.get(player.voiceChannelId);
     const humans = channel?.members?.filter(member => !member.user.bot).size ?? 0;
 
-    let autoplay = false;
-    let mode247 = false;
+    let autoplay = player.get("autoplayEnabled") === true;
+    let mode247 = player.get("stayAlive") === true;
     try {
       const settings = db.guild.getMusicSettings(player.guildId);
-      autoplay = Boolean(settings.autoplay);
-      mode247 = Boolean(settings.mode247);
+      autoplay = autoplay || Boolean(settings.autoplay);
+      mode247 = mode247 || Boolean(settings.mode247);
     } catch {}
 
     player.set("autoplayEnabled", autoplay);
@@ -235,10 +239,10 @@ export class MusicManager {
       const latestGuild = this.client.guilds.cache.get(player.guildId);
       const latestChannel = latestGuild?.channels?.cache?.get(player.voiceChannelId);
       const latestHumans = latestChannel?.members?.filter(member => !member.user.bot).size ?? 0;
-      let keepAlive = false;
+      let keepAlive = player.get("stayAlive") === true || player.get("autoplayEnabled") === true;
       try {
         const settings = db.guild.getMusicSettings(player.guildId);
-        keepAlive = Boolean(settings.autoplay || settings.mode247);
+        keepAlive = keepAlive || Boolean(settings.autoplay || settings.mode247);
       } catch {}
       if (latestHumans === 0 && !keepAlive) {
         await player.destroy("Voice channel empty for 60 seconds", true).catch(() => {});
@@ -277,9 +281,12 @@ export class MusicManager {
 
     let volume = 100;
     let autoplay = false;
+    let mode247 = false;
     try {
       volume = Number(db.guild.getDefaultVolume(guildId)) || 100;
-      autoplay = Boolean(db.guild.getMusicSettings(guildId).autoplay);
+      const settings = db.guild.getMusicSettings(guildId);
+      autoplay = Boolean(settings.autoplay);
+      mode247 = Boolean(settings.mode247);
     } catch {}
     volume = Math.max(1, Math.min(200, volume));
 
@@ -294,6 +301,7 @@ export class MusicManager {
         node: nodes[0]
       });
       player.set("autoplayEnabled", autoplay);
+      player.set("stayAlive", autoplay || mode247);
       await player.connect();
       return player;
     } catch (error) {
