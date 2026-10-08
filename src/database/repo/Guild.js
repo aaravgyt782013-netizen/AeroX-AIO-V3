@@ -11,11 +11,13 @@ export class Guild extends Database {
       tempvoice: false,
       honeypot: false,
       music: false,
+      reactionroles: false,
     };
     this.initTable();
     this.initRoleSettings();
     this.initLoggingSettings();
     this.initMusicSettings();
+    this.initReactionRoleSettings();
   }
 
   _ensureGuildColumns(flag, columns) {
