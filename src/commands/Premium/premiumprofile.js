@@ -18,6 +18,30 @@ function validColor(value) {
   return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
+async function fetchImageBuffer(url) {
+  const response = await fetch(url, { redirect: "follow" });
+  if (!response.ok) {
+    throw new Error(`Image download failed (HTTP ${response.status}).`);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("image/")) {
+    throw new Error("The URL must point directly to an image.");
+  }
+
+  const contentLength = Number(response.headers.get("content-length") || 0);
+  if (contentLength > 8 * 1024 * 1024) {
+    throw new Error("The image is larger than Discord's 8 MB guild-profile limit.");
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > 8 * 1024 * 1024) {
+    throw new Error("The image is larger than Discord's 8 MB guild-profile limit.");
+  }
+
+  return buffer;
+}
+
 class PremiumProfileCommand extends Command {
   constructor() {
     super({
@@ -86,30 +110,74 @@ class PremiumProfileCommand extends Command {
     }
 
     if (action === "reset") {
-      db.resetGuildProfile(message.guild.id);
-      try { await message.guild.members.me?.setNickname(null, "Premium profile reset"); } catch {}
-      return message.reply({ content: `${emoji.get("check")} Premium server profile reset.` });
+      try {
+        await message.guild.members.editMe({
+          nick: null,
+          avatar: null,
+          banner: null,
+          reason: "LightCore Premium profile reset",
+        });
+        db.resetGuildProfile(message.guild.id);
+        return message.reply({
+          content: `${emoji.get("check")} Premium server profile reset — name, avatar and banner restored to default.`,
+        });
+      } catch (error) {
+        return message.reply({
+          content: `${emoji.get("cross")} Discord rejected the Premium profile reset: ${error?.message || "Unknown error"}`,
+        });
+      }
     }
 
     const value = args.slice(1).join(" ").trim();
     if (!value) return message.reply({ content: `${emoji.get("cross")} Please provide a value.` });
 
     if (action === "name") {
-      if (value.length > 32) return message.reply({ content: `${emoji.get("cross")} Profile name must be 32 characters or fewer.` });
-      db.setGuildProfile(message.guild.id, { profile_name: value });
-      try { await message.guild.members.me?.setNickname(value, "Premium server profile"); } catch {}
-    } else if (action === "avatar") {
-      if (!validUrl(value)) return message.reply({ content: `${emoji.get("cross")} Avatar must be a valid HTTPS image URL.` });
-      db.setGuildProfile(message.guild.id, { avatar_url: value });
-    } else if (action === "banner") {
-      if (!validUrl(value)) return message.reply({ content: `${emoji.get("cross")} Banner must be a valid HTTPS image URL.` });
-      db.setGuildProfile(message.guild.id, { banner_url: value });
+      if (value.length > 32) {
+        return message.reply({ content: `${emoji.get("cross")} Profile name must be 32 characters or fewer.` });
+      }
+      try {
+        await message.guild.members.editMe({
+          nick: value,
+          reason: "LightCore Premium server profile",
+        });
+        db.setGuildProfile(message.guild.id, { profile_name: value });
+      } catch (error) {
+        return message.reply({
+          content: `${emoji.get("cross")} I could not change my server name: ${error?.message || "Unknown error"}`,
+        });
+      }
+    } else if (action === "avatar" || action === "banner") {
+      const attachment = message.attachments.first();
+      const imageUrl = validUrl(value) ? value : (attachment?.url || "");
+
+      if (!imageUrl) {
+        return message.reply({
+          content: `${emoji.get("cross")} Provide a direct HTTPS image URL or attach an image to the command.`,
+        });
+      }
+
+      try {
+        const imageBuffer = await fetchImageBuffer(imageUrl);
+        await message.guild.members.editMe({
+          [action]: imageBuffer,
+          reason: `LightCore Premium server ${action}`,
+        });
+        db.setGuildProfile(message.guild.id, {
+          [action === "avatar" ? "avatar_url" : "banner_url"]: imageUrl,
+        });
+      } catch (error) {
+        return message.reply({
+          content: `${emoji.get("cross")} I could not update the Premium ${action}: ${error?.message || "Unknown error"}`,
+        });
+      }
     } else if (action === "color") {
       if (!validColor(value)) return message.reply({ content: `${emoji.get("cross")} Color must look like \`#5865F2\`.` });
       db.setGuildProfile(message.guild.id, { color: value });
     }
 
-    return message.reply({ content: `${emoji.get("check")} Premium profile **${action}** updated successfully.` });
+    return message.reply({
+      content: `${emoji.get("check")} Premium profile **${action}** updated successfully. Discord has applied the server-specific bot profile.`,
+    });
   }
 }
 
