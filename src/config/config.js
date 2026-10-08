@@ -2,10 +2,14 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
-  { id: "heavencloud-india", host: "lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "heavencloud-singapore", host: "sg.lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "heavencloud-usa", host: "us.lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "heavencloud-europe", host: "eu.lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 }
+  { id: "lightcore-itzrandom", host: "node.itzrandom.cloud", port: 9000, authorization: "lavalink@itzrandomcloud", secure: false },
+  { id: "lightcore-apex-v4", host: "v4.bloggertasher.ru", port: 26040, authorization: "apexnodes.xyz", secure: false },
+  { id: "lightcore-lightsout-v4", host: "LavaLink4.lightsout.in", port: 40069, authorization: "LightsoutOwnsElves", secure: false },
+  { id: "lightcore-catfein", host: "lava.catfein.com", port: 4000, authorization: "catfein", secure: false },
+  { id: "lightcore-meww", host: "n2.meww.me", port: 2555, authorization: "meww.me", secure: false },
+  { id: "lightcore-rudracloud", host: "lavalink.rudracloud.com", port: 2333, authorization: "RudraCloud.com", secure: false },
+  { id: "lightcore-akshat", host: "lava.akshat.tech", port: 443, authorization: "admin", secure: true },
+  { id: "lightcore-charlesnaig", host: "lavahatry4.techbyte.host", port: 3000, authorization: "NAIGLAVA-dash.techbyte.host", secure: false }
 ];
 
 export const config = {
@@ -30,5 +34,5 @@ export const config = {
   search: { maxResults: 6, defaultSources: ["ytmsearch", "ytsearch"] },
   player: { defaultVolume: 100, seekStep: 10000, maxHistorySize: 50, stay247: { reconnectDelay: 5000, maxReconnectAttempts: 20, checkInterval: 30000 }, audioQuality: { bitrate: 320, sampleRate: 48000, channels: 2, bufferSize: 8192, highWaterMark: 1048576 } },
   watermark: "LightCore",
-  version: "5.0.0"
+  version: "6.0.0"
 };
