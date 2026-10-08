@@ -8,28 +8,28 @@ const PUBLIC_LAVALINK_NODES = [
     id: "heavencloud-india",
     host: "lavalink.heavencloud.in",
     port: 443,
-    password: "heavencloud",
+    authorization: "heavencloud",
     secure: true
   },
   {
     id: "heavencloud-singapore",
     host: "sg.lavalink.heavencloud.in",
     port: 443,
-    password: "heavencloud",
+    authorization: "heavencloud",
     secure: true
   },
   {
     id: "heavencloud-usa",
     host: "us.lavalink.heavencloud.in",
     port: 443,
-    password: "heavencloud",
+    authorization: "heavencloud",
     secure: true
   },
   {
     id: "heavencloud-europe",
     host: "eu.lavalink.heavencloud.in",
     port: 443,
-    password: "heavencloud",
+    authorization: "heavencloud",
     secure: true
   }
 ];
