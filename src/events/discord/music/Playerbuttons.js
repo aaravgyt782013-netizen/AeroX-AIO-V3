@@ -33,20 +33,21 @@ function controlError(interaction, client, player) {
 async function updateSettings(interaction, client, notice = "") {
   const payload = v2Payload(settingsContainer(musicSettings({ interaction, client }), notice));
   try {
-    // Components V2 supports a normal component-interaction update. Use it
-    // directly when the interaction has not already been acknowledged.
+    // Component interactions should update their source message directly.
+    // This is the native discord.js interaction flow and avoids the old
+    // deferUpdate -> editReply race that could produce "Could not update".
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferUpdate();
+      return await interaction.update(payload);
     }
     return await interaction.editReply(payload);
-  } catch (error) {
+  } catch {
     const fallback = v2Payload(settingsContainer(
       musicSettings({ interaction, client }),
-      "⚠️ Settings could not be refreshed. Run .settings again."
+      "⚠️ Settings refresh failed. Run .settings again."
     ));
     try {
       if (interaction.deferred || interaction.replied) return await interaction.editReply(fallback);
-      return await interaction.reply(fallback, { ephemeral: true });
+      return await interaction.reply(fallback, { flags: 64 });
     } catch {
       return null;
     }
