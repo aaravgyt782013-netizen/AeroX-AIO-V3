@@ -50,13 +50,37 @@ class HelpCommand extends Command {
     });
   }
 
-  async _scanCommandDirectories() {
+  async _scanCommandDirectories(client = null) {
     try {
-      const commandsPath = path.join(process.cwd(), "src", "commands");
       const commands = new Map();
       const categories = new Map();
       const subcategories = new Map();
 
+      const registered = client?.commandHandler?.commands;
+      if (registered?.size) {
+        for (const command of registered.values()) {
+          if (!command?.name) continue;
+          const rawCategory = String(command.category || "misc").replaceAll("\\", "/");
+          const parts = rawCategory.split("/").filter(Boolean);
+          const rootCategory = parts[0] || "misc";
+          const subcategory = parts.slice(1).join("/") || null;
+          if (!categories.has(rootCategory)) categories.set(rootCategory, []);
+          const list = categories.get(rootCategory);
+          if (!list.some(item => item.name === command.name)) list.push(command);
+          commands.set(command.name, command);
+          for (const alias of command.aliases || []) commands.set(alias, command);
+          if (subcategory) {
+            if (!subcategories.has(rootCategory)) subcategories.set(rootCategory, new Map());
+            const rootSubs = subcategories.get(rootCategory);
+            if (!rootSubs.has(subcategory)) rootSubs.set(subcategory, []);
+            const subList = rootSubs.get(subcategory);
+            if (!subList.some(item => item.name === command.name)) subList.push(command);
+          }
+        }
+        return { commands, categories, subcategories };
+      }
+
+      const commandsPath = path.join(process.cwd(), "src", "commands");
       if (!fs.existsSync(commandsPath)) {
         logger.warn("HelpCommand", "Commands directory not found");
         return { commands, categories, subcategories };
@@ -204,7 +228,7 @@ class HelpCommand extends Command {
   async execute({ client, message, args }) {
     try {
       const { commands, categories, subcategories } =
-        await this._scanCommandDirectories();
+        await this._scanCommandDirectories(client);
 
       if (args.length > 0) {
         const commandName = args[0].toLowerCase();
@@ -272,7 +296,7 @@ class HelpCommand extends Command {
   async slashExecute({ client, interaction }) {
     try {
       const { commands, categories, subcategories } =
-        await this._scanCommandDirectories();
+        await this._scanCommandDirectories(client);
       const commandName = interaction.options.getString("command");
 
       if (commandName) {
@@ -356,7 +380,7 @@ class HelpCommand extends Command {
 
   async autocomplete({ interaction, client }) {
     try {
-      const { commands } = await this._scanCommandDirectories();
+      const { commands } = await this._scanCommandDirectories(client);
       const focusedValue = interaction.options.getFocused();
 
       const uniqueCommands = new Set();
@@ -521,7 +545,7 @@ class HelpCommand extends Command {
         directCommands.forEach((cmd, index) => {
           const isLast = index === directCommands.length - 1 && !hasSubcats;
           const prefix = isLast ? "└── " : "├── ";
-          content += `${prefix}${emoji.get("info")} \`${cmd.name}\`\n`;
+          content += `${prefix}${this._getCommandEmoji(cmd, category)} \`${cmd.name}\`\n`;
         });
       }
 
@@ -545,7 +569,7 @@ class HelpCommand extends Command {
         directCommands.slice(0, 25).forEach((cmd) => {
           selectOptions.push({
             label: cmd.name,
-            emoji: this._getEmojiObject("info"),
+            emoji: this._getEmojiObject(this._getCommandEmojiKey(cmd, category)),
             value: `cmd_${cmd.name}`,
             description: cmd.description ? cmd.description.slice(0, 100) : "No description",
           });
@@ -622,7 +646,7 @@ class HelpCommand extends Command {
       subcatCommands.forEach((cmd, index) => {
         const isLast = index === subcatCommands.length - 1;
         const prefix = isLast ? "└── " : "├── ";
-        content += `${prefix}${emoji.get("info")} \`${cmd.name}\`\n`;
+        content += `${prefix}${this._getCommandEmoji(cmd, category)} \`${cmd.name}\`\n`;
       });
 
       container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
@@ -638,7 +662,7 @@ class HelpCommand extends Command {
           .addOptions(
             subcatCommands.slice(0, 25).map((cmd) => ({
               label: cmd.name,
-              emoji: this._getEmojiObject("info"),
+              emoji: this._getEmojiObject(this._getCommandEmojiKey(cmd, category)),
               value: cmd.name,
               description: cmd.description ? cmd.description.slice(0, 100) : "No description",
             })),
@@ -1262,6 +1286,21 @@ class HelpCommand extends Command {
     }
   }
 
+  _getCommandEmojiKey(command, category) {
+    const name = String(command?.name || "").toLowerCase();
+    const cat = String(category || command?.category || "").toLowerCase();
+    if (cat.includes("music") || cat.includes("rythm")) {
+      const map = { play: "play", search: "search", nowplaying: "music", queue: "list", pause: "pause", resume: "play", skip: "skip", stop: "stop", previous: "left", replay: "reload", seek: "forward", forward: "forward", rewind: "rewind", volume: "volume", shuffle: "shuffle", loop: "loop", clear: "trash", remove: "trash", move: "arrow", bump: "arrow", autoplay: "reload", announce: "megaphone", djrole: "owner", settings: "settings", "247": "infinity", setdefaultvolume: "volume", voteskip: "check", source: "music" };
+      return map[name] || "music";
+    }
+    return "info";
+  }
+
+  _getCommandEmoji(command, category) {
+    const key = this._getCommandEmojiKey(command, category);
+    return emoji.get(key) || emoji.get("info") || "ℹ️";
+  }
+
   _getCategoryEmoji(category) {
     const categoryLower = category.toLowerCase();
     const aliases = {
@@ -1286,7 +1325,7 @@ class HelpCommand extends Command {
   }
 
   _displayCategory(category) {
-    const names = { rythmMusic: "Music", RythmMusic: "Music" };
+    const names = { rythmMusic: "Music", RythmMusic: "Music", music: "Music" };
     return names[category] || this._capitalize(category);
   }
 
