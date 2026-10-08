@@ -66,10 +66,12 @@ export class DatabaseManager {
   setLeave(guildId, channelId, message) { return this.automation.setLeave(guildId, channelId, message); }
   disableLeave(guildId) { return this.automation.disableLeave(guildId); }
   getAutoresponders(guildId) { return this.automation.getAutoresponders(guildId); }
+  getAllAutoresponders(guildId) { return this.automation.getAllAutoresponders(guildId); }
   getAutoresponder(guildId, id) { return this.automation.getAutoresponder(guildId, id); }
   findAutoresponder(guildId, trigger) { return this.automation.findAutoresponder(guildId, trigger); }
   addAutoresponder(guildId, trigger, response, matchType) { return this.automation.addAutoresponder(guildId, trigger, response, matchType); }
   updateAutoresponder(guildId, id, response, matchType) { return this.automation.updateAutoresponder(guildId, id, response, matchType); }
+  setAutoresponderEnabled(guildId, id, enabled) { return this.automation.setAutoresponderEnabled(guildId, id, enabled); }
   deleteAutoresponder(guildId, id) { return this.automation.deleteAutoresponder(guildId, id); }
   clearAutoresponders(guildId) { return this.automation.clearAutoresponders(guildId); }
 
