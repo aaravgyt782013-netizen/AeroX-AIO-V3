@@ -36,7 +36,7 @@ async function updateSettings(interaction, client, notice = "") {
     // Components V2 supports a normal component-interaction update. Use it
     // directly when the interaction has not already been acknowledged.
     if (!interaction.deferred && !interaction.replied) {
-      return await interaction.update(payload);
+      await interaction.deferUpdate();
     }
     return await interaction.editReply(payload);
   } catch (error) {
