@@ -33,24 +33,21 @@ function controlError(interaction, client, player) {
 async function updateSettings(interaction, client, notice = "") {
   const payload = v2Payload(settingsContainer(musicSettings({ interaction, client }), notice));
   try {
-    // Component interactions should update their source message directly.
-    // This is the native discord.js interaction flow and avoids the old
-    // deferUpdate -> editReply race that could produce "Could not update".
     if (!interaction.deferred && !interaction.replied) {
-      return await interaction.update(payload);
+      await interaction.deferUpdate();
     }
-    return await interaction.editReply(payload);
-  } catch {
-    const fallback = v2Payload(settingsContainer(
-      musicSettings({ interaction, client }),
-      "⚠️ Settings refresh failed. Run .settings again."
-    ));
+    return await interaction.message.edit(payload);
+  } catch (error) {
+    client?.logger?.error?.("MusicSettings", "Failed to refresh settings panel", error);
     try {
-      if (interaction.deferred || interaction.replied) return await interaction.editReply(fallback);
-      return await interaction.reply(fallback, { flags: 64 });
-    } catch {
-      return null;
-    }
+      if (!interaction.deferred && !interaction.replied) {
+        return await interaction.reply(v2Payload(settingsContainer(
+          musicSettings({ interaction, client }),
+          "⚠️ Settings refresh failed. Run .settings again."
+        ), { ephemeral: true }));
+      }
+    } catch {}
+    return null;
   }
 }
 
