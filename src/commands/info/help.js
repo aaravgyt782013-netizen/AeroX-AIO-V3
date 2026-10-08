@@ -1332,6 +1332,7 @@ class HelpCommand extends Command {
     const aliases = {
       rythmMusic: "category_music",
       music: "category_music",
+      channel: "channel",
       pfps: "category_pfps",
       info: "category_info",
       utility: "category_utility",
