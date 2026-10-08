@@ -168,6 +168,7 @@ export async function resolveTrack(x, query, source) {
 export async function enqueue(x, result, position) {
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
+
   if (result.loadType === "playlist") {
     await p.addTracks(result.tracks, position);
   } else {
@@ -175,38 +176,67 @@ export async function enqueue(x, result, position) {
   }
 
   if (idle && !p.isPlaying) {
+    const waitForPlayback = async (ms = 10000) => {
+      const started = Date.now();
+      while (Date.now() - started < ms) {
+        if (p.isPlaying && p.currentTrack) return true;
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      return false;
+    };
+
     try {
-      // Lavalink-client recommends queue.add() followed by player.play().
+      // lavalink-client's supported queue flow is: queue.add() -> player.play().
       await Promise.race([
         p.play(),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Playback start timed out.")), 12000))
       ]);
-    } catch (error) {
-      // Give the engine a second playback-capable source before surfacing the failure.
+
+      // A successful REST update is not the same thing as audio actually starting.
+      if (!(await waitForPlayback(10000))) {
+        throw new Error("Lavalink accepted the track but audio did not start.");
+      }
+    } catch (primaryError) {
+      // YouTube playback can fail even when search succeeds. Retry the exact
+      // title/artist on SoundCloud before telling the user playback failed.
       const first = result.tracks?.[0];
       const title = first?.info?.title || "";
       const author = first?.info?.author || "";
       const fallbackQuery = [author, title].filter(Boolean).join(" ").trim();
-      if (fallbackQuery) {
+
+      if (!fallbackQuery) throw primaryError;
+
+      try {
         const fallback = await x.client.music.search(fallbackQuery, {
           source: "scsearch",
           requester: context(x).user
         });
         const fallbackTrack = fallback?.tracks?.find(track => track?.info?.identifier);
-        if (fallbackTrack) {
-          await p.addTracks(fallbackTrack, 0);
-          await Promise.race([
-            p.play(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Fallback playback start timed out.")), 12000))
-          ]);
-        } else {
-          throw error;
+
+        if (!fallbackTrack) throw primaryError;
+
+        // Stop the failed current track without destroying the voice player or
+        // clearing the user's remaining queue, then put the fallback first.
+        await p.stopPlaying(false, false).catch(() => {});
+        await p.addTracks(fallbackTrack, 0);
+
+        await Promise.race([
+          p.play(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("SoundCloud fallback playback timed out.")), 12000))
+        ]);
+
+        if (!(await waitForPlayback(10000))) {
+          throw new Error("SoundCloud fallback loaded but audio did not start.");
         }
-      } else {
-        throw error;
+      } catch {
+        throw new Error(
+          "I found the song, but Lavalink could not start audio. " +
+          "The primary source failed and the backup source also failed."
+        );
       }
     }
   }
+
   return { p, count: result.tracks?.length || 1, first: result.tracks[0] };
 }
 
