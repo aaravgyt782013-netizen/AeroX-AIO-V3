@@ -199,6 +199,8 @@ class CategoryDelete extends Command {
       } catch {}
     }
 
+    if (categoryDeleted) this.cleanupDeletedReferences(guild, targetId, children.map(ch => ch.id));
+
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
     const remaining = failed.length;
     const complete = categoryDeleted && remaining === 0;
@@ -241,6 +243,26 @@ class CategoryDelete extends Command {
     });
 
     return finished;
+  }
+
+  cleanupDeletedReferences(guild, categoryId, deletedChannelIds) {
+    try {
+      const removed = new Set([categoryId, ...deletedChannelIds]);
+      const cfg = db.guild.getLogging(guild.id);
+      if (cfg.enabled) {
+        const channels = Object.fromEntries(
+          Object.entries(cfg.channels || {}).filter(([, id]) => !removed.has(id)),
+        );
+        const enabled = Object.keys(channels).length > 0;
+        db.guild.setLogging(guild.id, channels, enabled);
+      }
+
+      const tv = db.guild.getTempVoiceSettings(guild.id);
+      const next = {};
+      if (removed.has(tv.joinChannel)) next.joinChannel = null;
+      if (removed.has(tv.category)) next.category = null;
+      if (Object.keys(next).length) db.guild.setTempVoiceSettings(guild.id, next);
+    } catch {}
   }
 
   findOutsideLogChannel(guild, category, sourceChannel) {
