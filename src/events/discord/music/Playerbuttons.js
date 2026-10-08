@@ -31,16 +31,25 @@ function controlError(interaction, client, player) {
 }
 
 async function updateSettings(interaction, client, notice = "") {
+  const payload = v2Payload(settingsContainer(musicSettings({ interaction, client }), notice));
   try {
-    if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
-    return interaction.editReply(v2Payload(settingsContainer(musicSettings({ interaction, client }), notice)));
+    // Components V2 supports a normal component-interaction update. Use it
+    // directly when the interaction has not already been acknowledged.
+    if (!interaction.deferred && !interaction.replied) {
+      return await interaction.update(payload);
+    }
+    return await interaction.editReply(payload);
   } catch (error) {
-    const payload = v2Payload(settingsContainer(
+    const fallback = v2Payload(settingsContainer(
       musicSettings({ interaction, client }),
-      "Music settings updated. Re-open .settings if the panel did not refresh."
+      "⚠️ Settings could not be refreshed. Run .settings again."
     ));
-    if (interaction.deferred || interaction.replied) return interaction.editReply(payload).catch(() => {});
-    return interaction.reply(payload).catch(() => {});
+    try {
+      if (interaction.deferred || interaction.replied) return await interaction.editReply(fallback);
+      return await interaction.reply(fallback, { ephemeral: true });
+    } catch {
+      return null;
+    }
   }
 }
 
