@@ -31,7 +31,17 @@ function controlError(interaction, client, player) {
 }
 
 async function updateSettings(interaction, client, notice = "") {
-  return interaction.update(v2Payload(settingsContainer(musicSettings({ interaction, client }), notice)));
+  try {
+    if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
+    return interaction.editReply(v2Payload(settingsContainer(musicSettings({ interaction, client }), notice)));
+  } catch (error) {
+    const payload = v2Payload(settingsContainer(
+      musicSettings({ interaction, client }),
+      "Music settings updated. Re-open .settings if the panel did not refresh."
+    ));
+    if (interaction.deferred || interaction.replied) return interaction.editReply(payload).catch(() => {});
+    return interaction.reply(payload).catch(() => {});
+  }
 }
 
 export function createMusicPlayerV2(track, settings, paused = false, position = 0) {
