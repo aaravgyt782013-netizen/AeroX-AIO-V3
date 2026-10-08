@@ -69,7 +69,7 @@ export default {
     if (!text) return message.reply("❌ Give me announcement text. Example: announce #news Server maintenance tonight --ping everyone --title Maintenance");
     const ping=flags.ping || "none";
     const content=ping==="everyone" ? "@everyone" : ping==="here" ? "@here" : undefined;
-    const sent=await target.send({content,embeds:[makeEmbed(message.guild,message.member,text,flags)],allowedMentions:{parse:ping==="none"?[]:[ping]}});
+    const sent=await target.send({content,embeds:[makeEmbed(message.guild,message.member,text,flags)],allowedMentions:{parse:ping==="none"?[]:["everyone"]}});
     if (target.id !== message.channel.id) await message.delete().catch(()=>{});
     const confirmation=await message.channel.send("📢 Announcement sent to <#" + target.id + ">.");
     setTimeout(()=>confirmation.delete().catch(()=>{}),5000);
