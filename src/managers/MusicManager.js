@@ -199,6 +199,12 @@ export class MusicManager {
     return [];
   }
 
+  refreshVoiceStayAlive(guildId, joined = true) {
+    const player = this.getPlayer(guildId);
+    if (player) this._refreshVoiceStayAlive(player, joined);
+    return player || null;
+  }
+
   _refreshVoiceStayAlive(player, joined = false) {
     if (!player?.guildId) return;
     const guild = this.client.guilds.cache.get(player.guildId);
