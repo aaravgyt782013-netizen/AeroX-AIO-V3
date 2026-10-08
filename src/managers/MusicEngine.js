@@ -4,6 +4,16 @@ import { db } from "#database/DatabaseManager";
 import { logger } from "#utils/logger";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const AUTOPLAY_QUERIES = [
+  "popular songs",
+  "trending songs",
+  "new songs",
+  "hindi songs",
+  "bollywood songs",
+  "english pop songs",
+  "lofi music",
+  "viral songs"
+];
 const timeout = (promise, ms, message) => Promise.race([
   promise,
   sleep(ms).then(() => { throw new Error(message); })
@@ -15,6 +25,8 @@ export class MusicEngine {
     this.history = new Map();
     this.likes = new Map();
     this.emptyTimers = new Map();
+    this.autoplayBusy = new Set();
+    this.stuckRetries = new Map();
     this.ready = false;
     this.lastUnavailable = 0;
 
@@ -106,6 +118,7 @@ export class MusicEngine {
       });
       this.history.set(player.guildId, list.slice(0, 50));
       player.set("lastPlayedTrack", track);
+      this.stuckRetries.delete(player.guildId);
       this.refreshVoiceStayAlive(player.guildId, true);
     });
 
@@ -151,16 +164,47 @@ export class MusicEngine {
       }
     });
     this.lavalink.on("trackStuck", async (player, track, payload) => {
-      logger.warn("MusicEngine", "Track stuck [" + player?.guildId + "] after " + (payload?.thresholdMs || "?") + "ms");
-      if (player && !player.playing && player.queue?.current) {
-        try { await player.play(); } catch (error) {
-          logger.warn("MusicEngine", "Retry after stuck track failed: " + (error?.message || error));
+      if (!player || !track) return;
+      const guildId = player.guildId;
+      const retries = this.stuckRetries.get(guildId) || 0;
+      logger.warn(
+        "MusicEngine",
+        "Track stuck [" + guildId + "] after " + (payload?.thresholdMs || "?") + "ms (retry " + (retries + 1) + ")"
+      );
+
+      // A public node can temporarily stop sending audio. Restart the same
+      // track once instead of leaving the player silently frozen.
+      if (retries < 1) {
+        this.stuckRetries.set(guildId, retries + 1);
+        try {
+          await player.stopPlaying(false, false).catch(() => {});
+          await player.queue.add(track, 0).catch(() => {});
+          await player.play({ noReplace: true });
+          return;
+        } catch (error) {
+          logger.warn("MusicEngine", "Stuck-track restart failed: " + (error?.message || error));
         }
+      }
+
+      // Let the normal error/autoplay path recover instead of retrying forever.
+      this.stuckRetries.delete(guildId);
+      try {
+        const fallbackQuery = [track.info?.author, track.info?.title].filter(Boolean).join(" ").trim();
+        if (!fallbackQuery) return;
+        const result = await this.search(fallbackQuery, { source: "scsearch", requester: track.requester });
+        const fallback = result?.tracks?.find(item => item?.info?.identifier);
+        if (!fallback) return;
+        await player.stopPlaying(false, false).catch(() => {});
+        await player.queue.add(fallback, 0);
+        await player.play({ noReplace: true });
+        logger.warn("MusicEngine", "Recovered stuck track with SoundCloud fallback [" + guildId + "].");
+      } catch (error) {
+        logger.warn("MusicEngine", "Stuck-track fallback failed: " + (error?.message || error));
       }
     });
     this.lavalink.on("playerVoiceJoin", player => this.refreshVoiceStayAlive(player.guildId, true));
     this.lavalink.on("playerVoiceLeave", player => this.refreshVoiceStayAlive(player.guildId, false));
-    this.lavalink.on("queueEnd", player => this._queueEnd(player));
+    this.lavalink.on("queueEnd", (player, endedTrack) => this._queueEnd(player, endedTrack));
   }
 
   nodes() {
@@ -369,25 +413,70 @@ export class MusicEngine {
     return player;
   }
 
-  async _queueEnd(player) {
+  async _pickAutoplayTrack(player, endedTrack) {
+    const recent = new Set(
+      (this.history.get(player.guildId) || [])
+        .slice(0, 12)
+        .map(item => item?.identifier || item?.uri || item?.title)
+        .filter(Boolean)
+    );
+
+    const blocked = new Set(recent);
+    const currentId = endedTrack?.info?.identifier || player.get("lastPlayedTrack")?.info?.identifier;
+    if (currentId) blocked.add(currentId);
+
+    for (const queued of player.queue?.tracks || []) {
+      if (queued?.info?.identifier) blocked.add(queued.info.identifier);
+    }
+
+    for (let attempt = 0; attempt < AUTOPLAY_QUERIES.length; attempt++) {
+      const query = AUTOPLAY_QUERIES[Math.floor(Math.random() * AUTOPLAY_QUERIES.length)];
+      try {
+        const result = await this.search(query, { source: "ytmsearch", requester: endedTrack?.requester });
+        const candidates = (result?.tracks || []).filter(track => {
+          const id = track?.info?.identifier;
+          const uri = track?.info?.uri;
+          const title = track?.info?.title;
+          return id && !blocked.has(id) && !blocked.has(uri) && !blocked.has(title);
+        });
+        if (candidates.length) {
+          return candidates[Math.floor(Math.random() * candidates.length)];
+        }
+      } catch (error) {
+        logger.warn("MusicEngine", "Autoplay discovery failed: " + (error?.message || error));
+      }
+    }
+
+    return null;
+  }
+
+  async _queueEnd(player, endedTrack) {
+    if (!player || this.autoplayBusy.has(player.guildId)) return;
+    this.autoplayBusy.add(player.guildId);
+
     try {
       const settings = db.guild.getMusicSettings(player.guildId);
       const autoplay = player.get("autoplayEnabled") === true || Boolean(settings.autoplay);
       const mode247 = player.get("stay247") === true || Boolean(settings.mode247);
+
       if (autoplay) {
-        const last = player.get("lastPlayedTrack");
-        if (last?.info?.title) {
-          const q = [last.info.author, last.info.title].filter(Boolean).join(" ");
-          const result = await this.search(q, { source: "ytmsearch" });
-          const next = result?.tracks?.find(track => track?.info?.identifier);
-          if (next) {
-            await player.queue.add(next);
-            if (!player.playing) await player.play();
-            return;
+        const next = await this._pickAutoplayTrack(player, endedTrack);
+        if (next) {
+          // Add a genuinely new track. Do not search the last song again.
+          await player.queue.add(next);
+          if (!player.playing && !player.queue.current) {
+            await player.play({ noReplace: true });
           }
+          player.set("stayAlive", true);
+          logger.info("MusicEngine", "Autoplay selected a new track [" + player.guildId + "]: " + (next.info?.title || "Unknown"));
+          return;
         }
+
+        logger.warn("MusicEngine", "Autoplay could not find a new track [" + player.guildId + "].");
       }
+
       player.set("stayAlive", autoplay || mode247);
+
       if (!autoplay && !mode247) {
         setTimeout(async () => {
           const current = this.getPlayer(player.guildId);
@@ -398,6 +487,7 @@ export class MusicEngine {
       }
     } catch (error) {
       logger.warn("MusicEngine", "Queue-end handling failed: " + (error?.message || error));
+    } finally {
+      this.autoplayBusy.delete(player.guildId);
     }
-  }
-}
+  }}
