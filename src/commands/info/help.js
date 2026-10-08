@@ -78,6 +78,7 @@ class HelpCommand extends Command {
           }
         }
         this._injectVirtualChannelCategory(commands, categories, subcategories);
+        this._normalizeHelpCategories(categories, subcategories);
         return { commands, categories, subcategories };
       }
 
@@ -110,6 +111,7 @@ class HelpCommand extends Command {
       }
 
       this._injectVirtualChannelCategory(commands, categories, subcategories);
+      this._normalizeHelpCategories(categories, subcategories);
       return { commands, categories, subcategories };
     } catch (error) {
       logger.error("HelpCommand", "Error scanning command directories:", error);
@@ -405,6 +407,64 @@ class HelpCommand extends Command {
     }
   }
 
+  _normalizeHelpCategories(categories, subcategories) {
+    const canonicalName = (raw) => {
+      const key = String(raw || "").trim().toLowerCase();
+      if (key === "channel") return "Channel";
+      if (key === "music" || key === "rythmusic") return "Music";
+      if (!key) return "Misc";
+      return String(raw).trim().charAt(0).toUpperCase() + String(raw).trim().slice(1);
+    };
+
+    const mergedCategories = new Map();
+    const mergedSubcategories = new Map();
+
+    for (const [rawCategory, list] of categories.entries()) {
+      const category = canonicalName(rawCategory);
+      if (!mergedCategories.has(category)) mergedCategories.set(category, []);
+
+      const target = mergedCategories.get(category);
+      for (const command of list || []) {
+        if (!command?.name) continue;
+        if (!target.some(existing => existing.name === command.name)) {
+          command.category = category;
+          target.push(command);
+        }
+      }
+
+      const rawSubs = subcategories.get(rawCategory);
+      if (rawSubs) {
+        if (!mergedSubcategories.has(category)) {
+          mergedSubcategories.set(category, new Map());
+        }
+        const targetSubs = mergedSubcategories.get(category);
+
+        for (const [subName, subCommands] of rawSubs.entries()) {
+          if (!targetSubs.has(subName)) targetSubs.set(subName, []);
+          const targetList = targetSubs.get(subName);
+
+          for (const command of subCommands || []) {
+            if (!command?.name) continue;
+            if (!targetList.some(existing => existing.name === command.name)) {
+              command.category = category;
+              targetList.push(command);
+            }
+          }
+        }
+      }
+    }
+
+    categories.clear();
+    for (const [category, list] of mergedCategories.entries()) {
+      categories.set(category, list);
+    }
+
+    subcategories.clear();
+    for (const [category, subs] of mergedSubcategories.entries()) {
+      subcategories.set(category, subs);
+    }
+  }
+
   _injectVirtualChannelCategory(commands, categories, subcategories) {
     const existing = [
       "channel","categorydelete","catdelete","delcategory","categorydel",
@@ -466,7 +526,12 @@ class HelpCommand extends Command {
 
   _createMainContainer(commands, categories, subcategories) {
     try {
-      const categoryArray = Array.from(categories.keys());
+      const categoryArray = Array.from(new Set(Array.from(categories.keys()).map(category => {
+        const key = String(category || "").toLowerCase();
+        if (key === "channel") return "Channel";
+        if (key === "music" || key === "rythmusic") return "Music";
+        return category;
+      })));
       const uniqueCommands = Array.from(commands.values()).filter(
         (cmd, index, arr) =>
           arr.findIndex((c) => c.name === cmd.name) === index,
@@ -1490,8 +1555,10 @@ class HelpCommand extends Command {
   }
 
   _displayCategory(category) {
-    const names = { Channel: "Channel", channel: "Channel", rythmMusic: "Music", RythmMusic: "Music", music: "Music" };
-    return names[category] || this._capitalize(category);
+    const key = String(category || "").toLowerCase();
+    if (key === "channel") return "Channel";
+    if (key === "music" || key === "rythmusic") return "Music";
+    return this._capitalize(category);
   }
 
   _getEmojiObject(name) {
