@@ -60,7 +60,7 @@ const run = async x => {
     if (key === "autoplay") c.client.db.guild.setAutoplay(guild, enabled);
     if (key === "announce" || key === "announcesongs") c.client.db.guild.setAnnounceSongs(guild, enabled);
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
-    if (key === "247") c.client.db.guild.set247(guild, enabled);
+    if (key === "247") c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
     return render(x);
   }
 
