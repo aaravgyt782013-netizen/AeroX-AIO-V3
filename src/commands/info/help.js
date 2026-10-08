@@ -456,7 +456,8 @@ class HelpCommand extends Command {
         .setPlaceholder("Select a category")
         .addOptions(
           categoryArray.map((category) => {
-            const emojiKeyMap = { rythmMusic: "category_music", RythmMusic: "category_music" };\n            const categoryEmoji = this._getEmojiObject(emojiKeyMap[category] || `category_${category.toLowerCase()}`);
+            const emojiKeyMap = { rythmMusic: "category_music", RythmMusic: "category_music" };
+            const categoryEmoji = this._getEmojiObject(emojiKeyMap[category] || `category_${category.toLowerCase()}`);
             return {
               label: this._displayCategory(category),
               value: category,
