@@ -119,42 +119,65 @@ async function handleMuteStateChange(oldState, newState, pm, client) {
 async function checkIfAlone(voiceState, pm, client) {
 	const guildId = voiceState.guild.id;
 	const channel = voiceState.channel;
-
 	if (!channel) return;
 
 	const humanMembers = channel.members.filter(member => !member.user.bot);
 
-	if (humanMembers.size === 0) {
-		logger.info('VoiceStateUpdate', `Bot is alone in voice channel in guild ${guildId}`);
+	// Rythm-style rule: Autoplay is a stay-alive mode. When it is ON,
+	// LightCore must NOT pause or destroy the player just because nobody
+	// is currently sitting in the voice channel.
+	let autoplay = false;
+	let mode247 = false;
+	try {
+		const settings = client.db?.guild?.getMusicSettings?.(guildId);
+		autoplay = Boolean(settings?.autoplay);
+		mode247 = Boolean(settings?.mode247);
+	} catch {}
 
+	if (humanMembers.size === 0) {
 		clearAloneTimeout(guildId);
+		if (autoplay || mode247) {
+			pm.setData('stayAlive', true);
+			if (pm.isPaused && pm.getData('pausedDueToAlone')) {
+				await pm.resume().catch(() => {});
+				pm.setData('pausedDueToAlone', false);
+			}
+			logger.info('VoiceStateUpdate', `Keeping music connected in guild ${guildId} because autoplay/24-7 is enabled`);
+			return;
+		}
 
 		if (pm.isPlaying) {
-			await pm.pause();
+			await pm.pause().catch(() => {});
 			pm.setData('pausedDueToAlone', true);
-			logger.info('VoiceStateUpdate', `Paused playback in guild ${guildId} - alone in voice channel`);
 		}
 
 		const timeout = setTimeout(async () => {
 			try {
 				const currentChannel = voiceState.guild.members.me?.voice?.channel;
-				if (currentChannel) {
-					const currentHumanMembers = currentChannel.members.filter(member => !member.user.bot);
-					if (currentHumanMembers.size === 0) {
-						logger.info('VoiceStateUpdate', `Destroying player in guild ${guildId} - alone for 10 seconds`);
-						await destroyPlayer(pm, 'Alone in voice channel for 10 seconds', client);
-					}
+				if (!currentChannel) return;
+				const currentHumanMembers = currentChannel.members.filter(member => !member.user.bot);
+				let keepAlive = false;
+				try {
+					const settings = client.db?.guild?.getMusicSettings?.(guildId);
+					keepAlive = Boolean(settings?.autoplay || settings?.mode247);
+				} catch {}
+				if (currentHumanMembers.size === 0 && !keepAlive) {
+					await destroyPlayer(pm, 'Alone in voice channel for 60 seconds', client);
 				}
 			} catch (error) {
 				logger.error('VoiceStateUpdate', 'Error in alone timeout handler:', error);
 			} finally {
 				aloneTimeouts.delete(guildId);
 			}
-		}, 10000);
-
+		}, 60000);
 		aloneTimeouts.set(guildId, timeout);
 	} else {
 		clearAloneTimeout(guildId);
+		pm.setData('stayAlive', false);
+		if (pm.isPaused && pm.getData('pausedDueToAlone')) {
+			await pm.resume().catch(() => {});
+			pm.setData('pausedDueToAlone', false);
+		}
 	}
 }
 
@@ -171,18 +194,17 @@ async function destroyPlayer(pm, reason, client) {
 	try {
 		const guildId = pm.guildId;
 
-		const is247Enabled = await pm.is247ModeEnabled();
+			let is247Enabled = false;
+		let autoplayEnabled = false;
+		try {
+			is247Enabled = await pm.is247ModeEnabled();
+			autoplayEnabled = Boolean(client.db?.guild?.getMusicSettings?.(guildId)?.autoplay);
+		} catch {}
 
-		if (is247Enabled) {
-			logger.info('VoiceStateUpdate', `24/7 mode enabled in guild ${guildId} - stopping player instead of destroying: ${reason}`);
-
-			await pm.stop();
-
-			await send247StopNotification(pm, reason, client);
-
+		if (is247Enabled || autoplayEnabled) {
+			logger.info('VoiceStateUpdate', `Stay-alive mode enabled in guild ${guildId}; keeping the player connected: ${reason}`);
 			clearAloneTimeout(guildId);
 			muteStates.delete(guildId);
-
 			return;
 		}
 
