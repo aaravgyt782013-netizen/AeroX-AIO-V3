@@ -12,9 +12,14 @@ export class Automation extends Database {
     this.exec(
       "CREATE TABLE IF NOT EXISTS welcome_settings (" +
       "guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message TEXT NOT NULL, " +
-      "enabled INTEGER DEFAULT 1, welcome_style TEXT DEFAULT 'embed', updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000))"
+      "enabled INTEGER DEFAULT 1, welcome_style TEXT DEFAULT 'embed', " +
+      "dm_enabled INTEGER DEFAULT 0, dm_message TEXT DEFAULT NULL, " +
+      "updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000))"
     );
     try { this.exec("ALTER TABLE welcome_settings ADD COLUMN welcome_style TEXT DEFAULT 'embed'"); } catch {}
+    try { this.exec("ALTER TABLE welcome_settings ADD COLUMN dm_enabled INTEGER DEFAULT 0"); } catch {}
+    try { this.exec("ALTER TABLE welcome_settings ADD COLUMN dm_message TEXT DEFAULT NULL"); } catch {}
+
     this.exec(
       "CREATE TABLE IF NOT EXISTS leave_settings (" +
       "guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message TEXT NOT NULL, " +
@@ -40,9 +45,10 @@ export class Automation extends Database {
     const now = Date.now();
     const safeStyle = style === "direct" ? "direct" : "embed";
     return this.exec(
-      "INSERT INTO welcome_settings (guild_id, channel_id, message, enabled, welcome_style, updated_at) " +
-      "VALUES (?, ?, ?, 1, ?, ?) ON CONFLICT(guild_id) DO UPDATE SET " +
-      "channel_id = excluded.channel_id, message = excluded.message, enabled = 1, welcome_style = excluded.welcome_style, updated_at = excluded.updated_at",
+      "INSERT INTO welcome_settings (guild_id, channel_id, message, enabled, welcome_style, dm_enabled, dm_message, updated_at) " +
+      "VALUES (?, ?, ?, 1, ?, 0, NULL, ?) ON CONFLICT(guild_id) DO UPDATE SET " +
+      "channel_id = excluded.channel_id, message = excluded.message, enabled = 1, " +
+      "welcome_style = excluded.welcome_style, updated_at = excluded.updated_at",
       [guildId, channelId, message, safeStyle, now],
     );
   }
@@ -57,6 +63,36 @@ export class Automation extends Database {
 
   disableWelcome(guildId) {
     return this.exec("UPDATE welcome_settings SET enabled = 0, updated_at = ? WHERE guild_id = ?", [Date.now(), guildId]);
+  }
+
+  setWelcomeDM(guildId, message) {
+    const now = Date.now();
+    return this.exec(
+      "INSERT INTO welcome_settings (guild_id, channel_id, message, enabled, welcome_style, dm_enabled, dm_message, updated_at) " +
+      "VALUES (?, '', '', 0, 'embed', 1, ?, ?) ON CONFLICT(guild_id) DO UPDATE SET " +
+      "dm_enabled = 1, dm_message = excluded.dm_message, updated_at = excluded.updated_at",
+      [guildId, message, now]
+    );
+  }
+
+  setWelcomeDMEnabled(guildId, enabled) {
+    return this.exec(
+      "UPDATE welcome_settings SET dm_enabled = ?, updated_at = ? WHERE guild_id = ?",
+      [enabled ? 1 : 0, Date.now(), guildId]
+    );
+  }
+
+  disableWelcomeDM(guildId) {
+    return this.setWelcomeDMEnabled(guildId, false);
+  }
+
+  getWelcomeDM(guildId) {
+    const row = this.getWelcome(guildId);
+    if (!row) return null;
+    return {
+      enabled: row.dm_enabled === 1 || row.dm_enabled === true,
+      message: row.dm_message || null,
+    };
   }
 
   getLeave(guildId) {
