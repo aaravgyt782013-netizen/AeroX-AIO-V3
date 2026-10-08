@@ -10,15 +10,8 @@ const PUBLIC_LAVALINK_NODES = [
     port: 443,
     authorization: "arbotixop007",
     secure: true,
-    retryAmount: 10,
-    retryDelay: 10000
-  },
-  {
-    id: "heavencloud-india-ssl",
-    host: "lavalink.heavencloud.in",
-    port: 443,
-    authorization: "heavencloud",
-    secure: true
+    retryAmount: Infinity,
+    retryDelay: 5000
   }
 ];
 
