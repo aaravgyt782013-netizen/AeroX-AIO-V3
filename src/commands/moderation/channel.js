@@ -116,7 +116,9 @@ async function runAction({ guild, member, subcommand, channel, args }) {
 
   const reason = "LightCore Channel Manager • " + (member.user?.tag || member.tag || "Moderator");
 
-  if (subcommand === "list") {
+  const normalizedSubcommand = subcommand === "copy" ? "clone" : subcommand;
+
+  if (normalizedSubcommand === "list") {
     const grouped = new Map();
     guild.channels.cache.filter(c => !c.isThread()).sort((a, b) => a.rawPosition - b.rawPosition).forEach(c => {
       const parent = c.parent?.name || "No Category";
@@ -138,7 +140,7 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     };
   }
 
-  if (subcommand === "create") {
+  if (normalizedSubcommand === "create") {
     const name = cleanName(args[1]);
     const typeKey = String(args[2] || "text").toLowerCase();
     const type = TYPE_MAP[typeKey];
@@ -163,7 +165,7 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     return { embeds: [errorEmbed("I cannot manage " + channelMention(channel) + " because of Discord's role/permission hierarchy.")] };
   }
 
-  if (subcommand === "info") {
+  if (normalizedSubcommand === "info") {
     return {
       embeds: [
         new EmbedBuilder()
@@ -182,26 +184,26 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     };
   }
 
-  if (subcommand === "delete") {
+  if (normalizedSubcommand === "delete") {
     const name = channel.name;
     await channel.delete(reason);
     return { embeds: [successEmbed("Channel Deleted", "Deleted **#" + name + "**.")] };
   }
 
-  if (subcommand === "clone") {
+  if (normalizedSubcommand === "clone") {
     const newName = cleanName(args[2]) || (channel.name + "-copy");
     const cloned = await channel.clone({ name: newName, reason });
     return { embeds: [successEmbed("Channel Cloned", "Created " + channelMention(cloned) + " from " + channelMention(channel) + ".")] };
   }
 
-  if (subcommand === "rename") {
+  if (normalizedSubcommand === "rename") {
     const newName = cleanName(args[2]);
     if (!newName) return { embeds: [errorEmbed("Usage: .channel rename <channel> <new-name>")] };
     await channel.setName(newName, reason);
     return { embeds: [successEmbed("Channel Renamed", "Renamed the channel to " + channelMention(channel) + ".")] };
   }
 
-  if (subcommand === "topic") {
+  if (normalizedSubcommand === "topic") {
     if (!("setTopic" in channel)) return { embeds: [errorEmbed("This channel type does not support a topic.")] };
     const topic = args.slice(2).join(" ").slice(0, 1024);
     if (!topic) return { embeds: [errorEmbed("Usage: .channel topic <channel> <topic>")] };
@@ -209,7 +211,7 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     return { embeds: [successEmbed("Topic Updated", "Updated the topic for " + channelMention(channel) + ".")] };
   }
 
-  if (subcommand === "slowmode") {
+  if (normalizedSubcommand === "slowmode") {
     if (!("setRateLimitPerUser" in channel)) return { embeds: [errorEmbed("This channel does not support slowmode.")] };
     const seconds = Number(args[2]);
     if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) {
@@ -219,7 +221,7 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     return { embeds: [successEmbed("Slowmode Updated", channelMention(channel) + " slowmode is now **" + seconds + "s**.")] };
   }
 
-  if (subcommand === "lock" || subcommand === "unlock") {
+  if (normalizedSubcommand === "lock" || subcommand === "unlock") {
     await channel.permissionOverwrites.edit(
       guild.roles.everyone,
       { SendMessages: subcommand === "unlock" ? null : false },
@@ -228,7 +230,7 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     return { embeds: [successEmbed(subcommand === "lock" ? "Channel Locked" : "Channel Unlocked", channelMention(channel) + " is now **" + (subcommand === "lock" ? "locked" : "unlocked") + "** for @everyone.")] };
   }
 
-  if (subcommand === "hide" || subcommand === "show") {
+  if (normalizedSubcommand === "hide" || subcommand === "show") {
     await channel.permissionOverwrites.edit(
       guild.roles.everyone,
       { ViewChannel: subcommand === "show" ? null : false },
@@ -237,14 +239,14 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     return { embeds: [successEmbed(subcommand === "hide" ? "Channel Hidden" : "Channel Visible", channelMention(channel) + " is now **" + (subcommand === "hide" ? "hidden" : "visible") + "** for @everyone.")] };
   }
 
-  if (subcommand === "move") {
+  if (normalizedSubcommand === "move") {
     const category = resolveCategory(guild, args[2]);
     if (!category) return { embeds: [errorEmbed("That category could not be found.")] };
     await channel.setParent(category.id, { lockPermissions: false });
     return { embeds: [successEmbed("Channel Moved", "Moved " + channelMention(channel) + " to **" + category.name + "**.")] };
   }
 
-  if (subcommand === "nsfw") {
+  if (normalizedSubcommand === "nsfw") {
     if (!("setNSFW" in channel)) return { embeds: [errorEmbed("This channel type does not support NSFW settings.")] };
     const value = String(args[2] || "").toLowerCase();
     if (!["on", "off", "true", "false"].includes(value)) return { embeds: [errorEmbed("Usage: .channel nsfw <channel> <on|off>")] };
@@ -253,7 +255,7 @@ async function runAction({ guild, member, subcommand, channel, args }) {
     return { embeds: [successEmbed("NSFW Updated", channelMention(channel) + " NSFW is now **" + (enabled ? "enabled" : "disabled") + "**.")] };
   }
 
-  if (subcommand === "permission") {
+  if (normalizedSubcommand === "permission") {
     const targetToken = args[2];
     const mode = String(args[3] || "").toLowerCase();
     const permissionKey = String(args[4] || "").toLowerCase();
@@ -277,10 +279,104 @@ function getSlashChannel(interaction) {
   return interaction.options.getChannel("channel") || interaction.channel;
 }
 
+async function executeChannel({ message, args }) {
+  const subcommand = String(args?.[0] || "").toLowerCase();
+  const supported = new Set([
+    "create","delete","clone","copy","rename","topic","slowmode","lock","unlock",
+    "hide","show","move","nsfw","permission","info","list"
+  ]);
+
+  if (!supported.has(subcommand)) {
+    return message.reply({ embeds: [helpEmbed()] });
+  }
+
+  const channel = subcommand === "create" || subcommand === "list"
+    ? null
+    : resolveChannel(message.guild, args[1], message.channel);
+
+  try {
+    return await runAction({
+      guild: message.guild,
+      member: message.member,
+      subcommand,
+      channel,
+      args: [subcommand, ...args.slice(1)],
+    }).then(payload => message.reply(payload));
+  } catch (error) {
+    return message.reply({
+      embeds: [errorEmbed("Channel action failed: " + (error?.message || "Unknown error"))],
+    });
+  }
+}
+
+async function slashExecuteChannel({ interaction }) {
+  const subcommand = interaction.options.getSubcommand();
+
+  const args = [subcommand];
+  let channel = null;
+
+  if (subcommand === "create") {
+    args.push(
+      interaction.options.getString("name"),
+      interaction.options.getString("type") || "text",
+      interaction.options.getChannel("category")?.id || "",
+    );
+  } else if (subcommand === "list") {
+    channel = null;
+  } else if (subcommand === "delete" || subcommand === "clone" || subcommand === "copy") {
+    channel = interaction.options.getChannel("channel");
+    args.push(channel?.id || "", interaction.options.getString("name") || "");
+  } else if (subcommand === "rename") {
+    channel = interaction.options.getChannel("channel");
+    args.push(channel?.id || "", interaction.options.getString("name") || "");
+  } else if (subcommand === "topic") {
+    channel = interaction.options.getChannel("channel");
+    args.push(channel?.id || "", interaction.options.getString("topic") || "");
+  } else if (subcommand === "slowmode") {
+    channel = interaction.options.getChannel("channel");
+    args.push(channel?.id || "", String(interaction.options.getInteger("seconds") ?? 0));
+  } else if (["lock","unlock","hide","show","info"].includes(subcommand)) {
+    channel = interaction.options.getChannel("channel") || interaction.channel;
+    args.push(channel?.id || "");
+  } else if (subcommand === "move") {
+    channel = interaction.options.getChannel("channel");
+    args.push(channel?.id || "", interaction.options.getChannel("category")?.id || "");
+  } else if (subcommand === "nsfw") {
+    channel = interaction.options.getChannel("channel");
+    args.push(channel?.id || "", interaction.options.getString("state") || "off");
+  } else if (subcommand === "permission") {
+    channel = interaction.options.getChannel("channel");
+    const target = interaction.options.getMentionable("target");
+    const targetToken = target?.user ? "<@" + target.id + ">" : "<@&" + target.id + ">";
+    args.push(
+      channel?.id || "",
+      targetToken,
+      interaction.options.getString("mode") || "deny",
+      interaction.options.getString("permission") || "",
+    );
+  }
+
+  try {
+    const payload = await runAction({
+      guild: interaction.guild,
+      member: interaction.member,
+      subcommand,
+      channel,
+      args,
+    });
+    return interaction.reply(payload);
+  } catch (error) {
+    return interaction.reply({
+      embeds: [errorEmbed("Channel action failed: " + (error?.message || "Unknown error"))],
+      ephemeral: true,
+    });
+  }
+}
+
 export default {
   name: "channel",
   description: "Full Discord channel management system",
-  usage: "channel <create|delete|clone|rename|topic|slowmode|lock|unlock|hide|show|move|nsfw|permission|info|list>",
+  usage: "channel <create|delete|clone|copy|rename|topic|slowmode|lock|unlock|hide|show|move|nsfw|permission|info|list>",
   aliases: ["ch", "channelmanager"],
   category: "channel",
   cooldown: 2,
@@ -311,6 +407,7 @@ export default {
       },
       { name: "delete", description: "Delete a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }] },
       { name: "clone", description: "Clone a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "name", description: "New channel name", type: 3, required: false }] },
+      { name: "copy", description: "Copy a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "name", description: "New channel name", type: 3, required: false }] },
       { name: "rename", description: "Rename a channel", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "name", description: "New name", type: 3, required: true }] },
       { name: "topic", description: "Change a channel topic", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "topic", description: "New topic", type: 3, required: true }] },
       { name: "slowmode", description: "Set channel slowmode", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: true }, { name: "seconds", description: "0-21600 seconds", type: 4, required: true }] },
@@ -343,4 +440,13 @@ export default {
       { name: "info", description: "Show channel information", type: 1, options: [{ name: "channel", description: "Channel", type: 7, required: false }] },
       { name: "list", description: "List all server channels", type: 1 },
     ],
-  },;
+  },
+
+  async execute(context) {
+    return executeChannel(context);
+  },
+
+  async slashExecute(context) {
+    return slashExecuteChannel(context);
+  },
+};
