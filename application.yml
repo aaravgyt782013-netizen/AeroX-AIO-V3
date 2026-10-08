@@ -35,6 +35,8 @@ lavalink:
     frameBufferDurationMs: 5000
     opusEncodingQuality: 10
     playerUpdateInterval: 5
+    trackStuckThresholdMs: 10000
+    useSeekGhosting: true
 
 plugins:
   youtube:
@@ -42,13 +44,18 @@ plugins:
     allowSearch: true
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
+    # Prefer clients with playback support. MUSIC is search-only.
     clients:
-      - MUSIC
-      - ANDROID_VR
       - WEB
+      - MWEB
+      - ANDROID_VR
+      - ANDROID_MUSIC
+      - TVHTML5_SIMPLY
       - WEBEMBEDDED
+      - MUSIC
 
 logging:
   level:
     root: INFO
     lavalink: INFO
+    dev.lavalink.youtube: INFO
