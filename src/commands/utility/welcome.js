@@ -100,8 +100,8 @@ class WelcomeCommand extends Command {
       const channel = resolveChannel(message, args[1]);
       const text = args.slice(2).join(" ") || DEFAULT_MESSAGE;
       if (!channel) return message.reply(replyBox(emoji.get("cross") + " Mention a text channel or provide its ID."));
-      db.setWelcome(guildId, channel.id, text);
-      return message.reply(replyBox(emoji.get("check") + " Welcome messages are enabled in <#" + channel.id + ">.\n\n**Message:**\n" + text));
+      db.setWelcome(guildId, channel.id, text, "embed");
+      return sendWelcomeSetup(message, message.author.id);
     }
 
     if (sub === "message") {
@@ -170,8 +170,18 @@ class WelcomeCommand extends Command {
   async slashExecute({ interaction }) {
     const channel = interaction.options.getChannel("channel");
     const text = interaction.options.getString("message");
-    db.setWelcome(interaction.guild.id, channel.id, text);
-    return interaction.reply(replyBox(emoji.get("check") + " Welcome messages are enabled in <#" + channel.id + ">.\n\n**Message:**\n" + text));
+    db.setWelcome(interaction.guild.id, channel.id, text, "embed");
+    const current = db.getWelcome(interaction.guild.id);
+    const sent = await interaction.reply({ components: [welcomePanel(current.channel_id, current.message, current.welcome_style)], flags: MessageFlags.IsComponentsV2, fetchReply: true });
+    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
+    collector.on("collect", async component => {
+      if (component.user.id !== interaction.user.id) return component.reply({ content: "Only the setup owner can use this panel.", ephemeral: true });
+      const style = component.customId === "lc_welcome_direct" ? "direct" : component.customId === "lc_welcome_embed" ? "embed" : null;
+      if (!style) return;
+      db.setWelcomeStyle(interaction.guild.id, style);
+      const updated = db.getWelcome(interaction.guild.id);
+      await component.update({ components: [welcomePanel(updated.channel_id, updated.message, updated.welcome_style)], flags: MessageFlags.IsComponentsV2 });
+    });
   }
 }
 
