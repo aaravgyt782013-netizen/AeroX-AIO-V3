@@ -164,7 +164,10 @@ class BannersCommand extends Command {
               `${emoji.get("banner")} **Profile Banner**\n*Session expired. Run the command again for new banners.*`
             )
           );
-          await fetchedMessage.edit({ components: [container] }).catch(() => {});
+          await fetchedMessage.edit({
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
+          }).catch(() => {});
         }
       } catch (error) {}
     });
