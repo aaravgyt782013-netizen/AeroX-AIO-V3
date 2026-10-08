@@ -65,7 +65,7 @@ export default {
       const entries = [];
       for (const [mid, mappings] of Object.entries(data)) {
         if (messageId && mid !== messageId) continue;
-        for (const [key, roleId] of Object.entries(mappings || {})) {
+        for (const [key, roleId] of Object.entries(mappings?.roles || mappings || {})) {
           entries.push("• \`" + key.replace(/^u:/,"") + "\` → <@&" + roleId + "> (message " + mid + ")");
         }
       }
@@ -95,7 +95,7 @@ export default {
       } catch (error) {
         return message.reply("❌ I couldn't add that reaction. Check the emoji and my Add Reactions permission.");
       }
-      db.guild.setReactionRole(message.guild.id, messageId, emojiKey(rawEmoji), role.id);
+      db.guild.setReactionRole(message.guild.id, messageId, emojiKey(rawEmoji), role.id, message.channelId);
       return message.reply("✅ Reaction role added: " + rawEmoji + " → <@&" + role.id + ">.");
     }
 
@@ -106,12 +106,11 @@ export default {
       return message.reply("✅ Reaction-role mapping removed.");
     }
 
+    const configured = db.guild.getReactionRoles(message.guild.id)[messageId]?.roles || {};
     db.guild.clearReactionRoles(message.guild.id, messageId);
     for (const reaction of target.reactions.cache.values()) {
       const key = reaction.emoji.id ? "id:" + reaction.emoji.id : "u:" + (reaction.emoji.name || "");
-      if (db.guild.getReactionRoles(message.guild.id)[messageId]?.[key] === undefined) {
-        await reaction.users.remove(message.client.user.id).catch(() => {});
-      }
+      if (configured[key]) await reaction.users.remove(message.client.user.id).catch(() => {});
     }
     return message.reply("✅ All reaction roles for that message were cleared.");
   },
@@ -145,7 +144,7 @@ export default {
     if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) return interaction.reply({content:"❌ I need Manage Roles.",ephemeral:true});
     if (role.managed || botMember.roles.highest.comparePositionTo(role) <= 0) return interaction.reply({content:"❌ Move my bot role above the target role first.",ephemeral:true});
     try { await target.react(rawEmoji); } catch { return interaction.reply({content:"❌ I couldn't add that reaction. Check the emoji and my permissions.",ephemeral:true}); }
-    db.guild.setReactionRole(interaction.guild.id, mid, emojiKey(rawEmoji), role.id);
+    db.guild.setReactionRole(interaction.guild.id, mid, emojiKey(rawEmoji), role.id, interaction.channelId);
     return interaction.reply({content:"✅ Reaction role added: " + rawEmoji + " → <@&" + role.id + ">.",ephemeral:true});
   },
 };
