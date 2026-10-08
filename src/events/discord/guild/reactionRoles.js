@@ -17,11 +17,12 @@ async function hydrate(reaction) {
 async function apply(reaction, user, add) {
   if (!reaction?.message?.guild || !user || user.bot) return;
   const guild = reaction.message.guild;
-  const mapping = db.guild.getReactionRoles(guild.id)[reaction.message.id]?.[keyOf(reaction)];
-  if (!mapping) return;
+  const mapping = db.guild.getReactionRoles(guild.id)[reaction.message.id]?.roles || {};
+  const roleId = mapping[keyOf(reaction)];
+  if (!roleId) return;
 
   const member = await guild.members.fetch(user.id).catch(() => null);
-  const role = guild.roles.cache.get(mapping);
+  const role = guild.roles.cache.get(roleId);
   const botMember = guild.members.me;
   if (!member || !role || !botMember) return;
   if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return;
@@ -43,4 +44,4 @@ export default {
   async execute(reaction, user) {
     await apply(await hydrate(reaction), user, true);
   },
-};\n
+};
