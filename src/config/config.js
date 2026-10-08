@@ -2,8 +2,24 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
-  { id:"heavencloud-india-ssl", host:"lavalink.heavencloud.in", port:443, authorization:"heavencloud", secure:true, retryAmount:Infinity, retryDelay:5000 },
-  { id:"heavencloud-india-http", host:"lavalink.heavencloud.in", port:2333, authorization:"heavencloud", secure:false, retryAmount:Infinity, retryDelay:5000 }
+  {
+    id: "lightcore-heavencloud-public",
+    host: "free-lava.heavencloud.in",
+    port: 4000,
+    authorization: "heavencloud.in",
+    secure: false,
+    retryAmount: Infinity,
+    retryDelay: 5000
+  },
+  {
+    id: "lightcore-heavencloud-fallback",
+    host: "lavalink.heavencloud.in",
+    port: 2333,
+    authorization: "heavencloud",
+    secure: false,
+    retryAmount: Infinity,
+    retryDelay: 5000
+  }
 ];
 
 export const config={
