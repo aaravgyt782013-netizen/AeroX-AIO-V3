@@ -33,8 +33,11 @@ function controlError(interaction, client, player) {
 async function updateSettings(interaction, client, notice = "") {
   const payload = v2Payload(settingsContainer(musicSettings({ interaction, client }), notice));
   try {
+    // A fresh button/select interaction should update the original panel
+    // directly. Deferring first and then calling editReply can fail on some
+    // Discord interaction states and was causing "Could not update music settings".
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferUpdate();
+      return await interaction.update(payload);
     }
     return await interaction.editReply(payload);
   } catch (error) {
