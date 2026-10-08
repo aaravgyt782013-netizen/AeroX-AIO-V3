@@ -107,7 +107,7 @@ export class MusicEngine {
       logger.info("MusicEngine", "Session resumed on " + node.id + " (" + (players?.length || 0) + " players)");
     });
 
-    this.lavalink.on("trackStart", (player, track) => {
+    this.lavalink.on("trackStart", async (player, track) => {
       if (!track?.info?.title) return;
       player.set("lightcorePlaybackFallbackUsed", false);
       const list = this.history.get(player.guildId) || [];
@@ -121,10 +121,6 @@ export class MusicEngine {
       this.history.set(player.guildId, list.slice(0, 50));
       player.set("lastPlayedTrack", track);
 
-      // Always start every new track at normal 1x playback. Lavalink's
-      // timescale filter controls speed/pitch/rate and its documented defaults
-      // are all 1.0. Resetting it here prevents a previous filter state from
-      // leaking into the next song.
       try {
         if (typeof player.setFilters === "function") {
           await player.setFilters({
@@ -142,9 +138,6 @@ export class MusicEngine {
         );
       }
 
-      // Every newly started track gets its own fresh LightCore control panel.
-      // We intentionally send a new message instead of editing the previous
-      // panel, so each song has a dedicated set of controls.
       try {
         const textChannel = player.textChannelId
           ? await this.client.channels.fetch(player.textChannelId).catch(() => null)
@@ -170,9 +163,6 @@ export class MusicEngine {
       const reason = payload?.exception?.message || payload?.message || "unknown";
       logger.error("MusicEngine", "Track error [" + player?.guildId + "]: " + reason);
 
-      // YouTube can return a valid search result while rejecting playback from a
-      // datacenter IP. Make one controlled SoundCloud fallback instead of leaving
-      // the user stuck in voice with a silent player.
       if (!player || player.get("lightcorePlaybackFallbackUsed") === true) return;
       player.set("lightcorePlaybackFallbackUsed", true);
 
@@ -193,7 +183,6 @@ export class MusicEngine {
             const fallback = result?.tracks?.find(item => item?.info?.identifier);
             if (!fallback) continue;
 
-            // Replace the failed current track instead of queueing behind it.
             await player.stopPlaying(false, false).catch(() => {});
             await player.play({ clientTrack: fallback });
             logger.warn("MusicEngine", "Switched to SoundCloud fallback for [" + query + "].");
@@ -206,6 +195,7 @@ export class MusicEngine {
         if (!player.playing) player.set("lightcorePlaybackFallbackUsed", false);
       }
     });
+
     this.lavalink.on("trackStuck", async (player, track, payload) => {
       if (!player || !track) return;
       const guildId = player.guildId;
@@ -215,8 +205,6 @@ export class MusicEngine {
         "Track stuck [" + guildId + "] after " + (payload?.thresholdMs || "?") + "ms (retry " + (retries + 1) + ")"
       );
 
-      // A public node can temporarily stop sending audio. Restart the same
-      // track once instead of leaving the player silently frozen.
       if (retries < 1) {
         this.stuckRetries.set(guildId, retries + 1);
         try {
@@ -229,7 +217,6 @@ export class MusicEngine {
         }
       }
 
-      // Let the normal error/autoplay path recover instead of retrying forever.
       this.stuckRetries.delete(guildId);
       try {
         const fallbackQuery = [track.info?.author, track.info?.title].filter(Boolean).join(" ").trim();
@@ -321,9 +308,6 @@ export class MusicEngine {
             logger.warn("MusicEngine", "Client search failed on " + node.id + " [" + src + "]: " + (searchError?.message || searchError));
           }
 
-          // Direct Lavalink v4 REST fallback. This uses the documented
-          // /v4/loadtracks search prefixes and avoids client-side source
-          // transformation differences between lavalink-client versions.
           try {
             const identifier = this.isUrl(q) ? q : src + ":" + q;
             const raw = await timeout(
@@ -532,7 +516,6 @@ export class MusicEngine {
       if (autoplay) {
         const next = await this._pickAutoplayTrack(player, endedTrack);
         if (next) {
-          // Add a genuinely new track. Do not search the last song again.
           await player.queue.add(next);
           if (!player.playing && !player.queue.current) {
             await player.play({ noReplace: true });
@@ -560,4 +543,5 @@ export class MusicEngine {
     } finally {
       this.autoplayBusy.delete(player.guildId);
     }
-  }}
+  }
+}
