@@ -50,6 +50,27 @@ class HelpCommand extends Command {
     });
   }
 
+  _canonicalCategoryName(name) {
+    const key = String(name || "").trim().toLowerCase();
+    const aliases = {
+      rythmmusic: "Music",
+      moderation: "Moderation",
+      extra: "Extra",
+      fun: "Fun",
+      invites: "Invites",
+      logging: "Logging",
+      owner: "Owner",
+      pfps: "Pfps",
+      premium: "Premium",
+      ticket: "Ticket",
+      voice: "Voice",
+      giveaway: "Giveaway",
+      info: "Info",
+      utility: "Utility",
+    };
+    return aliases[key] || String(name || "").trim();
+  }
+
   async _scanCommandDirectories() {
     try {
       const commandsPath = path.join(process.cwd(), "src", "commands");
@@ -66,10 +87,11 @@ class HelpCommand extends Command {
         .readdirSync(commandsPath, { withFileTypes: true })
         .filter((dirent) => dirent.isDirectory())
         .map((dirent) => dirent.name)
-        .filter((name) => name !== "developer");
+        .filter((name) => name.toLowerCase() !== "developer");
 
-      for (const categoryName of categoryDirs) {
-        const categoryPath = path.join(commandsPath, categoryName);
+      for (const directoryName of categoryDirs) {
+        const categoryName = this._canonicalCategoryName(directoryName);
+        const categoryPath = path.join(commandsPath, directoryName);
 
         if (!categories.has(categoryName)) {
           categories.set(categoryName, []);
@@ -477,7 +499,7 @@ class HelpCommand extends Command {
     }
   }
 
-  _createCategoryContainer(category, categories, subcategories) {
+  _createCategoryContainer(category, categories, subcategories, page = 0) {
     try {
       const commands = categories.get(category) || [];
       const subcats = subcategories.get(category);
@@ -505,9 +527,7 @@ class HelpCommand extends Command {
       const directCommands = commands.filter((cmd) => {
         if (!subcats) return true;
         for (const [, subcatCommands] of subcats) {
-          if (subcatCommands.find((subcmd) => subcmd.name === cmd.name)) {
-            return false;
-          }
+          if (subcatCommands.find((subcmd) => subcmd.name === cmd.name)) return false;
         }
         return true;
       });
@@ -538,21 +558,19 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
-      const selectOptions = [];
+      const pageSize = 20;
+      const totalPages = Math.max(1, Math.ceil(directCommands.length / pageSize));
+      const safePage = Math.min(Math.max(Number(page) || 0, 0), totalPages - 1);
+      const pageCommands = directCommands.slice(safePage * pageSize, (safePage + 1) * pageSize);
+      const selectOptions = pageCommands.map((cmd) => ({
+        label: cmd.name,
+        emoji: this._getEmojiObject("info"),
+        value: `cmd_${cmd.name}`,
+        description: cmd.description ? cmd.description.slice(0, 100) : "No description",
+      }));
 
-      if (hasDirectCommands) {
-        directCommands.slice(0, 25).forEach((cmd) => {
-          selectOptions.push({
-            label: cmd.name,
-            emoji: this._getEmojiObject("info"),
-            value: `cmd_${cmd.name}`,
-            description: cmd.description ? cmd.description.slice(0, 100) : "No description",
-          });
-        });
-      }
-
-      if (hasSubcats) {
-        subcatEntries.forEach(([subcatName, subcatCommands]) => {
+      if (hasSubcats && safePage === 0) {
+        subcatEntries.forEach(([subcatName]) => {
           if (selectOptions.length < 25) {
             selectOptions.push({
               label: this._capitalize(subcatName),
@@ -567,11 +585,32 @@ class HelpCommand extends Command {
       if (selectOptions.length > 0) {
         const selectMenu = new StringSelectMenuBuilder()
           .setCustomId(`help_category_nav_${category}`)
-          .setPlaceholder(`Select a folder or command`)
+          .setPlaceholder(`Select a command`)
           .addOptions(selectOptions.slice(0, 25));
-
         container.addActionRowComponents(
           new ActionRowBuilder().addComponents(selectMenu),
+        );
+      }
+
+      if (totalPages > 1) {
+        container.addActionRowComponents(
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`help_category_page_${category}_${safePage - 1}`)
+              .setLabel("◀ Previous")
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(safePage === 0),
+            new ButtonBuilder()
+              .setCustomId(`help_category_page_${category}_${safePage + 1}`)
+              .setLabel(`Page ${safePage + 1}/${totalPages}`)
+              .setStyle(ButtonStyle.Primary)
+              .setDisabled(true),
+            new ButtonBuilder()
+              .setCustomId(`help_category_page_${category}_${safePage + 1}`)
+              .setLabel("Next ▶")
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(safePage === totalPages - 1),
+          ),
         );
       }
 
@@ -587,7 +626,6 @@ class HelpCommand extends Command {
       );
 
       container.addActionRowComponents(buttonRow);
-
       return container;
     } catch (error) {
       logger.error("HelpCommand", "Error creating category container:", error);
@@ -981,6 +1019,19 @@ class HelpCommand extends Command {
                   categories,
                   subcategories,
                 ),
+              ],
+            });
+            return;
+          }
+
+          if (interaction.customId.startsWith("help_category_page_")) {
+            const raw = interaction.customId.replace("help_category_page_", "");
+            const lastUnderscore = raw.lastIndexOf("_");
+            const category = raw.slice(0, lastUnderscore);
+            const page = Number(raw.slice(lastUnderscore + 1));
+            await interaction.editReply({
+              components: [
+                this._createCategoryContainer(category, categories, subcategories, page),
               ],
             });
             return;
