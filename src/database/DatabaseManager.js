@@ -55,7 +55,8 @@ export class DatabaseManager {
 
   // ─── Welcome / Leave / Autoresponder ───────────────────────────────────────
   getWelcome(guildId) { return this.automation.getWelcome(guildId); }
-  setWelcome(guildId, channelId, message) { return this.automation.setWelcome(guildId, channelId, message); }
+  setWelcome(guildId, channelId, message, style = "embed") { return this.automation.setWelcome(guildId, channelId, message, style); }
+  setWelcomeStyle(guildId, style = "embed") { return this.automation.setWelcomeStyle(guildId, style); }
   disableWelcome(guildId) { return this.automation.disableWelcome(guildId); }
   getLeave(guildId) { return this.automation.getLeave(guildId); }
   setLeave(guildId, channelId, message) { return this.automation.setLeave(guildId, channelId, message); }
