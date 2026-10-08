@@ -259,7 +259,10 @@ function _parseCommand(message, client) {
     }
 
     if (commandText === null) {
-      if (client.noPrefixUsers.has(message.author.id)) {
+      if (
+        client.noPrefixUsers.has(message.author.id) ||
+        db.isUserPremium(message.author.id)
+      ) {
         commandText = content;
       }
     }
@@ -322,11 +325,25 @@ export default {
     await _handleExpiredGuildPerks(message.guild.id, message.channel);
     await _handleExpiredUserPerks(message.author.id, message.author);
 
-    if (
-      db.isUserBlacklisted(message.author.id) ||
-      db.isGuildBlacklisted(message.guild.id)
-    )
-      return;
+    const userBlacklist = db.isUserBlacklisted(message.author.id);
+    if (userBlacklist) {
+      const premium = db.isUserPremium(message.author.id);
+      const automatedCooldownBlacklist =
+        typeof userBlacklist === "object" &&
+        /Automated: Excessive cooldown violations \(Anti-abuse system\)/i.test(
+          userBlacklist.reason || "",
+        );
+
+      // Recover Premium users that were locked out by the old cooldown
+      // anti-abuse behavior. Manual blacklists are never bypassed.
+      if (premium && automatedCooldownBlacklist) {
+        db.unblacklistUser(message.author.id);
+      } else {
+        return;
+      }
+    }
+
+    if (db.isGuildBlacklisted(message.guild.id)) return;
 
     const mentionRegex = new RegExp(`^<@!?${client.user.id}>\\s*$`);
     if (mentionRegex.test(message.content.trim())) {
