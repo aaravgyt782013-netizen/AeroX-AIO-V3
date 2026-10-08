@@ -2,14 +2,20 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
-  StringSelectMenuBuilder
+  ContainerBuilder,
+  MessageFlags,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  StringSelectMenuBuilder,
+  TextDisplayBuilder
 } from "discord.js";
 import { PlayerManager } from "#managers/PlayerManager";
 
 export const MUSIC_COLOR = 0x5865F2;
 export const ERROR_COLOR = 0xED4245;
 export const SUCCESS_COLOR = 0x57F287;
+
+export const v2Flags = MessageFlags.IsComponentsV2;
 
 export function formatDuration(ms) {
   if (ms == null || ms < 0 || !Number.isFinite(Number(ms))) return "LIVE";
@@ -73,16 +79,47 @@ export async function reply(x, payload) {
   return c.source.reply(payload);
 }
 
+function text(value) {
+  return new TextDisplayBuilder().setContent(String(value ?? ""));
+}
+
+export function musicContainer({
+  title = "🎵 LightCore Music",
+  description = "",
+  sections = [],
+  components = [],
+  accent = MUSIC_COLOR
+} = {}) {
+  const container = new ContainerBuilder().setAccentColor(accent);
+  container.addTextDisplayComponents(text(title));
+  if (description) container.addTextDisplayComponents(text(description));
+  for (const section of sections) {
+    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(text(section));
+  }
+  if (components.length) {
+    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
+    for (const component of components) {
+      container.addActionRowComponents(component);
+    }
+  }
+  return container;
+}
+
+export function v2Payload(container, extra = {}) {
+  return {
+    ...extra,
+    components: [container],
+    flags: v2Flags
+  };
+}
+
 export async function safeReply(x, title, description, color = MUSIC_COLOR) {
-  return reply(x, {
-    embeds: [
-      new EmbedBuilder()
-        .setColor(color)
-        .setTitle(title)
-        .setDescription(description)
-        .setTimestamp()
-    ]
-  });
+  return reply(x, v2Payload(musicContainer({
+    title,
+    description,
+    accent: color
+  })));
 }
 
 export function voiceChannel(x) {
@@ -187,53 +224,47 @@ export async function enqueue(x, result, position) {
 export function nowPlayingEmbed(p) {
   const t = p?.currentTrack;
   if (!t) {
-    return new EmbedBuilder()
-      .setColor(ERROR_COLOR)
-      .setTitle("🎵 Nothing is playing")
-      .setDescription("Use `.play <song>` to start listening.");
+    return musicContainer({
+      title: "🎵 Nothing is playing",
+      description: "Use `.play <song>` to start listening.",
+      accent: ERROR_COLOR
+    });
   }
 
   const duration = Number(t.info.duration || 0);
   const position = Number(p.position || 0);
   const ratio = duration ? Math.min(1, Math.max(0, position / duration)) : 0;
-  const length = 24;
+  const length = 20;
   const filled = Math.round(ratio * length);
+  const bar = "━".repeat(Math.max(0, filled)) + "🔘" + "━".repeat(Math.max(0, length - filled));
 
-  return new EmbedBuilder()
-    .setColor(MUSIC_COLOR)
-    .setTitle("🎵 LightCore • Now Playing")
-    .setDescription(
-      `**[${t.info.title || "Unknown"}](${t.info.uri || ""})**\n` +
-      `${t.info.author || "Unknown artist"}`
-    )
-    .addFields(
-      {
-        name: "Progress",
-        value: `${"▬".repeat(filled)}🔘${"▬".repeat(Math.max(0, length - filled))}\n${formatDuration(position)} / ${formatDuration(duration)}`
-      },
-      { name: "Volume", value: `${p.volume ?? 100}%`, inline: true },
-      { name: "Loop", value: p.repeatMode || "off", inline: true },
-      { name: "Queue", value: `${p.queueSize} upcoming`, inline: true }
-    )
-    .setThumbnail(t.info.artworkUrl || t.info.thumbnail || "")
-    .setFooter({ text: "LightCore Music • Rythm-style core" });
+  return musicContainer({
+    title: "🎵 LightCore • NOW PLAYING",
+    description: `**${t.info.title || "Unknown"}**\n${t.info.author || "Unknown artist"}`,
+    sections: [
+      `⏱️ **Progress**\n${bar}\n${formatDuration(position)} / ${formatDuration(duration)}`,
+      `🔊 **Volume:** ${p.volume ?? 100}%   •   🔁 **Loop:** ${p.repeatMode || "off"}   •   📜 **Queue:** ${p.queueSize} upcoming`,
+      "✨ **LightCore Music** • Rythm-style playback controls"
+    ],
+    components: controlRows(p)
+  });
 }
 
 export function controlRows(p) {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_rewind").setEmoji("⏪").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_pause").setEmoji(p?.isPaused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("lc_music_forward").setEmoji("⏩").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("lc_music_previous").setLabel("Prev").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_rewind").setLabel("10s").setEmoji("⏪").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_pause").setLabel(p?.isPaused ? "Play" : "Pause").setEmoji(p?.isPaused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("lc_music_forward").setLabel("10s").setEmoji("⏩").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_skip").setLabel("Skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_loop").setEmoji("🔁").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_volume_down").setEmoji("🔉").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_volume_up").setEmoji("🔊").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("lc_music_shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_loop").setLabel("Loop").setEmoji("🔁").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_volume_down").setLabel("Vol −").setEmoji("🔉").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_volume_up").setLabel("Vol +").setEmoji("🔊").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_queue").setLabel("Queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -241,49 +272,58 @@ export function controlRows(p) {
 export function queueEmbed(p, page = 1) {
   const tracks = p?.player?.queue?.tracks || p?.queue?.tracks || [];
   const current = p?.currentTrack;
-  const perPage = 5;
+  const perPage = 6;
   const pages = Math.max(1, Math.ceil(tracks.length / perPage));
   const pg = Math.max(1, Math.min(Number(page) || 1, pages));
   const start = (pg - 1) * perPage;
 
   const body = tracks.slice(start, start + perPage)
-    .map((t, i) =>
-      `**${start + i + 1}.** [${t.info.title || "Unknown"}](${t.info.uri || ""}) — ${formatDuration(t.info.duration)}`
-    )
+    .map((t, i) => `${start + i + 1}. **${t.info.title || "Unknown"}** — ${formatDuration(t.info.duration)}`)
     .join("\n") || "No songs are waiting.";
 
-  return new EmbedBuilder()
-    .setColor(MUSIC_COLOR)
-    .setTitle("📜 LightCore • Queue")
-    .setDescription(
-      (current
-        ? `🎵 **Playing:** [${current.info.title || "Unknown"}](${current.info.uri || ""})\n\n`
-        : "") + body
-    )
-    .setFooter({ text: `${tracks.length} queued • page ${pg}/${pages}` });
+  return musicContainer({
+    title: "📜 LightCore • QUEUE",
+    description: current ? `🎵 **Playing:** ${current.info.title || "Unknown"}\n\n${body}` : body,
+    sections: [`📦 ${tracks.length} queued • page ${pg}/${pages}`]
+  });
 }
 
 export function settingsRows(settings) {
   const on = v => v ? "ON" : "OFF";
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_setting_autoplay").setLabel(`Autoplay: ${on(settings.autoplay)}`).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_announce").setLabel(`Announcements: ${on(settings.announceSongs)}`).setStyle(settings.announceSongs ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_voteskip").setLabel(`Vote Skip: ${on(settings.voteSkip)}`).setStyle(settings.voteSkip ? ButtonStyle.Success : ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("lc_music_setting_autoplay").setLabel(`Autoplay: ${on(settings.autoplay)}`).setEmoji("🔄").setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_announce").setLabel(`Announcements: ${on(settings.announceSongs)}`).setEmoji("📢").setStyle(settings.announceSongs ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_voteskip").setLabel(`Vote Skip: ${on(settings.voteSkip)}`).setEmoji("🗳️").setStyle(settings.voteSkip ? ButtonStyle.Success : ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_setting_247").setLabel(`24/7: ${on(settings.mode247)}`).setStyle(settings.mode247 ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel(`Source: ${settings.source === "ytmsearch" ? "YouTube Music" : settings.source}`).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("Set / change DJ role").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("lc_music_setting_247").setLabel(`24/7: ${on(settings.mode247)}`).setEmoji("♾️").setStyle(settings.mode247 ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel(`Source: ${settings.source === "ytmsearch" ? "YouTube Music" : settings.source}`).setEmoji("🔎").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("DJ Role").setEmoji("👑").setStyle(ButtonStyle.Secondary)
     )
   ];
+}
+
+export function settingsContainer(settings, notice = "") {
+  const s = settings || {};
+  return musicContainer({
+    title: "🎵 LIGHTCORE • MUSIC SETTINGS",
+    description: notice ? `✅ **${notice}**` : "Configure playback, access and search behavior from one panel.",
+    sections: [
+      `🎶 **Playback**\n🔄 Autoplay: **${s.autoplay ? "ON" : "OFF"}**\n📢 Announcements: **${s.announceSongs ? "ON" : "OFF"}**\n🗳️ Vote Skip: **${s.voteSkip ? "ON" : "OFF"}**`,
+      `♾️ **Stay Connected**\n24/7 mode: **${s.mode247 ? "ON" : "OFF"}**\n🔎 Source: **${s.source === "ytmsearch" ? "YouTube Music" : s.source}**`,
+      `👑 **Access**\nDJ role: ${s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control music"}`,
+      "💡 **Tip:** Autoplay ON keeps the player alive and automatically finds another song when the queue ends."
+    ],
+    components: settingsRows(s)
+  });
 }
 
 export function sourceMenu() {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId("lc_music_source_select")
-      .setPlaceholder("Choose a music source")
+      .setPlaceholder("🎧 Choose a music source")
       .addOptions(
         { label: "YouTube Music", value: "ytmsearch", emoji: "▶️" },
         { label: "YouTube", value: "ytsearch", emoji: "📺" },
