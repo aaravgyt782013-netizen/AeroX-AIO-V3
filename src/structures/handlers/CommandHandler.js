@@ -40,9 +40,7 @@ export class CommandHandler {
 
 	async _recursivelyLoadCommands(dirPath, relativePath = '') {
 		try {
-			const entries = fs.readdirSync(dirPath, {
-				withFileTypes: true,
-			});
+			const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 
 			const loadPromises = entries.map(async entry => {
 				const fullPath = path.join(dirPath, entry.name);
@@ -51,76 +49,51 @@ export class CommandHandler {
 					: entry.name;
 
 				if (entry.isDirectory()) {
-					await this._recursivelyLoadCommands(
-						fullPath,
-						currentRelativePath,
-					);
+					await this._recursivelyLoadCommands(fullPath, currentRelativePath);
 				} else if (entry.isFile() && entry.name.endsWith('.js')) {
 					const category = relativePath || 'default';
-
-					if (!this.categories.has(category)) {
-						this.categories.set(category, []);
-					}
 					await this._loadCommandFile(fullPath, category);
 				}
 			});
 
 			await Promise.all(loadPromises);
 		} catch (error) {
-			logger.error(
-				'CommandHandler',
-				`Failed to read directory: ${dirPath}`,
-				error,
-			);
+			logger.error('CommandHandler', `Failed to read directory: ${dirPath}`, error);
 		}
 	}
 
-	async _loadCommandFile(filePath, category) {
+	async _loadCommandFile(filePath, folderCategory) {
 		try {
-			const commandModule = await import(
-				`file://${filePath}?v=${Date.now()}`
-			);
+			const commandModule = await import(`file://${filePath}?v=${Date.now()}`);
 
 			if (!commandModule?.default) {
-				logger.warn(
-					'CommandHandler',
-					`Invalid command file: ${path.basename(
-						filePath,
-					)} is missing a default export.`,
-				);
+				logger.warn('CommandHandler', `Invalid command file: ${path.basename(filePath)} is missing a default export.`);
 				return;
 			}
 
 			const command = commandModule.default;
+			const category = command.category || folderCategory;
 			command.category = category;
+
+			if (!this.categories.has(category)) this.categories.set(category, []);
 
 			this.commandPaths.set(command.name, filePath);
 			this.commands.set(command.name, command);
 
 			if (command.aliases?.length > 0) {
-				command.aliases.forEach(alias =>
-					this.aliases.set(alias, command.name),
-				);
+				command.aliases.forEach(alias => this.aliases.set(alias, command.name));
 			}
 
 			if (command.enabledSlash && command.slashData) {
-				this.slashCommandFiles.set(
-					command.slashData.name.toString(),
-					command,
-				);
+				this.slashCommandFiles.set(command.slashData.name.toString(), command);
 			}
 
-			this.categories.get(category)?.push(command);
-			logger.info(
-				'CommandHandler',
-				`Loaded command file: ${command.name} from category: ${category}`,
-			);
+			const list = this.categories.get(category);
+			if (!list.some(existing => existing.name === command.name)) list.push(command);
+
+			logger.info('CommandHandler', `Loaded command file: ${command.name} from category: ${category}`);
 		} catch (error) {
-			logger.error(
-				'CommandHandler',
-				`Failed to load command file: ${path.basename(filePath)}`,
-				error,
-			);
+			logger.error('CommandHandler', `Failed to load command file: ${path.basename(filePath)}`, error);
 		}
 	}
 
@@ -135,9 +108,7 @@ export class CommandHandler {
 				if (!group) {
 					group = {
 						name: groupName,
-						description:
-							restOfSlashData.groupDescription ||
-							`${groupName} commands.`,
+						description: restOfSlashData.groupDescription || `${groupName} commands.`,
 						options: [],
 					};
 					this.slashCommands.set(groupName, group);
@@ -147,13 +118,10 @@ export class CommandHandler {
 					name: subCommandName,
 					description: restOfSlashData.description,
 					options: restOfSlashData.options || [],
-					type: 1, // SUB_COMMAND
+					type: 1,
 				});
 			} else {
-				this.slashCommands.set(name, {
-					name,
-					...restOfSlashData,
-				});
+				this.slashCommands.set(name, { name, ...restOfSlashData });
 			}
 		}
 	}
@@ -171,15 +139,8 @@ export class CommandHandler {
 				message: `Reloaded ${this.commands.size} prefix and ${this.slashCommandFiles.size} slash commands.`,
 			};
 		} catch (error) {
-			logger.error(
-				'CommandHandler',
-				'A critical error occurred while reloading commands.',
-				error,
-			);
-			return {
-				success: false,
-				message: 'Failed to reload commands.',
-			};
+			logger.error('CommandHandler', 'A critical error occurred while reloading commands.', error);
+			return { success: false, message: 'Failed to reload commands.' };
 		}
 	}
 }
