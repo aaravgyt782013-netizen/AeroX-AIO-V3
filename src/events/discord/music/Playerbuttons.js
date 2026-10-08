@@ -64,7 +64,7 @@ export default {
       try {
         if (interaction.isStringSelectMenu() && id === "lc_music_source_select") {
           const source = interaction.values[0];
-          db.setMusicSettings(interaction.guild.id, { source });
+          db.guild.setMusicSettings(interaction.guild.id, { source });
           return updateSettings(interaction, "Music source updated");
         }
 
@@ -100,7 +100,7 @@ export default {
               "That role was not found."
             ), { ephemeral: true }));
           }
-          db.setDJRole(interaction.guild.id, roleId);
+          db.guild.setDJRole(interaction.guild.id, roleId);
           return interaction.reply(v2Payload(
             settingsContainer(musicSettings({ interaction, client }), "DJ role updated"),
             { ephemeral: true }
@@ -117,7 +117,7 @@ export default {
         if (key) {
           const current = musicSettings({ interaction, client });
           const enabled = !current[key];
-          db.setMusicSettings(interaction.guild.id, { [key]: enabled });
+          db.guild.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
           const player = client.music?.getPlayer?.(interaction.guild.id);
           if (key === "autoplay") {
@@ -130,6 +130,7 @@ export default {
           if (key === "mode247") {
             const voiceId = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
             const textId = player?.textChannelId || interaction.channelId || null;
+            db.guild.setMusicSettings(interaction.guild.id, { mode247: enabled });
             if (enabled && voiceId) db.guild.set247Mode(interaction.guild.id, true, voiceId, textId);
             else if (!enabled) db.guild.set247Mode(interaction.guild.id, false);
             if (player) player.set("stayAlive", enabled || Boolean(musicSettings({ interaction, client }).autoplay));
