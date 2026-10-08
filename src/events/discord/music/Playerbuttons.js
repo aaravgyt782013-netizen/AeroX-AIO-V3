@@ -14,7 +14,7 @@ export default {
     if (!interaction.customId.startsWith("lc_music_")) return;
     const p=getPlayer({interaction,client});
     if (!p) return interaction.reply({content:"❌ No active music player.",ephemeral:true});
-    const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up","lc_music_search_select"].includes(interaction.customId);
+    const needsDJ=["lc_music_pause","lc_music_skip","lc_music_stop","lc_music_previous","lc_music_rewind","lc_music_forward","lc_music_shuffle","lc_music_loop","lc_music_volume_down","lc_music_volume_up","lc_music_search_select"].includes(interaction.customId);
     if (needsDJ) {
       const e=djError({interaction,client});
       if (e) return interaction.reply({content:"❌ "+e,ephemeral:true});
@@ -31,8 +31,10 @@ export default {
       switch(interaction.customId) {
         case "lc_music_previous": if (!await p.playPrevious()) return interaction.reply({content:"❌ No previous track is available.",ephemeral:true}); break;
         case "lc_music_pause": if(p.isPaused) await p.resume(); else await p.pause(); break;
+        case "lc_music_rewind": await p.rewind(10000); break;
+        case "lc_music_forward": await p.forward(10000); break;
         case "lc_music_skip": await p.skip(); break;
-        case "lc_music_stop": await p.stop(); break;
+        case "lc_music_stop": await p.stop(); return interaction.update({content:"⏹️ **Playback stopped.**",embeds:[],components:[]});
         case "lc_music_shuffle": await p.shuffleQueue(); break;
         case "lc_music_loop": await p.setRepeatMode(p.repeatMode==="track"?"off":"track"); break;
         case "lc_music_volume_down": await p.setVolume(Math.max(1,(p.volume??100)-10)); break;
