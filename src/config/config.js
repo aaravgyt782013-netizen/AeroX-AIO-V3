@@ -2,12 +2,10 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
-  { id: "lightcore-serenetia", host: "lavalinkv4.serenetia.com", port: 443, authorization: "https://seretia.link/discord", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "lightcore-jirayu", host: "lavalink.jirayu.net", port: 443, authorization: "youshallnotpass", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "lightcore-millohost", host: "lava-v4.millohost.my.id", port: 443, authorization: "https://discord.gg/mjS5J2K3ep", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "lightcore-trinium", host: "lavalink-v4.triniumhost.com", port: 443, authorization: "free", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "lightcore-nazha", host: "lavalink.nazha.online", port: 443, authorization: "nazhafreelava", secure: true, retryAmount: Infinity, retryDelay: 5000 },
-  { id: "lightcore-heavencloud", host: "lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 }
+  { id: "heavencloud-india", host: "lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 },
+  { id: "heavencloud-singapore", host: "sg.lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 },
+  { id: "heavencloud-usa", host: "us.lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 },
+  { id: "heavencloud-europe", host: "eu.lavalink.heavencloud.in", port: 443, authorization: "heavencloud", secure: true, retryAmount: Infinity, retryDelay: 5000 }
 ];
 
 export const config = {
