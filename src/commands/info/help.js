@@ -1290,7 +1290,17 @@ class HelpCommand extends Command {
     const name = String(command?.name || "").toLowerCase();
     const cat = String(category || command?.category || "").toLowerCase();
     if (cat.includes("music") || cat.includes("rythm")) {
-      const map = { play: "play", search: "search", nowplaying: "music", queue: "list", pause: "pause", resume: "play", skip: "skip", stop: "stop", previous: "left", replay: "reload", seek: "forward", forward: "forward", rewind: "rewind", volume: "volume", shuffle: "shuffle", loop: "loop", clear: "trash", remove: "trash", move: "arrow", bump: "arrow", autoplay: "reload", announce: "megaphone", djrole: "owner", settings: "settings", "247": "infinity", setdefaultvolume: "volume", voteskip: "check", source: "music" };
+      const map = {
+      play: "play", search: "search", nowplaying: "music", queue: "list", control: "settings",
+      pause: "pause", resume: "play", skip: "skip", stop: "stop", disconnect: "stop",
+      previous: "left", replay: "reload", seek: "forward", forward: "forward", rewind: "rewind",
+      volume: "volume", shuffle: "shuffle", loop: "loop", queueloop: "loop", clear: "trash",
+      remove: "trash", removedupes: "trash", move: "right", playtop: "play", playskip: "skip",
+      bump: "right", autoplay: "reload", announce: "megaphone", join: "music",
+      leavecleanup: "reset", like: "heart", liked: "heart", effects: "settings",
+      forceskip: "skip", settings: "settings", "247": "infinity", setdefaultvolume: "volume",
+      voteskip: "check", source: "music", history: "list", skipto: "skip"
+    };
       return map[name] || "music";
     }
     return "info";
