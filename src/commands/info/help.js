@@ -77,6 +77,7 @@ class HelpCommand extends Command {
             if (!subList.some(item => item.name === command.name)) subList.push(command);
           }
         }
+        this._injectVirtualChannelCategory(commands, categories, subcategories);
         return { commands, categories, subcategories };
       }
 
@@ -108,6 +109,7 @@ class HelpCommand extends Command {
         );
       }
 
+      this._injectVirtualChannelCategory(commands, categories, subcategories);
       return { commands, categories, subcategories };
     } catch (error) {
       logger.error("HelpCommand", "Error scanning command directories:", error);
@@ -400,6 +402,42 @@ class HelpCommand extends Command {
       await interaction.respond(choices);
     } catch (error) {
       await interaction.respond([]).catch(() => {});
+    }
+  }
+
+  _injectVirtualChannelCategory(commands, categories, subcategories) {
+    const channelCommandNames = new Set([
+      "channel",
+      "categorydelete",
+      "catdelete",
+      "delcategory",
+      "categorydel",
+      "hide",
+      "unhide",
+      "unhideall",
+      "lock",
+      "unlock",
+      "unlockall",
+      "nuke",
+      "purge",
+      "purgebots",
+    ]);
+
+    const channelCommands = [];
+    const seen = new Set();
+
+    for (const command of commands.values()) {
+      if (!command?.name) continue;
+      const name = String(command.name).toLowerCase();
+      if (!channelCommandNames.has(name)) continue;
+      if (seen.has(command.name)) continue;
+      seen.add(command.name);
+      channelCommands.push(command);
+    }
+
+    if (channelCommands.length) {
+      categories.set("Channel", channelCommands);
+      if (!subcategories.has("Channel")) subcategories.set("Channel", new Map());
     }
   }
 
@@ -1330,6 +1368,8 @@ class HelpCommand extends Command {
   _getCategoryEmoji(category) {
     const categoryLower = category.toLowerCase();
     const aliases = {
+      Channel: "channel",
+      channel: "channel",
       rythmMusic: "category_music",
       music: "category_music",
       channel: "channel",
@@ -1352,7 +1392,7 @@ class HelpCommand extends Command {
   }
 
   _displayCategory(category) {
-    const names = { rythmMusic: "Music", RythmMusic: "Music", music: "Music" };
+    const names = { Channel: "Channel", channel: "Channel", rythmMusic: "Music", RythmMusic: "Music", music: "Music" };
     return names[category] || this._capitalize(category);
   }
 
