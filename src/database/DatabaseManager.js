@@ -58,6 +58,10 @@ export class DatabaseManager {
   setWelcome(guildId, channelId, message, style = "embed") { return this.automation.setWelcome(guildId, channelId, message, style); }
   setWelcomeStyle(guildId, style = "embed") { return this.automation.setWelcomeStyle(guildId, style); }
   disableWelcome(guildId) { return this.automation.disableWelcome(guildId); }
+  setWelcomeDM(guildId, message) { return this.automation.setWelcomeDM(guildId, message); }
+  setWelcomeDMEnabled(guildId, enabled) { return this.automation.setWelcomeDMEnabled(guildId, enabled); }
+  disableWelcomeDM(guildId) { return this.automation.disableWelcomeDM(guildId); }
+  getWelcomeDM(guildId) { return this.automation.getWelcomeDM(guildId); }
   getLeave(guildId) { return this.automation.getLeave(guildId); }
   setLeave(guildId, channelId, message) { return this.automation.setLeave(guildId, channelId, message); }
   disableLeave(guildId) { return this.automation.disableLeave(guildId); }
