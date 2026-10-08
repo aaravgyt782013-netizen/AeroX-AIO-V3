@@ -5,10 +5,10 @@ dotenv.config();
 // The lavalink-client expects the node password in the `password` field.
 const PUBLIC_LAVALINK_NODES = [
   {
-    id: "lightcore-lavalink-v4",
-    host: "lightcore-lavalink-v4.onrender.com",
+    id: "lightcore-lavalink",
+    host: "lightcore-lavalink.onrender.com",
     port: 443,
-    authorization: "arbotixop007",
+    authorization: "LightCore-Music-Node-2026",
     secure: true,
     retryAmount: Infinity,
     retryDelay: 5000
