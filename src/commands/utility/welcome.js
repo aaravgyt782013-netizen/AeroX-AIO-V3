@@ -24,17 +24,17 @@ function resolveChannel(message, raw) {
 
 function welcomePanel(channelId, message, style = "embed") {
   const container = new ContainerBuilder().setAccentColor(0x5865F2);
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## 👋 LIGHTCORE • WELCOME SETUP"));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${emoji.get("tada","👋")} LIGHTCORE • WELCOME SETUP`));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
     "**Channel:** <#" + channelId + ">\n**Style:** " +
-    (style === "direct" ? "💬 Direct Message" : "🖼️ Embed") +
+    (style === "direct" ? emoji.get("reply","💬") + " Direct Message" : emoji.get("embed","🖼️") + " Embed") +
     "\n\n**Message:**\n" + message
   ));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   container.addActionRowComponents(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("lc_welcome_direct").setLabel("Direct Message").setEmoji("💬").setStyle(style === "direct" ? ButtonStyle.Success : ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("lc_welcome_embed").setLabel("Embed").setEmoji("🖼️").setStyle(style === "embed" ? ButtonStyle.Success : ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("lc_welcome_direct").setLabel("Direct Message").setEmoji(emoji.get("reply","💬")).setStyle(style === "direct" ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("lc_welcome_embed").setLabel("Embed").setEmoji(emoji.get("embed","🖼️")).setStyle(style === "embed" ? ButtonStyle.Success : ButtonStyle.Secondary)
   ));
   return container;
 }
