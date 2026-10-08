@@ -3,9 +3,6 @@ dotenv.config();
 
 const PUBLIC_LAVALINK_NODES = [
   { id:"heavencloud-india-ssl", host:"lavalink.heavencloud.in", port:443, authorization:"heavencloud", secure:true, retryAmount:Infinity, retryDelay:5000 },
-  { id:"heavencloud-usa-ssl", host:"us.lavalink.heavencloud.in", port:443, authorization:"heavencloud", secure:true, retryAmount:Infinity, retryDelay:5000 },
-  { id:"heavencloud-singapore-ssl", host:"sg.lavalink.heavencloud.in", port:443, authorization:"heavencloud", secure:true, retryAmount:Infinity, retryDelay:5000 },
-  { id:"heavencloud-europe-ssl", host:"eu.lavalink.heavencloud.in", port:443, authorization:"heavencloud", secure:true, retryAmount:Infinity, retryDelay:5000 },
   { id:"heavencloud-india-http", host:"lavalink.heavencloud.in", port:2333, authorization:"heavencloud", secure:false, retryAmount:Infinity, retryDelay:5000 }
 ];
 
