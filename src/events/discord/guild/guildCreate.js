@@ -29,13 +29,9 @@ export default {
 
       const support = config.links?.supportServer || "https://discord.gg/aerox";
       const addBot = inviteUrl(client);
+      const icon = guild.iconURL({ extension: "png", size: 512 }) || null;
 
-      db.saveBotGuildContact(
-        guild.id,
-        ownerId || "unknown",
-        guild.name,
-        guild.iconURL({ extension: "png", size: 256 }) || null,
-      );
+      db.saveBotGuildContact(guild.id, ownerId || "unknown", guild.name, icon);
 
       const embed = new EmbedBuilder()
         .setColor(0x5865F2)
@@ -43,21 +39,32 @@ export default {
           name: "LightCore • Successfully Added",
           iconURL: client.user?.displayAvatarURL({ size: 128 }) || undefined,
         })
-        .setTitle("🎉 Thanks for adding LightCore!")
+        .setTitle("🎉 Welcome to LightCore!")
         .setDescription(
-          "LightCore is now active in **" + guild.name + "**.\n\n" +
-          "Your server now has access to music, moderation, utility, automation, " +
-          "welcome/leave messages, autoresponders, tickets, TempVoice and more."
+          "Thank you for adding LightCore to " + guild.name + "!\n\n" +
+          "Your server is now ready for an all-in-one Discord experience with music, " +
+          "moderation, automation, tickets, TempVoice, welcome systems and much more."
         )
         .addFields(
-          { name: "🏠 Server", value: guild.name, inline: true },
+          { name: "🏠 Server", value: guild.name || "Unknown", inline: true },
           { name: "👑 Owner", value: owner ? owner.toString() : (ownerId ? "<@" + ownerId + ">" : "Unknown"), inline: true },
           { name: "👥 Members", value: String(guild.memberCount || 0), inline: true },
-          { name: "⚙️ Prefix", value: "`" + config.prefix + "`", inline: true },
-          { name: "📖 Getting Started", value: "`" + config.prefix + "help` • `" + config.prefix + "welcome setup` • `" + config.prefix + "autoresponder`", inline: false },
+          { name: "⚙️ Prefix", value: config.prefix, inline: true },
+          {
+            name: "✨ LightCore Features",
+            value: "🎵 Music\n🛡️ Moderation & AutoMod\n🤖 Autoresponders & Automation\n👋 Welcome / Leave / Greet\n🎫 Tickets & Support\n🔊 TempVoice\n📊 Logging & Utilities",
+            inline: true,
+          },
+          {
+            name: "🚀 Get Started",
+            value: config.prefix + "help\n" + config.prefix + "welcome setup\n" + config.prefix + "autoresponder add hello | Hey {user}!",
+            inline: true,
+          },
         )
-        .setFooter({ text: "LightCore • Thank you for choosing us" })
+        .setFooter({ text: "LightCore • Built for your community" })
         .setTimestamp();
+
+      if (icon) embed.setThumbnail(icon);
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
