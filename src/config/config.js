@@ -5,11 +5,13 @@ dotenv.config();
 // The lavalink-client expects the node password in the `password` field.
 const PUBLIC_LAVALINK_NODES = [
   {
-    id: "stackryze-v4",
-    host: "188.245.207.225",
-    port: 2333,
-    authorization: "youshallnotpass",
-    secure: false
+    id: "lightcore-lavalink-v4",
+    host: "lightcore-lavalink-v4.onrender.com",
+    port: 443,
+    authorization: "arbotixop007",
+    secure: true,
+    retryAmount: 10,
+    retryDelay: 10000
   },
   {
     id: "heavencloud-india-ssl",
@@ -17,13 +19,6 @@ const PUBLIC_LAVALINK_NODES = [
     port: 443,
     authorization: "heavencloud",
     secure: true
-  },
-  {
-    id: "heavencloud-india-http",
-    host: "lavalink.heavencloud.in",
-    port: 2333,
-    authorization: "heavencloud",
-    secure: false
   }
 ];
 
