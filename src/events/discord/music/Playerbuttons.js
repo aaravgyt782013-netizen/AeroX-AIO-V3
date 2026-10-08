@@ -7,6 +7,7 @@ import {
   TextInputStyle
 } from "discord.js";
 import { db } from "#database/DatabaseManager";
+import emoji from "#config/emoji";
 import {
   getPlayer,
   djError,
@@ -119,7 +120,20 @@ export default {
           db.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
           const player = client.music?.getPlayer?.(interaction.guild.id);
-          if (player && key === "autoplay") player.set("autoplayEnabled", enabled);
+          if (key === "autoplay") {
+            if (player) {
+              player.set("autoplayEnabled", enabled);
+              player.set("stayAlive", enabled);
+              if (enabled) client.music?._refreshVoiceStayAlive?.(player, true);
+            }
+          }
+          if (key === "mode247") {
+            const voiceId = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
+            const textId = player?.textChannelId || interaction.channelId || null;
+            if (enabled && voiceId) db.guild.set247Mode(interaction.guild.id, true, voiceId, textId);
+            else if (!enabled) db.guild.set247Mode(interaction.guild.id, false);
+            if (player) player.set("stayAlive", enabled || Boolean(musicSettings({ interaction, client }).autoplay));
+          }
 
           return updateSettings(interaction, `${key === "mode247" ? "24/7" : key} ${enabled ? "enabled" : "disabled"}`);
         }
@@ -129,9 +143,14 @@ export default {
           "Unknown music setting."
         ), { ephemeral: true }));
       } catch (error) {
+        const message = "Could not update music settings: " + (error?.message || "unknown error");
+        if (interaction.deferred || interaction.replied) {
+          return interaction.followUp(v2Payload(settingsContainer(
+            musicSettings({ interaction, client }), message
+          ), { ephemeral: true })).catch(() => {});
+        }
         return interaction.reply(v2Payload(settingsContainer(
-          musicSettings({ interaction, client }),
-          "Could not update music settings: " + (error?.message || "unknown error")
+          musicSettings({ interaction, client }), message
         ), { ephemeral: true })).catch(() => {});
       }
     }
