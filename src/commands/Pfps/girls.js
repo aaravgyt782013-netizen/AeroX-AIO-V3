@@ -164,7 +164,10 @@ class GirlsCommand extends Command {
               `${emoji.get("girl")} **Girl Profile Picture**\n*Session expired. Run the command again for new images.*`
             )
           );
-          await fetchedMessage.edit({ components: [container] }).catch(() => {});
+          await fetchedMessage.edit({
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
+          }).catch(() => {});
         }
       } catch (error) {}
     });
