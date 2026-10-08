@@ -330,6 +330,44 @@ export class Guild extends Database {
     return this.exec("DELETE FROM tempvoice_channels WHERE channel_id = ?", [channelId]);
   }
 
+  // ─── Honeypot security ──────────────────────────────────────────────────────
+  initHoneypotSettings() {
+    const columns = [
+      ["honeypot_channel", "TEXT DEFAULT NULL"],
+      ["honeypot_action", "TEXT DEFAULT 'ban'"],
+    ];
+    for (const [name, definition] of columns) {
+      try { this.exec("ALTER TABLE guilds ADD COLUMN " + name + " " + definition); } catch {}
+    }
+  }
+
+  getHoneypotSettings(guildId) {
+    this.ensureGuild(guildId);
+    this.initHoneypotSettings();
+    const guild = this.getGuild(guildId);
+    return {
+      channelId: guild?.honeypot_channel || null,
+      action: ["ban", "kick", "timeout"].includes(guild?.honeypot_action)
+        ? guild.honeypot_action
+        : "ban",
+    };
+  }
+
+  setHoneypot(guildId, channelId, action = "ban") {
+    this.ensureGuild(guildId);
+    this.initHoneypotSettings();
+    const safeAction = ["ban", "kick", "timeout"].includes(action) ? action : "ban";
+    return this.exec(
+      "UPDATE guilds SET honeypot_channel = ?, honeypot_action = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [channelId || null, safeAction, guildId],
+    );
+  }
+
+  setHoneypotAction(guildId, action) {
+    const current = this.getHoneypotSettings(guildId);
+    return this.setHoneypot(guildId, current.channelId, action);
+  }
+
   initMusicSettings() {
     const columns = [
       ["dj_role", "TEXT DEFAULT NULL"],
