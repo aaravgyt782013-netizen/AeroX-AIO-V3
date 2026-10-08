@@ -406,22 +406,29 @@ class HelpCommand extends Command {
   }
 
   _injectVirtualChannelCategory(commands, categories, subcategories) {
-    const channelCommandNames = new Set([
-      "channel",
-      "categorydelete",
-      "catdelete",
-      "delcategory",
-      "categorydel",
-      "hide",
-      "unhide",
-      "unhideall",
-      "lock",
-      "unlock",
-      "unlockall",
-      "nuke",
-      "purge",
-      "purgebots",
-    ]);
+    const existing = [
+      "channel","categorydelete","catdelete","delcategory","categorydel",
+      "hide","unhide","unhideall","lock","unlock","unlockall","nuke","purge","purgebots"
+    ];
+
+    const actions = [
+      ["create","Create a text, voice, announcement, forum, stage, or category channel.","channel create <name> [type] [category]"],
+      ["delete","Delete a channel.","channel delete <channel>"],
+      ["clone","Clone a channel.","channel clone <channel> [new-name]"],
+      ["copy","Copy a channel (alias of clone).","channel copy <channel> [new-name]"],
+      ["rename","Rename a channel.","channel rename <channel> <new-name>"],
+      ["topic","Change a channel topic.","channel topic <channel> <topic>"],
+      ["slowmode","Set channel slowmode.","channel slowmode <channel> <seconds>"],
+      ["lock","Lock a channel for @everyone.","channel lock [channel]"],
+      ["unlock","Unlock a channel for @everyone.","channel unlock [channel]"],
+      ["hide","Hide a channel from @everyone.","channel hide [channel]"],
+      ["show","Show a channel to @everyone.","channel show [channel]"],
+      ["move","Move a channel into a category.","channel move <channel> <category>"],
+      ["nsfw","Enable or disable NSFW.","channel nsfw <channel> <on|off>"],
+      ["permission","Allow/deny a channel permission.","channel permission <channel> <@role|@user> <allow|deny> <permission>"],
+      ["info","Show channel information.","channel info [channel]"],
+      ["list","List server channels.","channel list"],
+    ];
 
     const channelCommands = [];
     const seen = new Set();
@@ -429,16 +436,32 @@ class HelpCommand extends Command {
     for (const command of commands.values()) {
       if (!command?.name) continue;
       const name = String(command.name).toLowerCase();
-      if (!channelCommandNames.has(name)) continue;
-      if (seen.has(command.name)) continue;
-      seen.add(command.name);
+      if (!existing.includes(name) && name !== "channel") continue;
+      if (seen.has(name)) continue;
+      seen.add(name);
       channelCommands.push(command);
     }
 
-    if (channelCommands.length) {
-      categories.set("Channel", channelCommands);
-      if (!subcategories.has("Channel")) subcategories.set("Channel", new Map());
+    for (const [name, description, usage] of actions) {
+      if (seen.has(name)) continue;
+      const virtual = {
+        name,
+        displayName: name,
+        description,
+        usage,
+        aliases: name === "copy" ? ["channel copy"] : [],
+        category: "Channel",
+        cooldown: 2,
+        enabledSlash: false,
+        virtual: true,
+      };
+      commands.set(name, virtual);
+      channelCommands.push(virtual);
+      seen.add(name);
     }
+
+    categories.set("Channel", channelCommands);
+    if (!subcategories.has("Channel")) subcategories.set("Channel", new Map());
   }
 
   _createMainContainer(commands, categories, subcategories) {
@@ -518,8 +541,7 @@ class HelpCommand extends Command {
         .setPlaceholder("Select a category")
         .addOptions(
           categoryArray.map((category) => {
-            const emojiKeyMap = { rythmMusic: "category_music", RythmMusic: "category_music" };
-            const categoryEmoji = this._getEmojiObject(emojiKeyMap[category] || `category_${category.toLowerCase()}`);
+            const categoryEmoji = this._getCategoryEmoji(category);
             return {
               label: this._displayCategory(category),
               value: category,
@@ -583,7 +605,7 @@ class HelpCommand extends Command {
         directCommands.forEach((cmd, index) => {
           const isLast = index === directCommands.length - 1 && !hasSubcats;
           const prefix = isLast ? "└── " : "├── ";
-          content += `${prefix}${this._getCommandEmoji(cmd, category)} \`${cmd.name}\`\n`;
+          content += `${prefix}${this._getCommandEmoji(cmd, category)} \`${cmd.displayName || cmd.name}\`\n`;
         });
       }
 
@@ -606,8 +628,8 @@ class HelpCommand extends Command {
       if (hasDirectCommands) {
         directCommands.slice(0, 25).forEach((cmd) => {
           selectOptions.push({
-            label: cmd.name,
-            emoji: this._getEmojiObject(this._getCommandEmojiKey(cmd, category)),
+            label: cmd.displayName || cmd.name,
+            emoji: this._getCommandEmoji(cmd, category),
             value: `cmd_${cmd.name}`,
             description: cmd.description ? cmd.description.slice(0, 100) : "No description",
           });
@@ -699,8 +721,8 @@ class HelpCommand extends Command {
           .setPlaceholder(`Select a command for detailed info`)
           .addOptions(
             subcatCommands.slice(0, 25).map((cmd) => ({
-              label: cmd.name,
-              emoji: this._getEmojiObject(this._getCommandEmojiKey(cmd, category)),
+              label: cmd.displayName || cmd.name,
+              emoji: this._getCommandEmoji(cmd, category),
               value: cmd.name,
               description: cmd.description ? cmd.description.slice(0, 100) : "No description",
             })),
@@ -1361,34 +1383,53 @@ class HelpCommand extends Command {
   }
 
   _getCommandEmoji(command, category) {
-    const key = this._getCommandEmojiKey(command, category);
-    return emoji.get(key) || emoji.get("info") || "ℹ️";
+    const name = String(command?.name || "").toLowerCase();
+    const cat = String(category || command?.category || "").toLowerCase();
+
+    if (cat === "channel") {
+      const map = {
+        channel: "🛠️", create: "➕", delete: "🗑️", clone: "📋", copy: "📄",
+        rename: "✏️", topic: "📝", slowmode: "🐢", lock: "🔒", unlock: "🔓",
+        hide: "🙈", show: "👁️", move: "↔️", nsfw: "🔞", permission: "🔐",
+        info: "ℹ️", list: "📚", categorydelete: "🗑️", catdelete: "🗑️",
+        delcategory: "🗑️", categorydel: "🗑️", unhide: "👁️",
+        unhideall: "👀", unlockall: "🔓", nuke: "💥", purge: "🧹",
+        purgebots: "🤖",
+      };
+      return map[name] || "🛠️";
+    }
+
+    if (cat.includes("music") || cat.includes("rythm")) {
+      const map = {
+        play:"▶️", search:"🔎", nowplaying:"🎵", queue:"📜", control:"⚙️",
+        pause:"⏸️", resume:"▶️", skip:"⏭️", stop:"⏹️", disconnect:"⏹️",
+        previous:"⏮️", replay:"🔄", seek:"⏩", forward:"⏩", rewind:"⏪",
+        volume:"🔊", shuffle:"🔀", loop:"🔁", queueloop:"🔁", clear:"🗑️",
+        remove:"🗑️", removedupes:"🗑️", move:"↔️", playtop:"⬆️", playskip:"⏭️",
+        bump:"⬆️", autoplay:"🔄", announce:"📢", forceskip:"⏭️",
+        settings:"⚙️", "247":"♾️", setdefaultvolume:"🔊", voteskip:"⏭️",
+        source:"🎵", history:"📜", skipto:"⏭️",
+      };
+      return map[name] || "🎵";
+    }
+
+    return "ℹ️";
   }
 
   _getCategoryEmoji(category) {
-    const categoryLower = category.toLowerCase();
-    const aliases = {
-      Channel: "channel",
-      channel: "channel",
-      rythmMusic: "category_music",
-      music: "category_music",
-      channel: "channel",
-      pfps: "category_pfps",
-      info: "category_info",
-      utility: "category_utility",
-      moderation: "category_moderation",
-      voice: "category_voice",
-      ticket: "category_ticket",
-      owner: "category_owner",
-      premium: "category_premium",
-      logging: "category_logging",
-      invites: "category_invites",
-      extra: "category_extra",
-      fun: "category_fun",
-      giveaway: "category_giveaway"
+    const key = String(category || "").toLowerCase();
+    const map = {
+      channel: "🛠️",
+      rythmusic: "🎵", music: "🎵",
+      owner: "👑", premium: "💎",
+      info: "ℹ️", utility: "🔧",
+      moderation: "🛡️", logging: "📋",
+      ticket: "🎫", pfps: "🖼️",
+      voice: "🔊", invites: "📨",
+      extra: "✨", fun: "🎮",
+      giveaway: "🎉", developer: "💻",
     };
-    const emojiKey = aliases[category] || aliases[categoryLower] || `category_${categoryLower}`;
-    return emoji.get(emojiKey) || emoji.get("folder");
+    return map[key] || "📁";
   }
 
   _displayCategory(category) {
