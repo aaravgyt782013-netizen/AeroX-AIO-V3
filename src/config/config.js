@@ -1,12 +1,35 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// Public Lavalink v4 fallback pool. These nodes are documented by HeavenCloud.
+// The lavalink-client expects the node password in the `password` field.
 const PUBLIC_LAVALINK_NODES = [
   {
-    id: "lightcore-self-hosted",
-    host: "lightcore-lavalink.onrender.com",
+    id: "heavencloud-india",
+    host: "lavalink.heavencloud.in",
     port: 443,
-    authorization: "LightCore-Music-Node-2026",
+    password: "heavencloud",
+    secure: true
+  },
+  {
+    id: "heavencloud-singapore",
+    host: "sg.lavalink.heavencloud.in",
+    port: 443,
+    password: "heavencloud",
+    secure: true
+  },
+  {
+    id: "heavencloud-usa",
+    host: "us.lavalink.heavencloud.in",
+    port: 443,
+    password: "heavencloud",
+    secure: true
+  },
+  {
+    id: "heavencloud-europe",
+    host: "eu.lavalink.heavencloud.in",
+    port: 443,
+    password: "heavencloud",
     secure: true
   }
 ];
