@@ -2,6 +2,7 @@ import { db } from "#database/DatabaseManager";
 import { renderAutomationMessage } from "#utils/AutomationUtils";
 import { logger } from "#utils/logger";
 import { EmbedBuilder } from "discord.js";
+import emoji from "#config/emoji";
 
 export default {
   name: "guildMemberAdd",
@@ -49,7 +50,7 @@ export default {
           embeds: [
             new EmbedBuilder()
               .setColor(0x5865F2)
-              .setTitle("👋 Welcome to " + member.guild.name)
+              .setTitle(emoji.get("tada","👋") + " Welcome to " + member.guild.name)
               .setDescription(content)
               .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
               .setFooter({ text: "LightCore • Welcome System" })
