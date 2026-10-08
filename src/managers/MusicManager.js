@@ -125,12 +125,11 @@ export class MusicManager {
       });
       this.history.set(player.guildId, list.slice(0, 50));
 
-      const channel = this.client.channels.cache.get(player.textChannelId);
+      // The dedicated trackStart event owns the Components V2 now-playing panel.
+      // Do not send a legacy content message here, otherwise every song would produce a duplicate.
       let announce = true;
       try { announce = db.guild.getMusicSettings(player.guildId).announceSongs !== false; } catch {}
-      if (announce && channel) {
-        channel.send({ content: "🎶 **Now Playing:** " + track.info.title }).catch(() => {});
-      }
+      player.set("announceSongs", announce);
     });
 
     this.lavalink.on("trackEnd", (player, track) => {
