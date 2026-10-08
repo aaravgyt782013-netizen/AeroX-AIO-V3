@@ -41,7 +41,7 @@ const run = async x => {
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
     if (key === "247") c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
     const player = c.client.music?.getPlayer?.(guild);
-    if (player) player.set("autoplayEnabled", enabled);
+    if (player) player.set("autoplayEnabled", enabled); if (key === "autoplay") c.client.music?.refreshVoiceStayAlive?.(guild, true);
     return render(x, `${key} ${enabled ? "enabled" : "disabled"}`);
   }
 
