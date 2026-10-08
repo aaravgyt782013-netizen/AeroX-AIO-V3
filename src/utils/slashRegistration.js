@@ -16,7 +16,14 @@ export async function registerSlashCommands(client) {
             return;
         }
 
-        logger.info('SlashRegistration', `Registering ${slashCommandsData.length} slash commands...`);
+        const registeredSlashCommands = slashCommandsData.slice(0, 100);
+        if (slashCommandsData.length > 100) {
+            logger.warn(
+                'SlashRegistration',
+                `Discord allows 100 top-level application commands. Registering 100 of ${slashCommandsData.length}; all commands remain available through prefix help.`,
+            );
+        }
+        logger.info('SlashRegistration', `Registering ${registeredSlashCommands.length} slash commands...`);
 
         const rest = new REST({ version: '10' }).setToken(config.token);
 
