@@ -1,0 +1,3 @@
+import { command, getPlayer, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const p=getPlayer(x);if(!p)return safeReply(x,"⏮️ Previous","Nothing is playing.",0xED4245);if(!await p.playPrevious())return safeReply(x,"⏮️ Previous","No previous track is available.",0xED4245);return safeReply(x,"⏮️ Previous","Playing the previous track.");};
+export default command({name:"previous",description:"Play the previous track",aliases:["prev","back"],dj:true,voiceRequired:true,execute:run,slashExecute:run});
