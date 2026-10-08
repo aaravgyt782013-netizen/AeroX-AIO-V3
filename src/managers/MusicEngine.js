@@ -137,8 +137,9 @@ export class MusicEngine {
             const fallback = result?.tracks?.find(item => item?.info?.identifier);
             if (!fallback) continue;
 
-            await player.queue.add(fallback);
-            if (!player.playing) await player.play();
+            // Replace the failed current track instead of queueing behind it.
+            await player.stopPlaying(false, false).catch(() => {});
+            await player.play({ clientTrack: fallback });
             logger.warn("MusicEngine", "Switched to SoundCloud fallback for [" + query + "].");
             return;
           } catch {}
