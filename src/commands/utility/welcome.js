@@ -73,7 +73,7 @@ class WelcomeCommand extends Command {
     super({
       name: "welcome",
       description: "Configure automatic member welcome messages",
-      usage: "welcome <setup|message|channel|style|view|test|off|placeholders>",
+      usage: "welcome <setup|message|channel|style|dm|view|test|off|placeholders>",
       aliases: ["welcomer", "greet", "greeting"],
       category: "Utility",
       cooldown: 3,
@@ -110,64 +110,7 @@ class WelcomeCommand extends Command {
       if (!text) return message.reply(replyBox(emoji.get("cross") + " Provide a welcome message."));
       if (!current) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup #channel message first."));
       db.setWelcome(guildId, current.channel_id, text, current.welcome_style || "embed");
-      return message.reply(replyBox(emoji.get("check") + " Welcome message updated."));
-    }
-
-    if (sub === "channel") {
-      const channel = resolveChannel(message, args[1]);
-      const current = db.getWelcome(guildId);
-      if (!channel || !current) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup #channel message first."));
-      db.setWelcome(guildId, channel.id, current.message, current.welcome_style || "embed");
-      return message.reply(replyBox(emoji.get("check") + " Welcome channel changed to <#" + channel.id + ">."));
-    }
-
-    if (sub === "style") {
-      const style = String(args[1] || "").toLowerCase();
-      const current = db.getWelcome(guildId);
-      if (!current) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup first."));
-      if (!["direct", "embed"].includes(style)) return message.reply(replyBox(emoji.get("cross") + " Use .welcome style direct or .welcome style embed."));
-      db.setWelcomeStyle(guildId, style);
-      return message.reply(replyBox(emoji.get("check") + " Welcome style set to **" + (style === "direct" ? "Direct Message" : "Embed") + "**."));
-    }
-
-    if (sub === "test") {
-      const current = db.getWelcome(guildId);
-      if (!current?.enabled) return message.reply(replyBox(emoji.get("cross") + " Welcome messages are not enabled."));
-      const channel = message.guild.channels.cache.get(current.channel_id);
-      if (!channel || !channel.isTextBased()) return message.reply(replyBox(emoji.get("cross") + " The configured welcome channel no longer exists."));
-      const rendered = renderAutomationMessage(current.message, { member: message.member, guild: message.guild, channel });
-      if (current.welcome_style === "direct") {
-        await channel.send({ content: rendered, allowedMentions: { parse: ["users", "roles"] } });
-      } else {
-        await channel.send({
-          embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("👋 Welcome to " + message.guild.name).setDescription(rendered).setThumbnail(message.member.user.displayAvatarURL({ size: 256 })).setFooter({ text: "LightCore • Welcome System" }).setTimestamp()],
-          allowedMentions: { parse: ["users", "roles"] }
-        });
-      }
-      return message.reply(replyBox(emoji.get("check") + " Welcome test sent to <#" + channel.id + ">."));
-    }
-
-    if (sub === "off" || sub === "disable") {
-      db.disableWelcome(guildId);
-      return message.reply(replyBox(emoji.get("check") + " Welcome messages are now disabled."));
-    }
-
-    if (sub === "placeholders" || sub === "variables") {
-      return message.reply(replyBox("**Welcome placeholders**\n\n" + automationPlaceholderHelp()));
-    }
-
-    const current = db.getWelcome(guildId);
-    if (!current || !current.enabled) {
-      return message.reply(replyBox(emoji.get("info") + " Welcome messages are disabled.\n\nUse .welcome setup #welcome Welcome {user} to {server}! to enable them."));
-    }
-
-    return message.reply(replyBox(
-      "**Welcome Setup**\n\n**Channel:** <#" + current.channel_id + ">\n**Message:**\n" + current.message +
-      "\n\nUse .welcome test to preview it or .welcome placeholders for variables."
-    ));
-  }
-
-  async slashExecute({ interaction }) {
+      const dm = db.getWelcomeDM(guildId);\n    return message.reply(replyBox(\n      "**Welcome Systems**\n\n**Server Channel:** <#" + current.channel_id + "> — " + (current.enabled ? "ON" : "OFF") +\n      "\n**Channel Message:**\n" + current.message +\n      "\n\n**DM Welcome:** " + (dm?.enabled ? "ON" : "OFF") +\n      "\n**DM Message:**\n" + (dm?.message || "Not configured") +\n      "\n\nBoth systems can be enabled at the same time. Use .welcome dm setup <message> to configure the DM system."\n    ));\n  }\n  async slashExecute({ interaction }) {
     const channel = interaction.options.getChannel("channel");
     const text = interaction.options.getString("message");
     db.setWelcome(interaction.guild.id, channel.id, text, "embed");
