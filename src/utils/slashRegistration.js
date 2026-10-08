@@ -22,10 +22,10 @@ export async function registerSlashCommands(client) {
 
         await rest.put(
             Routes.applicationCommands(config.clientId),
-            { body: slashCommandsData },
+            { body: registeredSlashCommands },
         );
 
-        logger.success('SlashRegistration', `Successfully registered ${slashCommandsData.length} slash commands globally.`);
+        logger.success('SlashRegistration', `Successfully registered ${registeredSlashCommands.length} slash commands globally.`);
     } catch (error) {
         logger.error('SlashRegistration', 'Failed to register slash commands:', error);
     }
