@@ -282,7 +282,7 @@ export default {
   description: "Full Discord channel management system",
   usage: "channel <create|delete|clone|rename|topic|slowmode|lock|unlock|hide|show|move|nsfw|permission|info|list>",
   aliases: ["ch", "channelmanager"],
-  category: "moderation",
+  category: "channel",
   cooldown: 2,
   userPermissions: [PermissionFlagsBits.ManageChannels],
   permissions: [PermissionFlagsBits.ManageChannels],
