@@ -1,0 +1,3 @@
+import { command, getPlayer, context, safeReply } from "#utils/RythmCommands";
+const run=async x=>{const p=getPlayer(x),c=context(x);if(!p?.currentTrack)return safeReply(x,"❤️ Like","Nothing is playing.",0xED4245);const liked=x.client.music.toggleLike(c.user.id,p.currentTrack);return safeReply(x,liked?"❤️ Liked":"💔 Unliked","**"+p.currentTrack.info.title+"**");};
+export default command({name:"like",description:"Like or unlike the current track",aliases:["heart","love","grab"],execute:run,slashExecute:run});
