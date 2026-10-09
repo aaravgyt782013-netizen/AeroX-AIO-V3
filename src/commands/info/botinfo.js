@@ -20,8 +20,8 @@ class BotInfoCommand extends Command {
                         description: "Shows detailed information about the bot.",
                         usage: "botinfo",
                         aliases: ["bot", "info", "about", "stats"],
-                        category: "info",
-                        examples: ["botinfo", "bot"],
+                        category: "Tracking",
+                        examples: [".botinfo", ".bot"],
                         cooldown: 5,
                         enabledSlash: true,
                         slashData: {
