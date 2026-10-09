@@ -103,10 +103,6 @@ class HelpCommand extends Command {
         const categoryName = this._canonicalCategoryName(directoryName);
         const categoryPath = path.join(commandsPath, directoryName);
 
-        if (!categories.has(categoryName)) {
-          categories.set(categoryName, []);
-        }
-
         await this._scanCategoryDirectory(
           categoryPath,
           categoryName,
@@ -206,10 +202,9 @@ class HelpCommand extends Command {
 
       const command = {
         ...CommandClass,
-        // Normalize metadata as well as directory names so case variants cannot create duplicate categories.
-        // The command's directory is the source of truth for help placement.
-        // Metadata may be stale or use inconsistent capitalization/aliases.
-        category: this._canonicalCategoryName(categoryName),
+        // Preserve each command's declared category, normalized to avoid case/alias duplicates.
+        // Fall back to the directory only when category metadata is missing.
+        category: this._canonicalCategoryName(CommandClass.category || categoryName),
       };
 
       commands.set(command.name, command);
