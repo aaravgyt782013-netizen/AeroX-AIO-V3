@@ -8,7 +8,7 @@ class LevelConfigCommand extends Command {
     super({
       name: "levelconfig",
       description: "Configure LightCore XP rates, cooldown, announcements, and leveling status",
-      usage: "levelconfig <show|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|message <text|reset>|enabled <on|off>>",
+      usage: "levelconfig <show|off|on|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|message <text|reset>|enabled <on|off>>",
       aliases: ["levelsettings", "levelsetup"],
       category: "Leveling",
       cooldown: 4,
@@ -21,7 +21,7 @@ class LevelConfigCommand extends Command {
     const action = (args[0] || "show").toLowerCase();
     const current = leveling.getSettings(message.guild.id);
     try {
-      if (action === "xp") {
+      if (action === "off" || action === "on") {\n        leveling.configure(message.guild.id, { enabled: action === "on" });\n      } else if (action === "xp") {
         const min = Number(args[1]);
         const max = Number(args[2]);
         if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < min || max > 1000) {
@@ -55,7 +55,7 @@ class LevelConfigCommand extends Command {
         if (!["on", "off"].includes(value)) return message.reply("Usage: `levelconfig enabled <on|off>`.");
         leveling.configure(message.guild.id, { enabled: value === "on" });
       } else if (action !== "show") {
-        return message.reply("Usage: `levelconfig <show|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|message <text|reset>|enabled <on|off>`.");
+        return message.reply("Usage: `levelconfig <show|off|on|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|message <text|reset>|enabled <on|off>`.");
       }
       const settings = leveling.getSettings(message.guild.id);
       const channel = settings.announcement_channel_id ? `<#${settings.announcement_channel_id}>` : "Current message channel";
@@ -70,7 +70,7 @@ class LevelConfigCommand extends Command {
           `**Custom message:** ${settings.announcement_text ? "Configured (Guild Premium)" : "Default"}`,
           "",
           "**Commands**",
-          "`levelconfig xp 15 25` — set XP range",
+          "`levelconfig off` — disable leveling for this server",\n          "`levelconfig on` — enable leveling for this server",\n          "`levelconfig xp 15 25` — set XP range",
           "`levelconfig cooldown 60` — set cooldown",
           "`levelconfig channel #levels` — set announcement channel",
           "`levelconfig channel off` — announce in the message channel",
