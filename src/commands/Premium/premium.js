@@ -81,11 +81,11 @@ class PremiumCommand extends Command {
         `\`premiumprofile reset\` • Reset server profile`
       ),
       new TextDisplayBuilder().setContent(
-        `**Member Stats & Live Counters**\\n` +
-        `\\`memberstats\\` • View member analytics\\n` +
-        `\\`membercounter setup <metric> [label]\\` • Create a live counter\\n` +
-        `\\`membercounter list\\` • List counters\\n` +
-        `\\`membercounter remove <channel-id>\\` • Remove a counter`
+        "**Member Stats & Live Counters**\\n" +
+        "memberstats • View member analytics\\n" +
+        "membercounter setup <metric> [label] • Create a live counter\\n" +
+        "membercounter list • List counters\\n" +
+        "membercounter remove <channel-id> • Remove a counter"
       ),
       new TextDisplayBuilder().setContent(
         `-# Premium access is granted and managed by the bot owner. Guild Premium can now set LightCore's server nickname, server avatar and server banner through Discord's current-member profile API.`
