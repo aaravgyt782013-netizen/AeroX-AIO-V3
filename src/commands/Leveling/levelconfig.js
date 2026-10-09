@@ -1,13 +1,14 @@
 import { Command } from "#structures/classes/Command";
 import { EmbedBuilder } from "discord.js";
 import { leveling } from "#managers/LevelingManager";
+import { db } from "#database/DatabaseManager";
 
 class LevelConfigCommand extends Command {
   constructor() {
     super({
       name: "levelconfig",
       description: "Configure LightCore XP rates, cooldown, announcements, and leveling status",
-      usage: "levelconfig <show|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|enabled <on|off>>",
+      usage: "levelconfig <show|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|message <text|reset>|enabled <on|off>>",
       aliases: ["levelsettings", "levelsetup"],
       category: "Leveling",
       cooldown: 4,
@@ -40,12 +41,21 @@ class LevelConfigCommand extends Command {
           if (!channel?.isTextBased?.()) return message.reply("Choose a text channel or use `off`.");
           leveling.configure(message.guild.id, { announcement_channel_id: channel.id });
         }
+      } else if (action === "message") {
+        if (!db.isGuildPremium(message.guild.id)) return message.reply("Custom level-up messages are a **Guild Premium** feature. Upgrade this server to use them.");
+        const text = args.slice(1).join(" ").trim();
+        if (!text) return message.reply("Usage: `levelconfig message <your message>` or `levelconfig message reset`. Placeholders: `{user}`, `{username}`, `{level}`, `{xp}`, `{server}`.");
+        if (text.toLowerCase() === "reset") leveling.configure(message.guild.id, { announcement_text: null });
+        else {
+          if (text.length > 1500) return message.reply("Custom level-up messages must be 1500 characters or fewer.");
+          leveling.configure(message.guild.id, { announcement_text: text });
+        }
       } else if (action === "enabled") {
         const value = (args[1] || "").toLowerCase();
         if (!["on", "off"].includes(value)) return message.reply("Usage: `levelconfig enabled <on|off>`.");
         leveling.configure(message.guild.id, { enabled: value === "on" });
       } else if (action !== "show") {
-        return message.reply("Usage: `levelconfig <show|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|enabled <on|off>`.");
+        return message.reply("Usage: `levelconfig <show|xp <min> <max>|cooldown <seconds>|channel <#channel|off>|message <text|reset>|enabled <on|off>`.");
       }
       const settings = leveling.getSettings(message.guild.id);
       const channel = settings.announcement_channel_id ? `<#${settings.announcement_channel_id}>` : "Current message channel";
@@ -57,12 +67,15 @@ class LevelConfigCommand extends Command {
           `**XP per message:** ${settings.min_xp}–${settings.max_xp}`,
           `**XP cooldown:** ${Number(settings.cooldown_ms) / 1000}s`,
           `**Level-up announcements:** ${channel}`,
+          `**Custom message:** ${settings.announcement_text ? "Configured (Guild Premium)" : "Default"}`,
           "",
           "**Commands**",
           "`levelconfig xp 15 25` — set XP range",
           "`levelconfig cooldown 60` — set cooldown",
           "`levelconfig channel #levels` — set announcement channel",
           "`levelconfig channel off` — announce in the message channel",
+          "`levelconfig message <text>` — set a custom level-up message (Guild Premium)",
+          "`levelconfig message reset` — restore the default level-up message",
           "`levelconfig enabled on/off` — toggle leveling",
         ].join("\n"))
         .setFooter({ text: "Manage Server permission required." });

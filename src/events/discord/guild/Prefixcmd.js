@@ -23,6 +23,7 @@ import {
 } from "#utils/permissionUtil";
 import { config } from "#config/config";
 import { PlayerManager } from "#managers/PlayerManager";
+import { leveling } from "#managers/LevelingManager";
 
 async function _sendError(message, title, description) {
   const button = new ButtonBuilder()
@@ -344,6 +345,37 @@ export default {
     }
 
     if (db.isGuildBlacklisted(message.guild.id)) return;
+
+    // Award XP for ordinary server messages and announce level-ups.
+    if (message.content.trim()) {
+      try {
+        const result = leveling.awardMessageXp(message.guild.id, message.author.id);
+        if (result.leveledUp) {
+          const settings = result.settings || leveling.getSettings(message.guild.id);
+          const channel = settings.announcement_channel_id
+            ? await message.guild.channels.fetch(settings.announcement_channel_id).catch(() => null)
+            : message.channel;
+          if (channel?.isTextBased?.()) {
+            const isGuildPremium = Boolean(db.isGuildPremium(message.guild.id));
+            const template = isGuildPremium && settings.announcement_text
+              ? settings.announcement_text
+              : "🎉 {user} reached **Level {level}**! Keep chatting to earn more XP.";
+            const content = template
+              .replaceAll("{user}", `<@${message.author.id}>`)
+              .replaceAll("{username}", message.author.username)
+              .replaceAll("{level}", String(result.level))
+              .replaceAll("{xp}", Number(result.xp).toLocaleString("en-US"))
+              .replaceAll("{server}", message.guild.name);
+            await channel.send({
+              content,
+              allowedMentions: { users: [message.author.id], roles: [], parse: [] },
+            }).catch((error) => logger.warn("Leveling", "Could not send level-up announcement", error));
+          }
+        }
+      } catch (error) {
+        logger.error("Leveling", "Could not award message XP", error);
+      }
+    }
 
     const mentionRegex = new RegExp(`^<@!?${client.user.id}>\\s*$`);
     if (mentionRegex.test(message.content.trim())) {
