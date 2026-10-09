@@ -148,7 +148,10 @@ class PremiumListCommand extends Command {
         if (interaction.customId === "premiumlist:close") {
           closed = true;
           collector.stop("closed");
-          return interaction.update({ components: [], content: "Premium directory closed." });
+          const closedContainer = new ContainerBuilder().addTextDisplayComponents(
+            new TextDisplayBuilder().setContent("🔒 **Premium directory closed.**")
+          );
+          return interaction.update({ components: [closedContainer], flags: MessageFlags.IsComponentsV2 });
         }
         if (interaction.customId === "premiumlist:prev") page--;
         if (interaction.customId === "premiumlist:next") page++;
@@ -168,7 +171,10 @@ class PremiumListCommand extends Command {
     collector.on("end", async () => {
       if (closed) return;
       try {
-        await reply.edit({ components: [], content: "Premium directory expired. Run `premiumlist` again." });
+        const expiredContainer = new ContainerBuilder().addTextDisplayComponents(
+          new TextDisplayBuilder().setContent("⌛ **Premium directory expired.** Run `premiumlist` again.")
+        );
+        await reply.edit({ components: [expiredContainer], flags: MessageFlags.IsComponentsV2 });
       } catch {}
     });
   }
