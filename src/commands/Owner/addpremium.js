@@ -60,7 +60,7 @@ class AddPremiumCommand extends Command {
         const match = duration.match(/^(\d+)(d|h|m)$/);
         if (!match || Number(match[1]) < 1) {
           return message.reply({
-            content: `${emoji.get("cross")} Invalid duration. Use `30d`, `12h`, `60m`, or `lifetime`.`,
+            content: `${emoji.get("cross")} Invalid duration. Use 30d, 12h, 60m, or lifetime.`,
           });
         }
         const value = Number(match[1]);
