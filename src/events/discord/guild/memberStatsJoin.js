@@ -6,7 +6,7 @@ export default {
   async execute(member) {
     try {
       memberStats.recordJoin(member.guild.id);
-      await memberStats.refreshGuild(member.guild);
+      await memberStats.refreshGuild(member.guild, true);
     } catch (error) {
       logger.warn("MemberStats", "Join counter update failed: " + (error?.message || error));
     }
