@@ -6,7 +6,7 @@ dotenv.config();
 const PUBLIC_LAVALINK_NODES = [
   {
     id: "lightcore-lavalink",
-    host: "lightcore-lavalink.onrender.com",
+    host: "lightcore-lavalink-v4.onrender.com",
     port: 443,
     authorization: "LightCore-Music-Node-2026",
     secure: true,
