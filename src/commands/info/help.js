@@ -72,6 +72,11 @@ class HelpCommand extends Command {
       leveling: "Leveling",
       level: "Leveling",
       misc: "Utility",
+      channel: "Channel",
+      channels: "Channel",
+      settings: "Settings",
+      setting: "Settings",
+      tracking: "Tracking",
     };
     return aliases[key] || String(name || "").trim();
   }
@@ -202,7 +207,9 @@ class HelpCommand extends Command {
       const command = {
         ...CommandClass,
         // Normalize metadata as well as directory names so case variants cannot create duplicate categories.
-        category: this._canonicalCategoryName(CommandClass.category || categoryName),
+        // The command's directory is the source of truth for help placement.
+        // Metadata may be stale or use inconsistent capitalization/aliases.
+        category: this._canonicalCategoryName(categoryName),
       };
 
       commands.set(command.name, command);
@@ -415,7 +422,7 @@ class HelpCommand extends Command {
       const categoryOrder = [
         "Info", "Utility", "Stats", "Leveling", "Fun", "Pfps", "Invites",
         "Music", "Voice", "Ticket", "Logging", "Moderation", "Giveaway",
-        "Premium", "Extra", "Owner",
+        "Premium", "Extra", "Owner", "Channel", "Settings", "Tracking",
       ];
       const categoryArray = Array.from(categories.keys()).sort((a, b) => {
         const ai = categoryOrder.findIndex((name) => name.toLowerCase() === a.toLowerCase());
