@@ -9,15 +9,17 @@ export default class DiscordHandler {
 	async register(event) {
 		try {
 			const listener = (...args) => {
-				try {
-					event.execute(...args, this.client);
-				} catch (error) {
-					logger.error(
-						'DiscordEvent',
-						`Error in Discord event ${event.name}:`,
-						error,
-					);
-				}
+				// Event execute methods are async. Await their promise so failures
+				// are caught here instead of becoming silent unhandled rejections.
+				Promise.resolve()
+					.then(() => event.execute(...args, this.client))
+					.catch(error => {
+						logger.error(
+							'DiscordEvent',
+							`Error in Discord event ${event.name}:`,
+							error,
+						);
+					});
 			};
 
 			if (event.once) {
