@@ -202,9 +202,9 @@ class HelpCommand extends Command {
 
       const command = {
         ...CommandClass,
-        // Preserve each command's declared category, normalized to avoid case/alias duplicates.
-        // Fall back to the directory only when category metadata is missing.
-        category: this._canonicalCategoryName(CommandClass.category || categoryName),
+        // The command folder is authoritative for Help Menu placement.
+        // Some command files declare stale or mismatched metadata (notably Channel commands).
+        category: this._canonicalCategoryName(categoryName),
       };
 
       commands.set(command.name, command);
