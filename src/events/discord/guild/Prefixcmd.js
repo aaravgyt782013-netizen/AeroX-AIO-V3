@@ -241,82 +241,70 @@ function _parseCommand(message, client) {
   if (mentionMatch) {
     commandText = content.slice(mentionMatch[0].length).trim();
   } else {
+    // Custom personal prefixes are also a User Premium perk.
     if (db.isUserPremium(message.author.id)) {
       const userPrefix = db
         .getUserPrefixes(message.author.id)
-        .find((p) => content.startsWith(p));
-      if (userPrefix) {
-        commandText = content.slice(userPrefix.length).trim();
-      }
+        .find((p) => p && content.startsWith(p));
+      if (userPrefix) commandText = content.slice(userPrefix.length).trim();
     }
 
     if (commandText === null) {
       const guildPrefix = db
         .getPrefixes(message.guild.id)
-        .find((p) => content.startsWith(p));
-      if (guildPrefix) {
-        commandText = content.slice(guildPrefix.length).trim();
-      }
+        .find((p) => p && content.startsWith(p));
+      if (guildPrefix) commandText = content.slice(guildPrefix.length).trim();
     }
 
-    if (commandText === null) {
-      if (
-        client.noPrefixUsers.has(message.author.id) ||
-        db.isUserPremium(message.author.id)
-      ) {
-        commandText = content;
-      }
+    // Any registered prefix command or alias can be invoked without a prefix
+    // by active User Premium subscribers. Command discovery is dynamic, so new
+    // commands are supported automatically without maintaining a manual list.
+    if (commandText === null && Boolean(db.isUserPremium(message.author.id))) {
+      commandText = content;
     }
 
-    if (commandText === null) {
-      if (/^yuki/i.test(content)) {
-        commandText = content.slice(4).trim();
-      }
+    if (commandText === null && /^yuki/i.test(content)) {
+      commandText = content.slice(4).trim();
     }
   }
 
   if (commandText === null) return null;
 
-  const parts = commandText.split(/\s+/).filter(Boolean);
+  const parts = commandText.split(/\\s+/).filter(Boolean);
   if (!parts.length) return null;
 
-  // Resolve the longest registered command/alias first. This is important
-  // for no-prefix users because multi-word commands must not be truncated
-  // to their first word.
   const normalized = parts.map((part) => part.toLowerCase());
-  let commandName = normalized[0];
-  let consumed = 1;
+  const commands = client.commandHandler.commands;
+  const aliases = client.commandHandler.aliases;
 
-  for (let length = Math.min(parts.length, 4); length > 1; length--) {
+  // Normalize all registered names and aliases once per message. Match the
+  // longest full command/alias name, regardless of how many words it contains.
+  const commandNames = new Map();
+  for (const [name, command] of commands) {
+    if (name) commandNames.set(String(name).toLowerCase(), command.name);
+    for (const alias of command.aliases || []) {
+      if (alias) commandNames.set(String(alias).toLowerCase(), command.name);
+    }
+  }
+  // Include aliases registered by the handler even if a command's own alias
+  // list is not normalized identically.
+  for (const [alias, target] of aliases) {
+    if (alias && target) commandNames.set(String(alias).toLowerCase(), target);
+  }
+
+  for (let length = normalized.length; length >= 1; length--) {
     const candidate = normalized.slice(0, length).join(" ");
-    if (
-      client.commandHandler.commands.has(candidate) ||
-      client.commandHandler.aliases.has(candidate)
-    ) {
-      commandName = candidate;
-      consumed = length;
-      break;
+    const canonicalName = commandNames.get(candidate);
+    if (canonicalName) {
+      return {
+        commandName: String(canonicalName).toLowerCase(),
+        args: parts.slice(length),
+      };
     }
   }
 
-  // Some loaders normalize command names differently. Fall back to a
-  // case-insensitive scan so no-prefix does not randomly fail for valid
-  // commands/aliases.
-  if (
-    !client.commandHandler.commands.has(commandName) &&
-    !client.commandHandler.aliases.has(commandName)
-  ) {
-    const match = [...client.commandHandler.commands.values()].find(
-      (cmd) =>
-        cmd.name?.toLowerCase() === commandName ||
-        cmd.aliases?.some((alias) => alias.toLowerCase() === commandName),
-    );
-    if (match) commandName = match.name.toLowerCase();
-  }
-
-  return { commandName, args: parts.slice(consumed) };
+  return null;
 }
-
 
 export default {
   name: "messageCreate",
