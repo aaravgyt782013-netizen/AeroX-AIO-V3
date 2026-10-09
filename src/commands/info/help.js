@@ -197,7 +197,7 @@ class HelpCommand extends Command {
 
       const command = {
         ...CommandClass,
-        category: categoryName,
+        category: CommandClass.category || categoryName,
       };
 
       commands.set(command.name, command);
@@ -208,7 +208,9 @@ class HelpCommand extends Command {
         }
       }
 
-      const categoryCommands = categories.get(categoryName);
+      const actualCategory = command.category || categoryName;
+      if (!categories.has(actualCategory)) categories.set(actualCategory, []);
+      const categoryCommands = categories.get(actualCategory);
       if (!categoryCommands.find((cmd) => cmd.name === command.name)) {
         categoryCommands.push(command);
       }
