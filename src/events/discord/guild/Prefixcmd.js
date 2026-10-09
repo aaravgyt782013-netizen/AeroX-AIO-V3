@@ -270,7 +270,7 @@ function _parseCommand(message, client) {
 
   if (commandText === null) return null;
 
-  const parts = commandText.split(/\\s+/).filter(Boolean);
+  const parts = commandText.split(/\s+/).filter(Boolean);
   if (!parts.length) return null;
 
   const normalized = parts.map((part) => part.toLowerCase());
