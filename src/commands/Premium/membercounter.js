@@ -45,7 +45,7 @@ class MemberCounterCommand extends Command {
 
   async slashExecute({ client, interaction }) {
     if (!interaction.guild) return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
-    return this.runAction(client, interaction.guild, interaction.member, interaction.user.id,
+    return this.runAction(client, interaction.guild, { permissions: { has: permission => interaction.memberPermissions?.has(permission) || false } }, interaction.user.id,
       interaction.options.getString("action"), interaction.options.getString("metric"),
       interaction.options.getString("label") || "", interaction, interaction.options.getString("channel"));
   }
