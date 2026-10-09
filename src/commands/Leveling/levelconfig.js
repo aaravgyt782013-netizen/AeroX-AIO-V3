@@ -12,6 +12,7 @@ class LevelConfigCommand extends Command {
       aliases: ["levelsettings", "levelsetup"],
       category: "Leveling",
       cooldown: 4,
+      examples: ["levelconfig show", "levelconfig off", "levelconfig on", "levelconfig xp 15 25", "levelconfig channel #levels"],
     });
   }
 
