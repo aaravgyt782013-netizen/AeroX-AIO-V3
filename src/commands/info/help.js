@@ -54,6 +54,7 @@ class HelpCommand extends Command {
     const key = String(name || "").trim().toLowerCase();
     const aliases = {
       rythmmusic: "Music",
+      music: "Music",
       moderation: "Moderation",
       extra: "Extra",
       fun: "Fun",
@@ -68,6 +69,9 @@ class HelpCommand extends Command {
       info: "Info",
       stats: "Stats",
       utility: "Utility",
+      leveling: "Leveling",
+      level: "Leveling",
+      misc: "Utility",
     };
     return aliases[key] || String(name || "").trim();
   }
@@ -197,7 +201,8 @@ class HelpCommand extends Command {
 
       const command = {
         ...CommandClass,
-        category: CommandClass.category || categoryName,
+        // Normalize metadata as well as directory names so case variants cannot create duplicate categories.
+        category: this._canonicalCategoryName(CommandClass.category || categoryName),
       };
 
       commands.set(command.name, command);
@@ -208,7 +213,8 @@ class HelpCommand extends Command {
         }
       }
 
-      const actualCategory = command.category || categoryName;
+      const actualCategory = this._canonicalCategoryName(command.category || categoryName);
+      command.category = actualCategory;
       if (!categories.has(actualCategory)) categories.set(actualCategory, []);
       const categoryCommands = categories.get(actualCategory);
       if (!categoryCommands.find((cmd) => cmd.name === command.name)) {
@@ -492,13 +498,14 @@ class HelpCommand extends Command {
         .setCustomId("help_category_select")
         .setPlaceholder("Select a category")
         .addOptions(
-          categoryArray.map((category) => {
-            const categoryEmoji = this._getEmojiObject(`category_${category.toLowerCase()}`);
+          categoryArray.slice(0, 25).map((category) => {
+            const categoryEmoji = this._getEmojiObject(`category_${category.toLowerCase()}`)
+              || this._getEmojiObject("folder");
             return {
-              label: this._capitalize(category),
+              label: this._capitalize(category).slice(0, 100),
               value: category,
-              emoji: categoryEmoji,
-              description: `View ${this._capitalize(category)} commands`,
+              ...(categoryEmoji ? { emoji: categoryEmoji } : {}),
+              description: `View ${this._capitalize(category)} commands`.slice(0, 100),
             };
           }),
         );
