@@ -6,7 +6,7 @@ export default {
   async execute(member) {
     try {
       memberStats.recordLeave(member.guild.id);
-      await memberStats.refreshGuild(member.guild);
+      await memberStats.refreshGuild(member.guild, true);
     } catch (error) {
       logger.warn("MemberStats", "Leave counter update failed: " + (error?.message || error));
     }
