@@ -8,6 +8,17 @@ export default class DiscordHandler {
 
 	async register(event) {
 		try {
+			// Discord event names are unique listener keys. The repository currently
+			// contains duplicate messageCreate modules; registering all of them
+			// causes the last handler to overwrite this map entry while every
+			// listener remains attached. Keep the first registration only.
+			if (this.registeredEvents.has(event.name)) {
+				logger.warn(
+					'DiscordEvent',
+					`Skipped duplicate Discord event registration: ${event.name}`,
+				);
+				return false;
+			}
 			const listener = (...args) => {
 				// Event execute methods are async. Await their promise so failures
 				// are caught here instead of becoming silent unhandled rejections.
