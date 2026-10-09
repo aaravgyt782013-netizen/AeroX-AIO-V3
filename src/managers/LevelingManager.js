@@ -63,12 +63,12 @@ class LevelingManager extends Database {
   configure(guildId, updates = {}) {
     const current = this.getSettings(guildId);
     const next = {
-      enabled: updates.enabled ?? current.enabled,
-      announcement_channel_id: updates.announcement_channel_id ?? current.announcement_channel_id,
-      announcement_text: updates.announcement_text ?? current.announcement_text,
-      min_xp: updates.min_xp ?? current.min_xp,
-      max_xp: updates.max_xp ?? current.max_xp,
-      cooldown_ms: updates.cooldown_ms ?? current.cooldown_ms,
+      enabled: Object.hasOwn(updates, "enabled") ? updates.enabled : current.enabled,
+      announcement_channel_id: Object.hasOwn(updates, "announcement_channel_id") ? updates.announcement_channel_id : current.announcement_channel_id,
+      announcement_text: Object.hasOwn(updates, "announcement_text") ? updates.announcement_text : current.announcement_text,
+      min_xp: Object.hasOwn(updates, "min_xp") ? updates.min_xp : current.min_xp,
+      max_xp: Object.hasOwn(updates, "max_xp") ? updates.max_xp : current.max_xp,
+      cooldown_ms: Object.hasOwn(updates, "cooldown_ms") ? updates.cooldown_ms : current.cooldown_ms,
     };
     if (next.min_xp < 0 || next.max_xp < next.min_xp || next.max_xp > 1000) {
       throw new Error("XP range must be between 0 and 1000, with max XP at least min XP.");
@@ -166,7 +166,7 @@ class LevelingManager extends Database {
   }
 
   async applyRewards(member, level) {
-    if (!member?.guild || !member.manageable) return;
+    if (!member?.guild) return;
     const rewards = this.getRewards(member.guild.id);
     const eligible = rewards.filter((reward) => Number(reward.level) <= level);
     for (const reward of eligible) {
