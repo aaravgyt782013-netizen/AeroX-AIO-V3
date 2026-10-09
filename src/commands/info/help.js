@@ -500,6 +500,7 @@ class HelpCommand extends Command {
         .addOptions(
           categoryArray.slice(0, 25).map((category) => {
             const categoryEmoji = this._getEmojiObject(`category_${category.toLowerCase()}`)
+              || (category.toLowerCase() === "premium" ? this._getEmojiObject("category_owner") : null)
               || this._getEmojiObject("folder");
             return {
               label: this._capitalize(category).slice(0, 100),
