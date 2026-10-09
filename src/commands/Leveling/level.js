@@ -1,29 +1,12 @@
 import { Command } from "#structures/classes/Command";
 import { EmbedBuilder } from "discord.js";
-import { memberStats } from "#managers/MemberStatsManager";
-
-const XP_PER_MESSAGE = 10;
-const XP_PER_LEVEL_SQUARE = 100;
-
-function getProgress(totalMessages) {
-  const xp = Math.max(0, Number(totalMessages) || 0) * XP_PER_MESSAGE;
-  const level = Math.floor(Math.sqrt(xp / XP_PER_LEVEL_SQUARE));
-  const currentLevelXp = level * level * XP_PER_LEVEL_SQUARE;
-  const nextLevelXp = (level + 1) * (level + 1) * XP_PER_LEVEL_SQUARE;
-  return {
-    xp,
-    level,
-    current: Math.max(0, xp - currentLevelXp),
-    needed: Math.max(1, nextLevelXp - currentLevelXp),
-    progress: Math.min(100, Math.floor(((xp - currentLevelXp) / Math.max(1, nextLevelXp - currentLevelXp)) * 100)),
-  };
-}
+import { leveling } from "#managers/LevelingManager";
 
 class LevelCommand extends Command {
   constructor() {
     super({
       name: "level",
-      description: "View a member's message-based level and progress",
+      description: "View your or another member's rank, XP, and progress",
       usage: "level [@member]",
       aliases: ["lvl", "rank"],
       category: "Leveling",
@@ -31,98 +14,54 @@ class LevelCommand extends Command {
       enabledSlash: true,
       slashData: {
         name: "level",
-        description: "View a member's message-based level and progress",
-        options: [
-          {
-            type: 6,
-            name: "member",
-            description: "Member to check (defaults to you)",
-            required: false,
-          },
-        ],
+        description: "View your or another member's rank, XP, and progress",
+        options: [{ type: 6, name: "member", description: "Member to check (defaults to you)", required: false }],
       },
     });
   }
 
-  async sendLevel(guild, user, replyTarget) {
+  async buildEmbed(guild, user) {
     const member = await guild.members.fetch(user.id).catch(() => null);
-    const stats = memberStats.getMemberStats(guild.id, user.id);
-    const totalMessages = Math.max(0, Number(stats?.messages) || 0);
-    const { xp, level, current, needed, progress } = getProgress(totalMessages);
-    const filled = Math.round(progress / 10);
+    const stats = leveling.getRank(guild.id, user.id);
+    const filled = Math.round(stats.progress / 10);
     const bar = "▰".repeat(filled) + "▱".repeat(10 - filled);
-
-    const embed = new EmbedBuilder()
+    return new EmbedBuilder()
       .setColor(0x5865f2)
-      .setAuthor({
-        name: `${member?.displayName || user.globalName || user.username} • Level Progress`,
-        iconURL: user.displayAvatarURL(),
-      })
-      .setDescription(
-        `🏆 **Level ${level}**\n` +
-        `${bar} **${progress}%**\n\n` +
-        `**XP:** ${xp.toLocaleString("en-US")}\n` +
-        `**Progress:** ${current.toLocaleString("en-US")} / ${needed.toLocaleString("en-US")} XP\n` +
-        `**Messages tracked:** ${totalMessages.toLocaleString("en-US")}\n\n` +
-        `*Levels are calculated from LightCore's tracked message activity (10 XP per tracked message).*`,
-      )
+      .setAuthor({ name: `${member?.displayName || user.globalName || user.username} • Rank Card`, iconURL: user.displayAvatarURL() })
       .setThumbnail(user.displayAvatarURL({ size: 256 }))
-      .setFooter({ text: `${guild.name} • LightCore Leveling` });
-
-    return replyTarget.reply({ embeds: [embed] });
+      .setDescription(
+        `## 🏆 Level ${stats.level}  ·  Rank #${stats.rank}\n` +
+        `\`${bar}\` **${stats.progress}%**\n\n` +
+        `**Total XP**  ${stats.xp.toLocaleString("en-US")} XP\n` +
+        `**Level progress**  ${stats.current.toLocaleString("en-US")} / ${stats.needed.toLocaleString("en-US")} XP\n` +
+        `**Next level at**  ${(stats.xp + (stats.needed - stats.current)).toLocaleString("en-US")} XP`
+      )
+      .setFooter({ text: `${guild.name} • LightCore Leveling` })
+      .setTimestamp();
   }
 
   async execute({ message, args }) {
     if (!message.guild) return message.reply("This command can only be used in a server.");
     const user = message.mentions.users.first()
-      || (args[0] ? await message.client.users.fetch(args[0]).catch(() => null) : null)
+      || (args[0] ? await message.client.users.fetch(args[0].replace(/[<@!>]/g, "")).catch(() => null) : null)
       || message.author;
-
     try {
-      return await this.sendLevel(message.guild, user, message);
+      return message.reply({ embeds: [await this.buildEmbed(message.guild, user)] });
     } catch (error) {
-      message.client.logger?.error("LevelCommand", `Could not generate level card: ${error?.message || error}`);
-      return message.reply("I couldn't load level progress right now. Please try again shortly.");
+      message.client.logger?.error("LevelCommand", error);
+      return message.reply("I couldn't load the rank card right now. Please try again.");
     }
   }
 
   async slashExecute({ interaction }) {
-    if (!interaction.guild) {
-      return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
-    }
-
+    if (!interaction.guild) return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
     await interaction.deferReply();
     const user = interaction.options.getUser("member") || interaction.user;
-
     try {
-      const member = await interaction.guild.members.fetch(user.id).catch(() => null);
-      const stats = memberStats.getMemberStats(interaction.guild.id, user.id);
-      const totalMessages = Math.max(0, Number(stats?.messages) || 0);
-      const { xp, level, current, needed, progress } = getProgress(totalMessages);
-      const filled = Math.round(progress / 10);
-      const bar = "▰".repeat(filled) + "▱".repeat(10 - filled);
-
-      const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setAuthor({
-          name: `${member?.displayName || user.globalName || user.username} • Level Progress`,
-          iconURL: user.displayAvatarURL(),
-        })
-        .setDescription(
-          `🏆 **Level ${level}**\n` +
-          `${bar} **${progress}%**\n\n` +
-          `**XP:** ${xp.toLocaleString("en-US")}\n` +
-          `**Progress:** ${current.toLocaleString("en-US")} / ${needed.toLocaleString("en-US")} XP\n` +
-          `**Messages tracked:** ${totalMessages.toLocaleString("en-US")}\n\n` +
-          `*Levels are calculated from LightCore's tracked message activity (10 XP per tracked message).*`,
-        )
-        .setThumbnail(user.displayAvatarURL({ size: 256 }))
-        .setFooter({ text: `${interaction.guild.name} • LightCore Leveling` });
-
-      return interaction.editReply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [await this.buildEmbed(interaction.guild, user)] });
     } catch (error) {
-      interaction.client.logger?.error("LevelCommand", `Could not generate level card: ${error?.message || error}`);
-      return interaction.editReply("I couldn't load level progress right now. Please try again shortly.");
+      interaction.client.logger?.error("LevelCommand", error);
+      return interaction.editReply("I couldn't load the rank card right now. Please try again.");
     }
   }
 }
