@@ -66,6 +66,7 @@ class HelpCommand extends Command {
       voice: "Voice",
       giveaway: "Giveaway",
       info: "Info",
+      stats: "Stats",
       utility: "Utility",
     };
     return aliases[key] || String(name || "").trim();
