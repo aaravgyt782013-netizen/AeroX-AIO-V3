@@ -19,6 +19,7 @@ export const emoji = {
   "category_giveaway": "<:category_giveaway:1461683825863299194>",
   "category_info": "<:category_info:1461683836298596464>",
   "category_stats": "📊",
+  "category_leveling": "<a:trophy:1461683963298058283>",
   "category_logging": "<:category_info:1461683836298596464>",
   "category_moderation": "<:category_moderation:1461683846990004296>",
   "category_utility": "<:category_utility:1461683857039425610>",
