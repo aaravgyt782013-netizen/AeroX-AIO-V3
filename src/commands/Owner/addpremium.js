@@ -16,11 +16,12 @@ class AddPremiumCommand extends Command {
     super({
       name: "addpremium",
       description: "Grant premium status to a user",
-      usage: "addpremium <user_id> [duration]",
+      usage: "addpremium <@user|user_id> [duration]",
       aliases: ["addpr", "grantpremium"],
       category: "Owner",
       examples: [
         "addpremium 123456789",
+        "addpremium @user 30d",
         "addpremium 123456789 30d",
         "addpremium 123456789 lifetime",
       ],
@@ -57,13 +58,16 @@ class AddPremiumCommand extends Command {
 
       if (duration !== "lifetime") {
         const match = duration.match(/^(\d+)(d|h|m)$/);
-        if (match) {
-          const value = parseInt(match[1]);
-          const unit = match[2];
-          const multipliers = { d: 86400000, h: 3600000, m: 60000 };
-          expiresAt = Date.now() + (value * multipliers[unit]);
-          durationText = `${value} ${unit === "d" ? "day(s)" : unit === "h" ? "hour(s)" : "minute(s)"}`;
+        if (!match || Number(match[1]) < 1) {
+          return message.reply({
+            content: `${emoji.get("cross")} Invalid duration. Use `30d`, `12h`, `60m`, or `lifetime`.`,
+          });
         }
+        const value = Number(match[1]);
+        const unit = match[2];
+        const multipliers = { d: 86400000, h: 3600000, m: 60000 };
+        expiresAt = Date.now() + value * multipliers[unit];
+        durationText = `${value} ${unit === "d" ? "day(s)" : unit === "h" ? "hour(s)" : "minute(s)"}`;
       }
 
       const result = client.db.grantUserPremium(
