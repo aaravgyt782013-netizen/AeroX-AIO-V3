@@ -3,12 +3,12 @@ import { db } from "#database/DatabaseManager";
 
 function emojiKey(raw) {
   const value = String(raw || "").trim();
-  const custom = value.match(/^<a?:[^:>]+:(\\d+)>$/);
+  const custom = value.match(/^<a?:[^:>]+:(\d+)>$/);
   return custom ? "id:" + custom[1] : "u:" + value;
 }
 
 function roleFrom(guild, raw) {
-  const id = String(raw || "").match(/^(?:<@&)?(\\d{15,25})>?$/)?.[1];
+  const id = String(raw || "").match(/^(?:<@&)?(\d{15,25})>?$/)?.[1];
   return id ? guild.roles.cache.get(id) || null : null;
 }
 
@@ -17,9 +17,9 @@ async function fetchMessage(channel, messageId) {
 }
 
 function usage() {
-  return "Usage: .reactionrole add <messageId> <emoji> <@role>\\n" +
-    ".reactionrole remove <messageId> <emoji>\\n" +
-    ".reactionrole list [messageId]\\n" +
+  return "Usage: .reactionrole add <messageId> <emoji> <@role>\n" +
+    ".reactionrole remove <messageId> <emoji>\n" +
+    ".reactionrole list [messageId]\n" +
     ".reactionrole clear <messageId>";
 }
 
@@ -71,13 +71,13 @@ export default {
       }
       return message.reply({
         embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("🎭 LightCore Reaction Roles")
-          .setDescription(entries.length ? entries.join("\\n").slice(0,4096) : "No reaction roles configured.")
+          .setDescription(entries.length ? entries.join("\n").slice(0,4096) : "No reaction roles configured.")
           .setFooter({ text: "React to a configured message to get the role." })]
       });
     }
 
     const messageId = args[1];
-    if (!/^\\d{15,25}$/.test(messageId || "")) return message.reply(usage());
+    if (!/^\d{15,25}$/.test(messageId || "")) return message.reply(usage());
     const channel = message.channel;
     const target = await fetchMessage(channel, messageId);
     if (!target) return message.reply("❌ I couldn't fetch that message. Use the command in the same channel as the target message.");
@@ -125,7 +125,7 @@ export default {
         if (messageId && mid !== messageId) continue;
         for (const [key, roleId] of Object.entries(mappings || {})) entries.push("• \`" + key.replace(/^u:/,"") + "\` → <@&" + roleId + "> (message " + mid + ")");
       }
-      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("🎭 LightCore Reaction Roles").setDescription(entries.length ? entries.join("\\n").slice(0,4096) : "No reaction roles configured.")] , ephemeral: true });
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("🎭 LightCore Reaction Roles").setDescription(entries.length ? entries.join("\n").slice(0,4096) : "No reaction roles configured.")] , ephemeral: true });
     }
 
     if (sub === "remove" || sub === "clear") {
