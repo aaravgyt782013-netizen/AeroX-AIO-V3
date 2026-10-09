@@ -102,7 +102,7 @@ class NoPrefixCommand extends Command {
       }
 
       if (action === "add") {
-        if (client.noPrefixUsers.has(userId)) {
+        if (db.hasNoPrefix(userId)) {
           return message.reply({
             content: `${emoji.get("cross")} This user already has no-prefix mode enabled!`,
           });
@@ -143,7 +143,13 @@ class NoPrefixCommand extends Command {
       }
 
       if (action === "remove") {
-        if (!client.noPrefixUsers.has(userId)) {
+        if (db.isUserPremium(userId)) {
+          return message.reply({
+            content: `${emoji.get("info")} No-prefix is included with active **User Premium**. It stays available until that Premium grant expires or is revoked.`,
+          });
+        }
+
+        if (!db.hasNoPrefix(userId)) {
           return message.reply({
             content: `${emoji.get("cross")} This user doesn't have no-prefix mode enabled!`,
           });
