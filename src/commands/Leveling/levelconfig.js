@@ -22,7 +22,9 @@ class LevelConfigCommand extends Command {
     const action = (args[0] || "show").toLowerCase();
     const current = leveling.getSettings(message.guild.id);
     try {
-      if (action === "off" || action === "on") {\n        leveling.configure(message.guild.id, { enabled: action === "on" });\n      } else if (action === "xp") {
+      if (action === "off" || action === "on") {
+        leveling.configure(message.guild.id, { enabled: action === "on" });
+      } else if (action === "xp") {
         const min = Number(args[1]);
         const max = Number(args[2]);
         if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < min || max > 1000) {
@@ -71,7 +73,9 @@ class LevelConfigCommand extends Command {
           `**Custom message:** ${settings.announcement_text ? "Configured (Guild Premium)" : "Default"}`,
           "",
           "**Commands**",
-          "`levelconfig off` — disable leveling for this server",\n          "`levelconfig on` — enable leveling for this server",\n          "`levelconfig xp 15 25` — set XP range",
+          "`levelconfig off` — disable leveling for this server",
+          "`levelconfig on` — enable leveling for this server",
+          "`levelconfig xp 15 25` — set XP range",
           "`levelconfig cooldown 60` — set cooldown",
           "`levelconfig channel #levels` — set announcement channel",
           "`levelconfig channel off` — announce in the message channel",
