@@ -200,11 +200,16 @@ class HelpCommand extends Command {
         return null;
       }
 
+      // Keep channel/category-management commands in the Channel tab even when
+      // legacy files live in the Moderation folder. Other commands follow their
+      // canonical folder category so inconsistent metadata cannot scatter entries.
+      const channelCommands = new Set(["channel", "categorydelete"]);
+      const helpCategory = channelCommands.has(String(CommandClass.name || "").toLowerCase())
+        ? "Channel"
+        : this._canonicalCategoryName(categoryName);
       const command = {
         ...CommandClass,
-        // The command folder is authoritative for Help Menu placement.
-        // Some command files declare stale or mismatched metadata (notably Channel commands).
-        category: this._canonicalCategoryName(categoryName),
+        category: helpCategory,
       };
 
       commands.set(command.name, command);
