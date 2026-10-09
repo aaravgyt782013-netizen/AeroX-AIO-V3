@@ -57,7 +57,6 @@ class MemberStatsCommand extends Command {
     return new EmbedBuilder()
       .setColor(0x5865F2)
       .setAuthor({ name: "LightCore • Member Analytics", iconURL: client.user.displayAvatarURL() })
-      .setThumbnail(guild.iconURL({ size: 256 }))
       .setDescription(`Live overview for **${guild.name}**`)
       .addFields(
         { name: "👥 Total Members", value: `**${guild.memberCount.toLocaleString()}**`, inline: true },
