@@ -1,6 +1,8 @@
 import { Database } from "#structures/classes/Database";
 import { logger } from "#utils/logger";
 
+const dayKey = (timestamp = Date.now()) => new Date(timestamp).toISOString().slice(0, 10);
+
 class MemberStatsManager extends Database {
   constructor() {
     super("data/memberstats.sqlite");
@@ -33,11 +35,30 @@ class MemberStatsManager extends Database {
         PRIMARY KEY (guild_id, user_id)
       )
     `);
+    this.exec(`
+      CREATE TABLE IF NOT EXISTS member_daily_activity (
+        guild_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        messages INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id, day)
+      )
+    `);
+    this.exec(`
+      CREATE TABLE IF NOT EXISTS member_channel_daily (
+        guild_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        messages INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id, channel_id, day)
+      )
+    `);
     this.counterRefreshAt = new Map();
   }
 
   ensureGuild(guildId) {
-    this.exec("INSERT OR IGNORE INTO member_stats (guild_id, joins, leaves, updated_at) VALUES (?, 0, 0, ?)", [guildId, Date.now()]);
+    this.exec("INSERT OR IGNORE INTO member_stats (guild_id, joins, leaves, updated_at) VALUES (?, 0, ?)", [guildId, Date.now()]);
   }
   ensureMember(guildId, userId) {
     this.exec("INSERT OR IGNORE INTO member_activity (guild_id, user_id) VALUES (?, ?)", [guildId, userId]);
@@ -50,9 +71,16 @@ class MemberStatsManager extends Database {
     this.ensureGuild(guildId);
     this.exec("UPDATE member_stats SET leaves = leaves + 1, updated_at = ? WHERE guild_id = ?", [Date.now(), guildId]);
   }
-  recordMessage(guildId, userId) {
+  recordMessage(guildId, userId, channelId = null, timestamp = Date.now()) {
     this.ensureMember(guildId, userId);
-    this.exec("UPDATE member_activity SET messages = messages + 1, last_message_at = ? WHERE guild_id = ? AND user_id = ?", [Date.now(), guildId, userId]);
+    const day = dayKey(timestamp);
+    this.exec("UPDATE member_activity SET messages = messages + 1, last_message_at = ? WHERE guild_id = ? AND user_id = ?", [timestamp, guildId, userId]);
+    this.exec(`INSERT INTO member_daily_activity (guild_id, user_id, day, messages) VALUES (?, ?, ?, 1)
+      ON CONFLICT(guild_id, user_id, day) DO UPDATE SET messages = messages + 1`, [guildId, userId, day]);
+    if (channelId) {
+      this.exec(`INSERT INTO member_channel_daily (guild_id, user_id, channel_id, day, messages) VALUES (?, ?, ?, ?, 1)
+        ON CONFLICT(guild_id, user_id, channel_id, day) DO UPDATE SET messages = messages + 1`, [guildId, userId, channelId, day]);
+    }
   }
   startVoice(guildId, userId, timestamp = Date.now()) {
     this.ensureMember(guildId, userId);
@@ -74,7 +102,28 @@ class MemberStatsManager extends Database {
   getMemberStats(guildId, userId) {
     this.ensureMember(guildId, userId);
     const row = this.get("SELECT messages, voice_ms, voice_started_at, last_message_at FROM member_activity WHERE guild_id = ? AND user_id = ?", [guildId, userId]);
-    return { messages: Number(row?.messages || 0), voice_ms: Number(row?.voice_ms || 0) + (row?.voice_started_at ? Math.max(0, Date.now() - row.voice_started_at) : 0), last_message_at: row?.last_message_at || null };
+    const today = dayKey();
+    const sevenDayStart = dayKey(Date.now() - 6 * 86400000);
+    const thirtyDayStart = dayKey(Date.now() - 29 * 86400000);
+    const daily = this.get(`SELECT
+      COALESCE(SUM(CASE WHEN day = ? THEN messages ELSE 0 END), 0) AS today,
+      COALESCE(SUM(CASE WHEN day >= ? THEN messages ELSE 0 END), 0) AS seven_day,
+      COALESCE(SUM(CASE WHEN day >= ? THEN messages ELSE 0 END), 0) AS thirty_day
+      FROM member_daily_activity WHERE guild_id = ? AND user_id = ?`, [today, sevenDayStart, thirtyDayStart, guildId, userId]) || {};
+    return {
+      messages: Number(row?.messages || 0),
+      today: Number(daily.today || 0),
+      seven_day: Number(daily.seven_day || 0),
+      thirty_day: Number(daily.thirty_day || 0),
+      voice_ms: Number(row?.voice_ms || 0) + (row?.voice_started_at ? Math.max(0, Date.now() - row.voice_started_at) : 0),
+      last_message_at: row?.last_message_at || null
+    };
+  }
+  getTopChannels(guildId, userId, limit = 3) {
+    const start = dayKey(Date.now() - 29 * 86400000);
+    return this.all(`SELECT channel_id, SUM(messages) AS messages FROM member_channel_daily
+      WHERE guild_id = ? AND user_id = ? AND day >= ?
+      GROUP BY channel_id ORDER BY messages DESC LIMIT ?`, [guildId, userId, start, limit]) || [];
   }
   getTopMembers(guildId, metric, limit = 5) {
     const column = metric === "voice" ? "voice_ms" : "messages";
