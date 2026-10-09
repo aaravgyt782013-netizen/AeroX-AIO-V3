@@ -11,14 +11,14 @@ const METRIC_CHOICES = Object.keys(METRICS).map(name => ({ name: METRICS[name], 
 function premiumType(client, userId, guildId) {
   const user = client.db.isUserPremium(userId);
   const guild = client.db.isGuildPremium(guildId);
-  return { user: Boolean(user), guild: Boolean(guild), max: guild ? 10 : 3 };
+  return { user: Boolean(user), guild: Boolean(guild), max: (guild || user) ? 10 : 3 };
 }
 class MemberCounterCommand extends Command {
   constructor() {
     super({
       name: "membercounter", description: "Create and manage Premium live server counters",
-      usage: "membercounter <setup|list|remove> [metric|channel]", aliases: ["mcounter", "statscounter"],
-      category: "Premium", cooldown: 5, enabledSlash: true,
+      usage: "membercounter <setup|list|remove> [metric|channel]", aliases: ["mcounter", "statscounter", "servercounter", "scounter"],
+      category: "Tracking", cooldown: 5, enabledSlash: true,
       slashData: { name: "membercounter", description: "Create and manage Premium live server counters", options: [
         { type: 3, name: "action", description: "What to do", required: true, choices: [{ name: "setup", value: "setup" }, { name: "list", value: "list" }, { name: "remove", value: "remove" }] },
         { type: 3, name: "metric", description: "Statistic to display for setup", required: false, choices: METRIC_CHOICES },
@@ -39,7 +39,6 @@ class MemberCounterCommand extends Command {
     const premium = premiumType(client, userId, guild.id);
     const isSlash = typeof responder.isChatInputCommand === "function" && responder.isChatInputCommand();
     const reply = payload => responder.reply(payload);
-    if (!premium.user && !premium.guild) return reply({ content: "⭐ Member counters require LightCore User Premium or Guild Premium.", ephemeral: isSlash });
     if (!member.permissions?.has(PermissionFlagsBits.ManageGuild) && !member.permissions?.has(PermissionFlagsBits.Administrator)) return reply({ content: "You need Manage Server to configure member counters.", ephemeral: isSlash });
     if (action === "list") {
       const counters = memberStats.getCounters(guild.id);
@@ -58,7 +57,7 @@ class MemberCounterCommand extends Command {
     if (action !== "setup") return reply({ content: "Use membercounter setup <members|humans|bots|channels|roles|boosts|messages|voice> [label], membercounter list, or membercounter remove <channel-id>.", ephemeral: isSlash });
     if (!METRICS[metric]) return reply({ content: "Choose a metric: " + Object.keys(METRICS).join(", ") + ".", ephemeral: isSlash });
     const existing = memberStats.getCounters(guild.id);
-    if (existing.length >= premium.max) return reply({ content: `Your current Premium tier allows up to ${premium.max} counters in this server. Guild Premium unlocks up to 10 counters.`, ephemeral: isSlash });
+    if (existing.length >= premium.max) return reply({ content: `Your current tier allows up to ${premium.max} counters in this server. Premium unlocks up to 10 counters.`, ephemeral: isSlash });
     if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return reply({ content: "I need Manage Channels permission to create and update counters.", ephemeral: isSlash });
     const safeLabel = (label || METRICS[metric].replace(/^[^ ]+ /, "")).trim().slice(0, 70);
     const value = await memberStats.metricValue(guild, metric);
