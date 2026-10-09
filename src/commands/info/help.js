@@ -406,7 +406,19 @@ class HelpCommand extends Command {
 
   _createMainContainer(commands, categories, subcategories) {
     try {
-      const categoryArray = Array.from(categories.keys());
+      const categoryOrder = [
+        "Info", "Utility", "Stats", "Leveling", "Fun", "Pfps", "Invites",
+        "Music", "Voice", "Ticket", "Logging", "Moderation", "Giveaway",
+        "Premium", "Extra", "Owner",
+      ];
+      const categoryArray = Array.from(categories.keys()).sort((a, b) => {
+        const ai = categoryOrder.findIndex((name) => name.toLowerCase() === a.toLowerCase());
+        const bi = categoryOrder.findIndex((name) => name.toLowerCase() === b.toLowerCase());
+        if (ai === -1 && bi === -1) return a.localeCompare(b);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
       const uniqueCommands = Array.from(commands.values()).filter(
         (cmd, index, arr) =>
           arr.findIndex((c) => c.name === cmd.name) === index,
@@ -504,7 +516,7 @@ class HelpCommand extends Command {
 
   _createCategoryContainer(category, categories, subcategories, page = 0) {
     try {
-      const commands = categories.get(category) || [];
+      const commands = [...(categories.get(category) || [])].sort((a, b) => a.name.localeCompare(b.name));
       const subcats = subcategories.get(category);
 
       if (commands.length === 0 && (!subcats || subcats.size === 0)) {
