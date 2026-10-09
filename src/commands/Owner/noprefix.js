@@ -95,6 +95,12 @@ class NoPrefixCommand extends Command {
         });
       }
 
+      if (action === "add" && !db.isUserPremium(userId)) {
+        return message.reply({
+          content: `${emoji.get("cross")} No-prefix is a **User Premium** perk. Grant active User Premium first, then enable no-prefix.`,
+        });
+      }
+
       if (action === "add") {
         if (client.noPrefixUsers.has(userId)) {
           return message.reply({
