@@ -1,7 +1,7 @@
 import { Database } from "#structures/classes/Database";
 import { logger } from "#utils/logger";
 
-const dayKey = (timestamp = Date.now()) => new Date(timestamp).toISOString().slice(0, 10);
+const dayKey = (timestamp = Date.now()) => new Date(timestamp + 330 * 60 * 1000).toISOString().slice(0, 10);
 
 class MemberStatsManager extends Database {
   constructor() {
@@ -58,7 +58,7 @@ class MemberStatsManager extends Database {
   }
 
   ensureGuild(guildId) {
-    this.exec("INSERT OR IGNORE INTO member_stats (guild_id, joins, leaves, updated_at) VALUES (?, 0, ?)", [guildId, Date.now()]);
+    this.exec("INSERT OR IGNORE INTO member_stats (guild_id, joins, leaves, updated_at) VALUES (?, 0, 0, ?)", [guildId, Date.now()]);
   }
   ensureMember(guildId, userId) {
     this.exec("INSERT OR IGNORE INTO member_activity (guild_id, user_id) VALUES (?, ?)", [guildId, userId]);
