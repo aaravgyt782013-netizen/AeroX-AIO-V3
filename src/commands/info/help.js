@@ -1337,7 +1337,10 @@ class HelpCommand extends Command {
   _getCategoryEmoji(category) {
     const categoryLower = category.toLowerCase();
     const emojiKey = `category_${categoryLower}`;
-    const categoryEmoji = emoji.get(emojiKey);
+    // Keep the existing category icons; Premium uses the Owner category icon
+    // as requested when a dedicated Premium icon is not configured.
+    const categoryEmoji = emoji.get(emojiKey)
+      || (categoryLower === "premium" ? emoji.get("category_owner") : null);
     
     if (categoryEmoji) {
       return categoryEmoji;
