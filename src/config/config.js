@@ -3,13 +3,16 @@ dotenv.config();
 
 // Public Lavalink v4 fallback pool. These nodes are documented by HeavenCloud.
 // The lavalink-client expects the node password in the `password` field.
+// Prefer the Lavalink node configured in the deployment environment. The old
+// hard-coded host silently overrode LAVALINK_HOST and could leave the bot in
+// voice while every track failed to load.
 const PUBLIC_LAVALINK_NODES = [
   {
-    id: "lightcore-lavalink",
-    host: "lightcore-lavalink-v4.onrender.com",
-    port: 443,
-    password: "LightCore-Music-Node-2026",
-    secure: true,
+    id: process.env.LAVALINK_NODE_ID || "lightcore-lavalink",
+    host: process.env.LAVALINK_HOST || "lightcore-lavalink-v4.onrender.com",
+    port: Number(process.env.LAVALINK_PORT || 443),
+    password: process.env.LAVALINK_SERVER_PASSWORD || "LightCore-Music-Node-2026",
+    secure: (process.env.LAVALINK_SECURE || "true").toLowerCase() === "true",
     retryAmount: Infinity,
     retryDelay: 5000
   }
