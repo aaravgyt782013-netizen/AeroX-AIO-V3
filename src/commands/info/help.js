@@ -81,46 +81,66 @@ class HelpCommand extends Command {
     return aliases[key] || String(name || "").trim();
   }
 
-  async _scanCommandDirectories() {
-    try {
-      const commandsPath = path.join(process.cwd(), "src", "commands");
-      const commands = new Map();
-      const categories = new Map();
-      const subcategories = new Map();
+  async _scanCommandDirectories(client) {
+    const commands = new Map();
+    const categories = new Map();
+    const subcategories = new Map();
+    const registry = client?.commandHandler?.commands;
 
-      if (!fs.existsSync(commandsPath)) {
-        logger.warn("HelpCommand", "Commands directory not found");
-        return { commands, categories, subcategories };
-      }
-
-      const categoryDirs = fs
-        .readdirSync(commandsPath, { withFileTypes: true })
-        .filter((dirent) => dirent.isDirectory())
-        .map((dirent) => dirent.name)
-        .filter((name) => name.toLowerCase() !== "developer");
-
-      for (const directoryName of categoryDirs) {
-        const categoryName = this._canonicalCategoryName(directoryName);
-        const categoryPath = path.join(commandsPath, directoryName);
-
-        await this._scanCategoryDirectory(
-          categoryPath,
-          categoryName,
-          commands,
-          categories,
-          subcategories,
-        );
-      }
-
+    if (!(registry instanceof Map)) {
+      logger.error("HelpCommand", "Command registry is unavailable; cannot build an accurate help menu.");
       return { commands, categories, subcategories };
-    } catch (error) {
-      logger.error("HelpCommand", "Error scanning command directories:", error);
-      return {
-        commands: new Map(),
-        categories: new Map(),
-        subcategories: new Map(),
-      };
     }
+
+    // Build Help from the same registry that actually executes prefix commands.
+    // This prevents unloaded files, duplicate names, and aliases from inflating
+    // the counts or advertising commands that the bot cannot dispatch.
+    const uniqueCommands = new Map();
+    for (const command of registry.values()) {
+      if (!command || typeof command.name !== "string" || !command.name.trim()) continue;
+      uniqueCommands.set(command.name.toLowerCase(), command);
+    }
+
+    for (const command of uniqueCommands.values()) {
+      const name = command.name.toLowerCase();
+      const helpCategory = ["channel", "categorydelete"].includes(name)
+        ? "Channel"
+        : this._canonicalCategoryName(command.category || "Utility");
+
+      const helpCommand = { ...command, category: helpCategory };
+      commands.set(name, helpCommand);
+
+      for (const alias of Array.isArray(command.aliases) ? command.aliases : []) {
+        if (typeof alias === "string" && alias.trim()) {
+          commands.set(alias.toLowerCase(), helpCommand);
+        }
+      }
+
+      if (!categories.has(helpCategory)) categories.set(helpCategory, []);
+      const list = categories.get(helpCategory);
+      if (!list.some(existing => existing.name === helpCommand.name)) {
+        list.push(helpCommand);
+      }
+    }
+
+    // Include handler aliases as a fallback for aliases not declared on the
+    // command instance, but only when their target is genuinely registered.
+    const aliases = client.commandHandler.aliases;
+    if (aliases instanceof Map) {
+      for (const [alias, targetName] of aliases) {
+        const target = uniqueCommands.get(String(targetName).toLowerCase());
+        if (target && alias) {
+          commands.set(String(alias).toLowerCase(), {
+            ...target,
+            category: ["channel", "categorydelete"].includes(String(target.name).toLowerCase())
+              ? "Channel"
+              : this._canonicalCategoryName(target.category || "Utility"),
+          });
+        }
+      }
+    }
+
+    return { commands, categories, subcategories };
   }
 
   async _scanCategoryDirectory(
@@ -242,7 +262,7 @@ class HelpCommand extends Command {
   async execute({ client, message, args }) {
     try {
       const { commands, categories, subcategories } =
-        await this._scanCommandDirectories();
+        await this._scanCommandDirectories(client);
 
       if (args.length > 0) {
         const commandName = args[0].toLowerCase();
@@ -310,7 +330,7 @@ class HelpCommand extends Command {
   async slashExecute({ client, interaction }) {
     try {
       const { commands, categories, subcategories } =
-        await this._scanCommandDirectories();
+        await this._scanCommandDirectories(client);
       const commandName = interaction.options.getString("command");
 
       if (commandName) {
@@ -394,7 +414,7 @@ class HelpCommand extends Command {
 
   async autocomplete({ interaction, client }) {
     try {
-      const { commands } = await this._scanCommandDirectories();
+      const { commands } = await this._scanCommandDirectories(client);
       const focusedValue = interaction.options.getFocused();
 
       const uniqueCommands = new Set();
