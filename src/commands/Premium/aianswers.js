@@ -16,7 +16,7 @@ class AIAnswersCommand extends Command {
   constructor() {
     super({
       name: "aianswers",
-      description: "Configure Premium AI answers in one server channel",
+      description: "Configure Premium Gemini AI answers in one server channel",
       usage: "aianswers <set #channel|off|status>",
       aliases: ["aianswer", "aichannel", "aihelpchannel"],
       category: "Premium",
@@ -44,14 +44,16 @@ class AIAnswersCommand extends Command {
     if (action === "status") {
       const channelId = aiAnswers.getChannel(message.guild.id);
       const configured = Boolean(channelId);
-      const keyConfigured = Boolean(process.env.OPENAI_API_KEY);
+      const keyConfigured = Boolean(process.env.GEMINI_API_KEY);
+      const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
       const description = [
         `**Channel:** ${configured ? `<#${channelId}>` : "Not configured"}`,
-        `**API key:** ${keyConfigured ? "Present in the bot environment" : "Missing from Render environment"}`,
-        "**API billing/credits:** Not verified by this status command; the provider checks this when a message is answered.",
+        `**Gemini API key:** ${keyConfigured ? "Present in the bot environment" : "Missing from Render environment"}`,
+        `**Model:** ${model}`,
+        "**API quota:** Not verified by this command; Google checks quota when a message is answered.",
         "",
         configured && keyConfigured
-          ? "Setup looks complete. If replies fail with a billing/credits error, the bot owner must check the OpenAI API account usage and billing."
+          ? "Setup looks complete. Send a normal message in the configured channel to test the connection."
           : "Use the setup steps below to finish configuration.",
       ].join("\n");
       return message.reply({
@@ -77,15 +79,15 @@ class AIAnswersCommand extends Command {
         embeds: [statusEmbed("Choose a text channel", "Example: `.aianswers set #ask-lightcore`", 0xED4245)],
       });
     }
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return message.reply({
-        embeds: [statusEmbed("API key missing", "Add OPENAI_API_KEY to the AeroX-AIO-V3 service's Render environment variables, then redeploy. The channel was not changed.", 0xED4245)],
+        embeds: [statusEmbed("Gemini API key missing", "Add GEMINI_API_KEY to the AeroX-AIO-V3 service's Render environment variables, then redeploy. The channel was not changed.", 0xED4245)],
       });
     }
 
     aiAnswers.setChannel(message.guild.id, channel.id);
     return message.reply({
-      embeds: [statusEmbed("AI Answers enabled", `Channel: ${channel}\n\nLightCore will answer normal messages in this channel using AI. The provider account must have available API credits/usage quota.`, 0x57F287)],
+      embeds: [statusEmbed("AI Answers enabled", `Channel: ${channel}\n\nLightCore will answer normal messages in this channel using Gemini. Google API usage limits still apply.`, 0x57F287)],
     });
   }
 }
