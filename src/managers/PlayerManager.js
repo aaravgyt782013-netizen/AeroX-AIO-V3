@@ -93,21 +93,33 @@ export class PlayerManager {
 
   async skip(amount) {
     const { player } = this;
-    const { current } = player.queue;
-    const duration = current?.info?.duration ?? 0;
+    if (!player.queue.current) return this;
 
-    if (player.repeatMode === "track" && duration > 0) {
-      await player.seek(duration);
-    } else if (
-      player.repeatMode === "queue" &&
-      player.queue.length === 0 &&
-      duration > 0
-    ) {
-      await player.seek(duration);
-    } else if (this.queueSize > 0) {
-      await player.skip(amount);
-    } else {
-      await this.stop();
+    // Prevent overlapping button/command interactions from skipping twice.
+    if (player.get("lightcoreSkipInProgress")) return this;
+    player.set("lightcoreSkipInProgress", true);
+
+    try {
+      const { current } = player.queue;
+      const duration = current?.info?.duration ?? 0;
+
+      if (player.repeatMode === "track" && duration > 0) {
+        await player.seek(duration);
+      } else if (
+        player.repeatMode === "queue" &&
+        player.queue.tracks.length === 0 &&
+        duration > 0
+      ) {
+        await player.seek(duration);
+      } else {
+        // Always advance the current track, even with an empty queue.
+        // This lets queueEnd/autoplay handle the empty-queue case instead of
+        // destroying the player and preventing autoplay from starting.
+        await player.skip(amount);
+      }
+    } finally {
+      // Release after the Lavalink transition has had a moment to settle.
+      setTimeout(() => player.set("lightcoreSkipInProgress", false), 1200);
     }
 
     return this;
