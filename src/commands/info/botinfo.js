@@ -19,7 +19,7 @@ class BotInfoCommand extends Command {
                         name: "botinfo",
                         description: "Shows detailed information about the bot.",
                         usage: "botinfo",
-                        aliases: ["bot", "info", "about", "stats"],
+                        aliases: ["bot", "info", "about"],
                         category: "Tracking",
                         examples: [".botinfo", ".bot"],
                         cooldown: 5,
@@ -97,7 +97,7 @@ class BotInfoCommand extends Command {
                         `├─ **Channels:** ${client.channels.cache.size}\n` +
                         `├─ **Commands:** ${client.commands?.size || 0}\n` +
                         `└─ **Memory Usage:** ${memoryUsage} MB\n\n` +
-                        `*High-quality music bot with advanced features*`;
+                        `*Moderation • Automod • Tickets • Logging • Leveling • Invites • Music • Utility • Fun and more*`;
 
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
