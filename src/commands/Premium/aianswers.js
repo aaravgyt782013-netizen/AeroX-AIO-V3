@@ -9,7 +9,7 @@ class AIAnswersCommand extends Command {
       name: "aianswers",
       description: "Configure Premium AI answers in one server channel",
       usage: "aianswers <set #channel|off|status>",
-      aliases: ["aichannel", "aihelpchannel"],
+      aliases: ["aianswer", "aichannel", "aihelpchannel"],
       category: "Premium",
       cooldown: 5,
     });
