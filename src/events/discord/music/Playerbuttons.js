@@ -260,11 +260,10 @@ export default {
           break;
       }
 
-      return interaction.update(v2Payload(nowPlayingEmbed(p)));
+      return interaction.editReply(v2Payload(nowPlayingEmbed(p)));
     } catch (error) {
       const payload = v2Payload(
-        settingsContainer(musicSettings({ interaction, client }), "Music action failed: " + (error?.message || "unknown error")),
-        { ephemeral: true }
+        settingsContainer(musicSettings({ interaction, client }), "Music action failed: " + (error?.message || "unknown error"))
       );
       return interaction.editReply(payload).catch(() => {});
     }
