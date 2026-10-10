@@ -202,6 +202,15 @@ export default {
       return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), error), { ephemeral: true }));
     }
 
+    // Acknowledge the component before any Lavalink/network operation. Discord
+    // requires component interactions to be acknowledged within ~3 seconds.
+    try {
+      await interaction.deferUpdate();
+    } catch (ackError) {
+      client?.logger?.warn?.("MusicButtons", "Could not acknowledge music control interaction", ackError);
+      return;
+    }
+
     try {
       if (id === "lc_music_autoplay") {
         const current = musicSettings({ interaction, client });
@@ -210,12 +219,12 @@ export default {
         p.setData("autoplayEnabled", enabled);
         p.setData("stayAlive", enabled || current.mode247);
         client.music?.refreshVoiceStayAlive?.(interaction.guild.id, true);
-        return interaction.update(v2Payload(nowPlayingEmbed(p)));
+        return interaction.editReply(v2Payload(nowPlayingEmbed(p)));
       }
 
       switch (id) {
         case "lc_music_previous":
-          if (!await p.playPrevious()) return interaction.reply(v2Payload(nowPlayingEmbed(p), { ephemeral: true }));
+          if (!await p.playPrevious()) return interaction.editReply(v2Payload(nowPlayingEmbed(p)));
           break;
         case "lc_music_pause":
           if (p.isPaused) await p.resume(); else await p.pause();
@@ -236,7 +245,7 @@ export default {
           p.setData("stayAlive", false);
           p.setData("stay247", false);
           await p.stop();
-          return interaction.update(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Playback stopped. Autoplay and 24/7 are now off.")));
+          return interaction.editReply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Playback stopped. Autoplay and 24/7 are now off.")));
         case "lc_music_shuffle":
           await p.shuffleQueue();
           break;
@@ -257,8 +266,7 @@ export default {
         settingsContainer(musicSettings({ interaction, client }), "Music action failed: " + (error?.message || "unknown error")),
         { ephemeral: true }
       );
-      if (interaction.replied || interaction.deferred) return interaction.followUp(payload).catch(() => {});
-      return interaction.reply(payload).catch(() => {});
+      return interaction.editReply(payload).catch(() => {});
     }
   }
 };
