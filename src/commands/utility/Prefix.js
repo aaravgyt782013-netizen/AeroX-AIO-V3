@@ -73,6 +73,10 @@ class PrefixCommand extends Command {
   }
 
   async _setPrefix(ctx, newPrefix, isPremium) {
+    if (!isPremium) {
+      return this._sendError(ctx, "Guild Premium Required", "Changing the server prefix is a **Guild Premium** feature. You can still view the current prefix here. Activate Guild Premium to set a custom server prefix.");
+    }
+
     if (newPrefix.length > 5) {
       return this._sendError(ctx, "Error", "Prefix is too long. Maximum 5 characters allowed.");
     }
