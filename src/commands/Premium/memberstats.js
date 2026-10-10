@@ -17,7 +17,7 @@ class MemberStatsCommand extends Command {
       name: "memberstats",
       description: "View server activity analytics (Premium)",
       usage: "memberstats [@member]",
-      aliases: ["mstats", "serverstats"],
+      aliases: ["mstats"],
       category: "Premium",
       cooldown: 5,
       enabledSlash: true,
