@@ -12,7 +12,10 @@ export default class DiscordHandler {
 			// contains duplicate messageCreate modules; registering all of them
 			// causes the last handler to overwrite this map entry while every
 			// listener remains attached. Keep the first registration only.
-			if (this.registeredEvents.has(event.name)) {
+			// Multiple modules may legitimately listen to interactionCreate
+			// (music controls, tickets, temporary voice, etc.). Skipping a second
+			// listener silently breaks whichever feature was loaded later.
+			if (this.registeredEvents.has(event.name) && event.name !== 'interactionCreate') {
 				logger.warn(
 					'DiscordEvent',
 					`Skipped duplicate Discord event registration: ${event.name}`,
@@ -39,7 +42,11 @@ export default class DiscordHandler {
 				this.client.on(event.name, listener);
 			}
 
-			this.registeredEvents.set(event.name, listener);
+			// Keep the first listener in the map for unregister bookkeeping;
+			// additional interactionCreate listeners stay attached to the client.
+			if (!this.registeredEvents.has(event.name)) {
+				this.registeredEvents.set(event.name, listener);
+			}
 			return true;
 		} catch (error) {
 			logger.error(
