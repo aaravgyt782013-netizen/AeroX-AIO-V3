@@ -145,10 +145,12 @@ export default {
             ],
             generationConfig: {
               maxOutputTokens: 800,
-              temperature: 0.4,
+              thinkingConfig: {
+                thinkingLevel: "low",
+              },
             },
           }),
-          signal: AbortSignal.timeout(25000),
+          signal: AbortSignal.timeout(60000),
         },
       );
 
