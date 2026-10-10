@@ -2,7 +2,7 @@ import { db } from "#database/DatabaseManager";
 import { aiAnswers } from "#managers/AIAnswersManager";
 import { logger } from "#utils/logger";
 
-const QUESTION_START = /^(who|what|when|where|why|how|which|can|could|would|should|is|are|am|do|does|did|will|may|might|explain|tell me|help me)\\b/i;
+const QUESTION_START = /^(who|what|when|where|why|how|which|can|could|would|should|is|are|am|do|does|did|will|may|might|explain|tell me|help me)\b/i;
 
 function looksLikeQuestion(content) {
   const text = content.trim();
