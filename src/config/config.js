@@ -1,30 +1,65 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// Use a Lavalink node configured in the deployment environment when provided.
-// Keep the current public node only as a compatibility fallback; it is not a
-// reliability guarantee and should be replaced with a maintained node.
-const nodeHost = process.env.LAVALINK_HOST?.trim();
-const nodePassword = process.env.LAVALINK_SERVER_PASSWORD || process.env.LAVALINK_PASSWORD;
-const configuredNode = nodeHost && nodePassword ? [{
-  id: process.env.LAVALINK_NODE_ID || "lightcore-lavalink",
-  host: nodeHost,
-  port: Number(process.env.LAVALINK_PORT || 443),
-  password: nodePassword,
-  secure: (process.env.LAVALINK_SECURE || "true").toLowerCase() === "true",
-  retryAmount: Infinity,
-  retryDelay: 5000
-}] : null;
+// Prefer a user-configured pool of maintained Lavalink v4 nodes.
+// LAVALINK_NODES_JSON should be a JSON array of {id,host,port,password,secure}
+// objects. This avoids shipping stale public endpoints or passwords in source.
+const parseNodePool = () => {
+  const raw = process.env.LAVALINK_NODES_JSON;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const nodes = parsed.filter(n =>
+          n && typeof n.id === "string" && typeof n.host === "string" &&
+          typeof n.password === "string" && n.host.trim() && n.password
+        ).map(n => ({
+          id: n.id.trim(),
+          host: n.host.trim(),
+          port: Number(n.port || 443),
+          password: n.password,
+          secure: n.secure === undefined ? true : Boolean(n.secure),
+          retryAmount: Infinity,
+          retryDelay: 5000,
+          resumeTimeout: 300000
+        })).filter(n => Number.isInteger(n.port) && n.port > 0 && n.port <= 65535);
+        if (nodes.length) return nodes;
+      }
+    } catch (error) {
+      console.error("[MusicEngine] LAVALINK_NODES_JSON is invalid JSON; checking single-node variables.");
+    }
+  }
 
-const PUBLIC_LAVALINK_NODES = configuredNode || [{
-  id: "lightcore-lavalink",
-  host: "lightcore-lavalink-v4.onrender.com",
-  port: 443,
-  password: "LightCore-Music-Node-2026",
-  secure: true,
-  retryAmount: Infinity,
-  retryDelay: 5000
-}];
+  const host = process.env.LAVALINK_HOST?.trim();
+  const password = process.env.LAVALINK_SERVER_PASSWORD || process.env.LAVALINK_PASSWORD;
+  if (host && password) {
+    return [{
+      id: process.env.LAVALINK_NODE_ID || "configured-lavalink",
+      host,
+      port: Number(process.env.LAVALINK_PORT || 443),
+      password,
+      secure: (process.env.LAVALINK_SECURE || "true").toLowerCase() === "true",
+      retryAmount: Infinity,
+      retryDelay: 5000,
+      resumeTimeout: 300000
+    }];
+  }
+
+  // Compatibility fallback only. Public nodes can disappear or change
+  // credentials; configure LAVALINK_NODES_JSON for a maintained node pool.
+  return [{
+    id: "lightcore-lavalink",
+    host: "lightcore-lavalink-v4.onrender.com",
+    port: 443,
+    password: "LightCore-Music-Node-2026",
+    secure: true,
+    retryAmount: Infinity,
+    retryDelay: 5000,
+    resumeTimeout: 300000
+  }];
+};
+
+const PUBLIC_LAVALINK_NODES = parseNodePool();
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
