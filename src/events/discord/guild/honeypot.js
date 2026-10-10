@@ -13,7 +13,7 @@ export default {
     let member = null;
     try {
       // Delete the trap message first, whether it came from a human, bot, or webhook.
-      if (message.deletable) await message.delete();
+      if (message.deletable) await message.delete().catch(error => logger.warn("Honeypot", "Could not delete trigger message; check Manage Messages permission.", error));
       member = await message.guild.members.fetch(message.author.id).catch(() => null);
 
       // Apply the configured punishment to every guild member who triggers the trap.
