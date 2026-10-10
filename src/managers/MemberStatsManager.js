@@ -119,7 +119,20 @@ class MemberStatsManager extends Database {
       last_message_at: row?.last_message_at || null
     };
   }
-  getDailyActivity(guildId, userId, days = 7) {\n    const result = [];\n    for (let i = days - 1; i >= 0; i--) {\n      const day = dayKey(Date.now() - i * 86400000);\n      const row = this.get("SELECT messages FROM member_daily_activity WHERE guild_id = ? AND user_id = ? AND day = ?", [guildId, userId, day]);\n      result.push({ day, label: new Date(day + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }), messages: Number(row?.messages || 0) });\n    }\n    return result;\n  }\n  getTopChannels(guildId, userId, limit = 3) {
+  getDailyActivity(guildId, userId, days = 7) {
+    const result = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const day = dayKey(Date.now() - i * 86400000);
+      const row = this.get("SELECT messages FROM member_daily_activity WHERE guild_id = ? AND user_id = ? AND day = ?", [guildId, userId, day]);
+      result.push({
+        day,
+        label: new Date(day + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
+        messages: Number(row?.messages || 0)
+      });
+    }
+    return result;
+  }
+  getTopChannels(guildId, userId, limit = 3) {
     const start = dayKey(Date.now() - 29 * 86400000);
     return this.all(`SELECT channel_id, SUM(messages) AS messages FROM member_channel_daily
       WHERE guild_id = ? AND user_id = ? AND day >= ?
