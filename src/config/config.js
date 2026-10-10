@@ -8,7 +8,7 @@ const PUBLIC_LAVALINK_NODES = [
     id: "lightcore-lavalink",
     host: "lightcore-lavalink-v4.onrender.com",
     port: 443,
-    authorization: "LightCore-Music-Node-2026",
+    password: "LightCore-Music-Node-2026",
     secure: true,
     retryAmount: Infinity,
     retryDelay: 5000
