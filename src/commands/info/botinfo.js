@@ -88,7 +88,7 @@ class BotInfoCommand extends Command {
                 const content = `**General Information**\n\n` +
                         `**${emoji.get('check')} Bot Name:** AeroX\n` +
                         `**${emoji.get('folder')} Version:** 2.0.0\n` +
-                        `**${emoji.get('add')} Type:** Music & Utility Bot\n` +
+                        `**${emoji.get('add')} Type:** All-in-One Discord Bot\n` +
                         `**${emoji.get('reset')} Library:** Discord.js\n\n` +
                         `**Statistics**\n` +
                         `├─ **Uptime:** ${uptime}\n` +
@@ -136,7 +136,7 @@ class BotInfoCommand extends Command {
                 const content = `**Meet our development team!**\n\n` +
                         `**${emoji.get('check')} Lead Developer:** Shinchan\n` +
                         `**${emoji.get('folder')} Bot Name:** AeroX\n` +
-                        `**${emoji.get('add')} Specialization:** Music & Utility Bot\n` +
+                        `**${emoji.get('add')} Specialization:** All-in-One Discord Bot\n` +
                         `**${emoji.get('reset')} Status:** Active Development\n\n` +
                         `*We're constantly working to improve your experience!*`;
 
