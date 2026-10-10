@@ -33,8 +33,15 @@ export class MusicEngine {
     this.lastUnavailable = 0;
 
     this.lavalink = new LavalinkManager({
-      nodes: (config.nodes || []).map(node => ({
+      nodes: (Array.isArray(config.nodes) && config.nodes.length ? config.nodes : [{
+        id: "lightcore-lavalink",
+        host: process.env.LAVALINK_HOST || "lightcore-lavalink-v4.onrender.com",
+        port: Number(process.env.LAVALINK_PORT || 443),
+        password: process.env.LAVALINK_SERVER_PASSWORD || "LightCore-Music-Node-2026",
+        secure: (process.env.LAVALINK_SECURE || "true") === "true"
+      }]).map(node => ({
         ...node,
+        authorization: node.authorization || node.password,
         retryAmount: 4,
         retryDelay: 15000,
         resumeTimeout: 300000,
