@@ -152,16 +152,10 @@ export class MusicEngine {
       this.history.set(player.guildId, list.slice(0, 50));
       player.set("lastPlayedTrack", track);
 
-      try {
-        if (typeof player.setFilters === "function") {
-          await player.setFilters({ timescale: { speed: 1.0, pitch: 1.0, rate: 1.0 } });
-        } else if (player.filterManager?.resetFilters) {
-          await player.filterManager.resetFilters();
-        }
-        player.set("lightcorePlaybackSpeed", 1);
-      } catch (filterError) {
-        logger.warn("MusicEngine", "Could not normalize playback speed [" + player.guildId + "]: " + (filterError?.message || filterError));
-      }
+      // Do not rewrite filters on every track start. Reapplying filters during
+      // track transitions can race the playback update and cause audible gaps.
+      player.set("lightcorePlaybackSpeed", 1);
+
 
       try {
         const textChannel = player.textChannelId ? await this.client.channels.fetch(player.textChannelId).catch(() => null) : null;
@@ -416,8 +410,10 @@ export class MusicEngine {
       if (autoplay) {
         const next = await this._pickAutoplayTrack(player, endedTrack);
         if (next) {
+          // lavalink-client resumes playback after the queueEnd listener returns.
+          // Calling player.play() here races the manager's own queue advancement and can
+          // start/skip two tracks when autoplay is enabled.
           await player.queue.add(next);
-          if (!player.playing && !player.queue.current) await player.play({ noReplace: true });
           player.set("stayAlive", true);
           logger.info("MusicEngine", "Autoplay selected a new track [" + player.guildId + "]: " + (next.info?.title || "Unknown"));
           return;
