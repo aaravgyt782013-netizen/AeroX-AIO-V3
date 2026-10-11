@@ -121,7 +121,7 @@ export function musicSettings(x) {
       mode247: Boolean(s.mode247)
     };
   } catch {
-    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false };
+    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false, requestChannel: null };
   }
 }
 
@@ -358,8 +358,11 @@ export function settingsRows(settings) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("lc_music_setting_247").setLabel("24/7: " + on(settings.mode247)).setEmoji("♾️").setStyle(settings.mode247 ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel("Source: " + (settings.source === "ytmsearch" ? "YouTube Music" : settings.source)).setEmoji(emojiObject("music", "🎵")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel("Playback Source").setEmoji(emojiObject("music", "🎵")).setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("DJ Role").setEmoji(emojiObject("owner", "👑")).setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("lc_music_setting_channel").setLabel("Music Panel Channel").setEmoji("📨").setStyle(ButtonStyle.Primary)
     )
   ];
 }
@@ -371,7 +374,7 @@ export function settingsContainer(settings, notice = "") {
     description: notice ? E("check", "✅") + " **" + notice + "**" : "Rythm-style playback controls, access and search settings.",
     sections: [
       E("music", "🎵") + " **PLAYBACK**\n" + E("reload", "🔄") + " Autoplay: **" + (s.autoplay ? "ON" : "OFF") + "**  •  📢 Announcements: **" + (s.announceSongs ? "ON" : "OFF") + "**  •  🗳️ Vote Skip: **" + (s.voteSkip ? "ON" : "OFF") + "**",
-      "♾️ **STAY CONNECTED**\n24/7: **" + (s.mode247 ? "ON" : "OFF") + "**  •  🔎 Source: **" + (s.source === "ytmsearch" ? "YouTube Music" : s.source) + "**\n" + E("owner", "👑") + " DJ role: " + (s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control")
+      "♾️ **STAY CONNECTED**\n24/7: **" + (s.mode247 ? "ON" : "OFF") + "**  •  🔎 Source: **" + (s.source === "ytmsearch" ? "YouTube Music" : s.source) + "**\n" + E("owner", "👑") + " DJ role: " + (s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control") + "\n📨 Music panel channel: " + (s.requestChannel ? "<#" + s.requestChannel + ">" : "Command channel (default)")
     ],
     components: settingsRows(s)
   });
