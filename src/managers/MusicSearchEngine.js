@@ -64,7 +64,9 @@ export class MusicSearchEngine {
       throw new Error("Unsupported playback source. Choose YouTube Music, YouTube, or SoundCloud.");
     }
 
-    const providers = directUrl ? [preferred] : [...new Set([preferred, ...SEARCH_ORDER])];
+    // MusicEngine.search already tries the configured provider fallbacks for text queries.
+    // Calling it once avoids repeating the same three-provider cascade in this resolver.
+    const providers = [preferred];
     const failures = [];
     for (const provider of providers) {
       try {
@@ -75,19 +77,24 @@ export class MusicSearchEngine {
 
         if ((!result || !result.tracks.length) && typeof this.manager.waitForNode === "function") {
           const nodes = await this.manager.waitForNode(2500);
-          for (const node of nodes || []) {
-            try {
-              const identifier = directUrl ? q : provider + ":" + q;
-              const direct = await withTimeout(
-                node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
-                SEARCH_TIMEOUT_MS,
-                provider + " REST"
-              );
-              const normalized = normalizeResult(direct);
-              if (normalized?.tracks?.length) { result = normalized; break; }
-            } catch (error) {
-              failures.push(provider + " REST: " + String(error?.message || "failed").slice(0, 100));
+          const restProviders = directUrl ? [preferred] : SEARCH_ORDER;
+          for (const restProvider of restProviders) {
+            let found = false;
+            for (const node of nodes || []) {
+              try {
+                const identifier = directUrl ? q : restProvider + ":" + q;
+                const direct = await withTimeout(
+                  node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
+                  SEARCH_TIMEOUT_MS,
+                  restProvider + " REST"
+                );
+                const normalized = normalizeResult(direct);
+                if (normalized?.tracks?.length) { result = normalized; found = true; break; }
+              } catch (error) {
+                failures.push(restProvider + " REST: " + String(error?.message || "failed").slice(0, 100));
+              }
             }
+            if (found) break;
           }
         }
         if (result?.tracks?.length) return { ...result, tracks: result.tracks, searchSource: provider };
