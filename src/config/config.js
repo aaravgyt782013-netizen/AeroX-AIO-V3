@@ -29,7 +29,7 @@ export const config = {
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/aerox" },
   status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: "CUSTOM" },
   colors: { info: "#3498db", success: "#2ecc71", warning: "#f39c12", error: "#e74c3c" },
-  features: { stay247: true },
+  features: { stay247: true, autoReactPremiumOnly: process.env.AUTOREACT_PREMIUM_ONLY !== "false" },
   queue: { maxSongs: { free: 50, premium: 200 } },
   assets: { defaultTrackArtwork: process.env.DEFAULT_TRACK_ARTWORK || null, defaultThumbnail: process.env.DEFAULT_THUMBNAIL || null, helpThumbnail: process.env.HELP_THUMBNAIL || null, bannerUrl: process.env.BANNER_URL || null },
   getThumbnailUrl: url => url || null,
