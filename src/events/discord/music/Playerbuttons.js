@@ -101,7 +101,7 @@ export default {
           const modal = new ModalBuilder().setCustomId("lc_music_setting_channel_modal").setTitle("Set Music Panel Channel");
           const input = new TextInputBuilder()
             .setCustomId("channel_id")
-            .setLabel("Text channel ID or #channel (blank resets)")
+            .setLabel("Text channel or voice-chat channel ID (blank resets)")
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
             .setPlaceholder("123456789012345678");
@@ -114,7 +114,7 @@ export default {
           const channelId = raw.match(/\d{15,25}/)?.[0] || null;
           const channel = channelId ? interaction.guild.channels.cache.get(channelId) : null;
           if (channelId && (!channel || !channel.isTextBased?.())) {
-            return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a text channel that LightCore can send messages in."), { ephemeral: true }));
+            return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a channel with chat where LightCore can send messages."), { ephemeral: true }));
           }
           db.guild.setMusicSettings(interaction.guild.id, { requestChannel: channelId });
           return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Music panel channel updated"), { ephemeral: true }));
@@ -153,9 +153,17 @@ export default {
         if (key) {
           const current = musicSettings({ interaction, client });
           const enabled = !current[key];
-          db.guild.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
           let player = client.music?.getPlayer?.(interaction.guild.id);
+
+          if (key === "mode247" && enabled) {
+            const configuredVoice = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
+            if (!configuredVoice) {
+              return updateSettings(interaction, client, "Join a voice channel or start music first, then enable 24/7.");
+            }
+          }
+
+          db.guild.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
           if (key === "autoplay") {
             if (enabled && !player && interaction.member?.voice?.channelId) {
@@ -181,9 +189,6 @@ export default {
           if (key === "mode247") {
             const voiceId = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
             const textId = db.guild.getMusicSettings(interaction.guild.id).requestChannel || player?.textChannelId || interaction.channelId || null;
-            if (enabled && !voiceId) {
-              return updateSettings(interaction, client, "Join a voice channel or start music first, then enable 24/7.");
-            }
             if (enabled) db.guild.set247Mode(interaction.guild.id, true, voiceId, textId);
             else db.guild.set247Mode(interaction.guild.id, false);
             if (player) {
