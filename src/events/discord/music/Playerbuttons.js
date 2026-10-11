@@ -117,7 +117,10 @@ export default {
             return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a valid voice channel."), { ephemeral: true }));
           }
           await interaction.deferReply({ ephemeral: true });
-          db.guild.setMusicSettings(interaction.guild.id, { musicVoiceChannel: channelId });
+          const before = db.guild.getMusicSettings(interaction.guild.id);
+          const updates = { musicVoiceChannel: channelId };
+          if (channelId && !before.requestChannel) updates.requestChannel = channelId;
+          db.guild.setMusicSettings(interaction.guild.id, updates);
           const saved = db.guild.getMusicSettings(interaction.guild.id);
           let player = client.music?.getPlayer?.(interaction.guild.id);
           if (channelId && !player && (saved.autoplay || saved.mode247)) {
