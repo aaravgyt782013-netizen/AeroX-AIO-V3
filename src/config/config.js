@@ -38,6 +38,14 @@ function parseLavalinkNodes() {
       password,
       authorization: password,
       secure: String(process.env.LAVALINK_SECURE || "false").toLowerCase() === "true"
+    }, {
+      ...nodeDefaults,
+      id: "heavencloud-lavalink-fallback",
+      host: "free-lava.heavencloud.in",
+      port: 4000,
+      password: "heavencloud.in",
+      authorization: "heavencloud.in",
+      secure: false
     }];
   }
   return [{
