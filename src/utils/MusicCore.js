@@ -224,10 +224,10 @@ export async function enqueue(x, result, position) {
 
     try {
       // lavalink-client's supported queue flow is: queue.add() -> player.play().
-      await withTimeout(p.play(), 12000, "Playback start timed out.");
+      await withTimeout(p.play(), 6500, "Playback start timed out.");
 
       // A successful REST update is not the same thing as audio actually starting.
-      if (!(await waitForPlayback(10000))) {
+      if (!(await waitForPlayback(3500))) {
         throw new Error("Lavalink accepted the track but audio did not start.");
       }
     } catch (primaryError) {
@@ -254,9 +254,9 @@ export async function enqueue(x, result, position) {
         await p.stopPlaying(false, false).catch(() => {});
         await p.addTracks(fallbackTrack, 0);
 
-        await withTimeout(p.play(), 12000, "SoundCloud fallback playback timed out.");
+        await withTimeout(p.play(), 6500, "SoundCloud fallback playback timed out.");
 
-        if (!(await waitForPlayback(10000))) {
+        if (!(await waitForPlayback(3500))) {
           throw new Error("SoundCloud fallback loaded but audio did not start.");
         }
       } catch {
