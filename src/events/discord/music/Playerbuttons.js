@@ -199,29 +199,28 @@ export default {
         if (key) {
           const current = musicSettings({ interaction, client });
           const enabled = !current[key];
-
           let player = client.music?.getPlayer?.(interaction.guild.id);
+          const voiceId = current.musicVoiceChannel || player?.voiceChannelId || interaction.member?.voice?.channelId || null;
 
-          if (key === "mode247" && enabled) {
-            const configuredVoice = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
-            if (!configuredVoice) {
-              return updateSettings(interaction, client, "Join a voice channel or start music first, then enable 24/7.");
+          if (enabled && !player && (key === "autoplay" || key === "mode247") && !voiceId) {
+            return updateSettings(interaction, client, "Join a voice channel or configure the Music Voice Channel first.");
+          }
+
+          if (enabled && !player && voiceId && (key === "autoplay" || key === "mode247")) {
+            if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
+            player = await client.music?.createPlayer?.({
+              guildId: interaction.guild.id,
+              voiceChannelId: voiceId,
+              textChannelId: current.requestChannel || interaction.channelId
+            });
+            if (!player) {
+              return updateSettings(interaction, client, "I couldn't connect to the configured voice channel. Check Lavalink and my voice permissions.");
             }
           }
 
           db.guild.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
           if (key === "autoplay") {
-            if (enabled && !player && interaction.member?.voice?.channelId && !interaction.deferred && !interaction.replied) {
-              await interaction.deferUpdate();
-            }
-            if (enabled && !player && interaction.member?.voice?.channelId) {
-              player = await client.music?.createPlayer?.({
-                guildId: interaction.guild.id,
-                voiceChannelId: interaction.member.voice.channelId,
-                textChannelId: current.requestChannel || interaction.channelId
-              });
-            }
             if (enabled && player) {
               db.guild.setAutoplayVoiceSession(interaction.guild.id, true, player.voiceChannelId, current.requestChannel || player.textChannelId || interaction.channelId);
             } else if (!enabled) {
@@ -236,9 +235,9 @@ export default {
           }
 
           if (key === "mode247") {
-            const voiceId = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
-            const textId = db.guild.getMusicSettings(interaction.guild.id).requestChannel || player?.textChannelId || interaction.channelId || null;
-            if (enabled) db.guild.set247Mode(interaction.guild.id, true, voiceId, textId);
+            const savedVoiceId = current.musicVoiceChannel || player?.voiceChannelId || interaction.member?.voice?.channelId || null;
+            const textId = current.requestChannel || player?.textChannelId || interaction.channelId || null;
+            if (enabled) db.guild.set247Mode(interaction.guild.id, true, savedVoiceId, textId);
             else db.guild.set247Mode(interaction.guild.id, false);
             if (player) {
               player.set("stay247", enabled);
