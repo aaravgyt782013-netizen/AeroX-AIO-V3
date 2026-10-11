@@ -49,6 +49,8 @@ export class DatabaseManager {
   // ─── Guild ───────────────────────────────────────────────────────────────────
   getPrefixes(guildId) { return this.guild.getPrefixes(guildId); }
   setPrefixes(guildId, prefixes) { return this.guild.setPrefixes(guildId, prefixes); }
+  getAutoReactions(guildId) { return this.guild.getAutoReactions(guildId); }
+  setAutoReactions(guildId, settings) { return this.guild.setAutoReactions(guildId, settings); }
   isGuildBlacklisted(guildId) { return this.guild.isBlacklisted(guildId); }
   blacklistGuild(guildId, reason = "No reason provided") { return this.guild.blacklistGuild(guildId, reason); }
   unblacklistGuild(guildId) { return this.guild.unblacklistGuild(guildId); }
