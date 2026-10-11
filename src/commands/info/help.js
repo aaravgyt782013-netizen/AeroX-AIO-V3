@@ -572,7 +572,9 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
-      let content = `**${this._capitalize(category)} Category**\n\n`;
+      let content = category.toLowerCase() === "music"
+        ? "**Music Category** · Prefix-only commands\nUse the `.` prefix; music commands are not slash commands.\n\n"
+        : `**${this._capitalize(category)} Category**\n\n`;
 
       const directCommands = commands.filter((cmd) => {
         if (!subcats) return true;
@@ -590,7 +592,11 @@ class HelpCommand extends Command {
         directCommands.forEach((cmd, index) => {
           const isLast = index === directCommands.length - 1 && !hasSubcats;
           const prefix = isLast ? "└── " : "├── ";
-          content += `${prefix}${emoji.get("info")} \`${cmd.name}\`\n`;
+          const label = category.toLowerCase() === "music" ? `.${cmd.name}` : cmd.name;
+          const description = category.toLowerCase() === "music" && cmd.description
+            ? ` — ${cmd.description}`
+            : "";
+          content += `${prefix}${emoji.get("info")} \`${label}\`${description}\n`;
         });
       }
 
@@ -613,7 +619,7 @@ class HelpCommand extends Command {
       const safePage = Math.min(Math.max(Number(page) || 0, 0), totalPages - 1);
       const pageCommands = directCommands.slice(safePage * pageSize, (safePage + 1) * pageSize);
       const selectOptions = pageCommands.map((cmd) => ({
-        label: cmd.name,
+        label: category.toLowerCase() === "music" ? `.${cmd.name}`.slice(0, 100) : cmd.name,
         emoji: this._getEmojiObject("info"),
         value: `cmd_${cmd.name}`,
         description: cmd.description ? cmd.description.slice(0, 100) : "No description",
@@ -704,12 +710,18 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
-      let content = `**${this._capitalize(category)} > ${this._capitalize(subcatName)}**\n\n`;
+      let content = category.toLowerCase() === "music"
+        ? `**Music > ${this._capitalize(subcatName)}** · Prefix-only (`.`)\n\n`
+        : `**${this._capitalize(category)} > ${this._capitalize(subcatName)}**\n\n`;
 
       subcatCommands.forEach((cmd, index) => {
         const isLast = index === subcatCommands.length - 1;
         const prefix = isLast ? "└── " : "├── ";
-        content += `${prefix}${emoji.get("info")} \`${cmd.name}\`\n`;
+        const label = category.toLowerCase() === "music" ? `.${cmd.name}` : cmd.name;
+        const description = category.toLowerCase() === "music" && cmd.description
+          ? ` — ${cmd.description}`
+          : "";
+        content += `${prefix}${emoji.get("info")} \`${label}\`${description}\n`;
       });
 
       container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
@@ -724,7 +736,7 @@ class HelpCommand extends Command {
           .setPlaceholder(`Select a command for detailed info`)
           .addOptions(
             subcatCommands.slice(0, 25).map((cmd) => ({
-              label: cmd.name,
+              label: category.toLowerCase() === "music" ? `.${cmd.name}`.slice(0, 100) : cmd.name,
               emoji: this._getEmojiObject("info"),
               value: cmd.name,
               description: cmd.description ? cmd.description.slice(0, 100) : "No description",
@@ -779,7 +791,30 @@ class HelpCommand extends Command {
       let content = `**Command Information**\n\n`;
       content += `┌─ **${emoji.get("info")} Basic Info**\n`;
       content += `├─ Description: ${command.description || "No description provided"}\n`;
-      content += `├─ Usage: \`${command.usage || command.name}\`\n`;
+      const isMusicCommand = String(command.category || category || "").toLowerCase() === "music";
+      const musicUsage = {
+        play: ".play <song name or supported audio URL>",
+        search: ".search <song name>",
+        settings: ".settings [setting] [value]",
+        setting: ".settings [setting] [value]",
+        musicsettings: ".settings [setting] [value]",
+        queue: ".queue [page]",
+        volume: ".volume <0-100>",
+        seek: ".seek <time>",
+        skipto: ".skipto <queue position>",
+        remove: ".remove <queue position>",
+        move: ".move <from position> <to position>",
+        spotify: ".spotify <track, artist, playlist, or Spotify URL>",
+        "247": ".247 [on|off]",
+        control: ".control",
+        nowplaying: ".nowplaying",
+        autoplay: ".autoplay",
+      };
+      const rawUsage = command.usage || command.name;
+      const usage = isMusicCommand
+        ? (musicUsage[String(command.name).toLowerCase()] || (String(rawUsage).startsWith(".") ? rawUsage : `.${rawUsage}`))
+        : rawUsage;
+      content += `├─ Usage: \`${usage}\`\n`;
       content += `├─ Category: ${this._capitalize(command.category || "misc")}\n`;
       content += `└─ Cooldown: ${command.cooldown || 3}s\n\n`;
 
