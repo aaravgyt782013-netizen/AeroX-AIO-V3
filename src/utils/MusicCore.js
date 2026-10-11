@@ -134,16 +134,29 @@ export async function ensurePlayer(x) {
   const voice = voiceChannel(x);
   if (!voice) throw new Error("Join a voice channel first.");
 
-  let p = getPlayer(x);
-  if (p?.voiceChannelId && p.voiceChannelId !== voice.id) throw new Error("You must be in the same voice channel as LightCore.");
+  if (!c.client.music) throw new Error("The music engine is still starting. Try again in a few seconds.");
+  const rawExisting = c.client.music.getPlayer(c.guild.id);
+  if (rawExisting?.voiceChannelId && rawExisting.voiceChannelId !== voice.id) {
+    throw new Error("LightCore is already playing in another voice channel. Use .leave first or join its channel.");
+  }
 
+  let p = rawExisting ? new PlayerManager(rawExisting) : null;
   if (!p) {
-    const raw = await c.client.music.createPlayer({ guildId: c.guild.id, textChannelId: c.channel.id, voiceChannelId: voice.id });
-    if (!raw) throw new Error("Music is temporarily unavailable: all Lavalink nodes are offline or unreachable.");
+    const raw = await c.client.music.createPlayer({
+      guildId: c.guild.id,
+      textChannelId: c.channel.id,
+      voiceChannelId: voice.id
+    });
+    if (!raw) throw new Error("Music is temporarily unavailable: no configured Lavalink node is connected. Check the Lavalink connection logs.");
     p = new PlayerManager(raw);
   }
 
-  if (!p.isConnected) await p.connect();
+  if (!p.isConnected) {
+    try { await p.connect(); }
+    catch (error) {
+      throw new Error("I couldn't join your voice channel. Check my Connect and Speak permissions. " + String(error?.message || "").slice(0, 160));
+    }
+  }
   return p;
 }
 
@@ -168,8 +181,14 @@ export async function resolveTrack(x, query, source) {
 }
 
 export async function enqueue(x, result, position) {
+  if (!result?.tracks?.length) throw new Error("No playable tracks were returned by Lavalink.");
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
+  const maxSongs = Number(config.queue?.maxSongs?.free || 50);
+  const requestedCount = result.loadType === "playlist" ? result.tracks.length : 1;
+  if (p.queueSize + requestedCount > maxSongs) {
+    throw new Error("This server's queue limit is " + maxSongs + " tracks. Clear or shorten the queue before adding more.");
+  }
 
   if (result.loadType === "playlist") {
     await p.addTracks(result.tracks, position);
