@@ -4,17 +4,32 @@ dotenv.config();
 // Prefer a user-configured pool of maintained Lavalink v4 nodes.
 // LAVALINK_NODES_JSON should be a JSON array of {id,host,port,password,secure}
 // objects. This avoids shipping stale public endpoints or passwords in source.
-const PUBLIC_LAVALINK_NODES = [{
-  id: "heavencloud-lavalink",
-  host: "free-lava.heavencloud.in",
-  port: 4000,
-  password: "heavencloud.in",
-  authorization: "heavencloud.in",
-  secure: false,
-  retryAmount: Infinity,
-  retryDelay: 3000,
-  resumeTimeout: 300000
-}];
+// Prefer an explicitly configured self-hosted node (for example, an Oracle Cloud
+// VM). Keep the previously configured public node as a fallback for existing setups.
+// Credentials are read from the environment for self-hosted nodes and never logged.
+const PUBLIC_LAVALINK_NODES = process.env.LAVALINK_HOST
+  ? [{
+      id: "aerox-self-hosted-lavalink",
+      host: process.env.LAVALINK_HOST,
+      port: Number(process.env.LAVALINK_PORT || 2333),
+      password: process.env.LAVALINK_PASSWORD || process.env.LAVALINK_SERVER_PASSWORD || "",
+      authorization: process.env.LAVALINK_PASSWORD || process.env.LAVALINK_SERVER_PASSWORD || "",
+      secure: (process.env.LAVALINK_SECURE || "false") === "true",
+      retryAmount: Infinity,
+      retryDelay: 3000,
+      resumeTimeout: 300000
+    }]
+  : [{
+      id: "heavencloud-lavalink",
+      host: "free-lava.heavencloud.in",
+      port: 4000,
+      password: "heavencloud.in",
+      authorization: "heavencloud.in",
+      secure: false,
+      retryAmount: Infinity,
+      retryDelay: 3000,
+      resumeTimeout: 300000
+    }];
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
