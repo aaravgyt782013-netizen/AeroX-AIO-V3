@@ -155,9 +155,21 @@ export default {
           const enabled = !current[key];
           db.guild.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
-          const player = client.music?.getPlayer?.(interaction.guild.id);
+          let player = client.music?.getPlayer?.(interaction.guild.id);
 
           if (key === "autoplay") {
+            if (enabled && !player && interaction.member?.voice?.channelId) {
+              player = await client.music?.createPlayer?.({
+                guildId: interaction.guild.id,
+                voiceChannelId: interaction.member.voice.channelId,
+                textChannelId: current.requestChannel || interaction.channelId
+              });
+            }
+            if (enabled && player) {
+              db.guild.setAutoplayVoiceSession(interaction.guild.id, true, player.voiceChannelId, current.requestChannel || player.textChannelId || interaction.channelId);
+            } else if (!enabled) {
+              db.guild.setAutoplayVoiceSession(interaction.guild.id, false);
+            }
             if (player) {
               player.set("autoplayEnabled", enabled);
               player.set("stayAlive", enabled || current.mode247);
