@@ -296,7 +296,7 @@ export class MusicEngine {
     const q = String(query || "").trim();
     if (!q) return null;
     if (/^(?:https?:\\/\\/(?:open\\.)?spotify\\.com\\/(?:track|playlist)\\/|spotify:(?:track|playlist):)/i.test(q)) {
-      throw new Error("Spotify links are handled by .spotify for catalog details and are not sent to audio providers.");
+    if (/^(?:https?:\/\/(?:open\.)?spotify\.com\/(?:track|playlist)\/|spotify:(?:track|playlist):)/i.test(q)) {
     }
     const nodes = await this.waitForNode();
     if (!nodes.length) return null;
