@@ -60,10 +60,10 @@ const run = async x => {
 };
 
 export default command({
-  name: "settings", description: "Configure LightCore music settings", aliases: ["setting"],
+  name: "settings", description: "Open the interactive LightCore music settings panel", aliases: ["setting", "musicsettings"], slash: false,
   options: [
     { name: "setting", description: "Setting name", type: 3, required: false },
     { name: "value", description: "on/off or source", type: 3, required: false }
   ],
-  execute: run, slashExecute: run
+  execute: run
 });
