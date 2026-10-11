@@ -362,10 +362,10 @@ export class MusicEngine {
     }
     const nodes = await this.waitForNode();
     if (!nodes.length) return null;
-    let volume = 100, autoplay = false, mode247 = false;
+    let volume = 100, autoplay = false, mode247 = false, settings = {};
     try {
       volume = Number(db.guild.getDefaultVolume(guildId)) || 100;
-      const settings = db.guild.getMusicSettings(guildId);
+      settings = db.guild.getMusicSettings(guildId);
       autoplay = Boolean(settings.autoplay);
       mode247 = Boolean(settings.mode247);
     } catch {}
@@ -375,6 +375,7 @@ export class MusicEngine {
         player.set("autoplayEnabled", autoplay);
         player.set("stay247", mode247);
         player.set("stayAlive", autoplay || mode247);
+        if (autoplay) db.guild.setAutoplayVoiceSession(guildId, true, voiceChannelId, settings.requestChannel || textChannelId);
         await timeout(player.connect(), 12000, "Voice connection timed out.");
         return player;
       } catch (error) {
