@@ -4,62 +4,17 @@ dotenv.config();
 // Prefer a user-configured pool of maintained Lavalink v4 nodes.
 // LAVALINK_NODES_JSON should be a JSON array of {id,host,port,password,secure}
 // objects. This avoids shipping stale public endpoints or passwords in source.
-const parseNodePool = () => {
-  const raw = process.env.LAVALINK_NODES_JSON;
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const nodes = parsed.filter(n =>
-          n && typeof n.id === "string" && typeof n.host === "string" &&
-          typeof n.password === "string" && n.host.trim() && n.password
-        ).map(n => ({
-          id: n.id.trim(),
-          host: n.host.trim(),
-          port: Number(n.port || 443),
-          password: n.password,
-          secure: n.secure === undefined ? true : Boolean(n.secure),
-          retryAmount: Infinity,
-          retryDelay: 5000,
-          resumeTimeout: 300000
-        })).filter(n => Number.isInteger(n.port) && n.port > 0 && n.port <= 65535);
-        if (nodes.length) return nodes;
-      }
-    } catch (error) {
-      console.error("[MusicEngine] LAVALINK_NODES_JSON is invalid JSON; checking single-node variables.");
-    }
-  }
-
-  const host = process.env.LAVALINK_HOST?.trim();
-  const password = process.env.LAVALINK_SERVER_PASSWORD || process.env.LAVALINK_PASSWORD;
-  if (host && password) {
-    return [{
-      id: process.env.LAVALINK_NODE_ID || "configured-lavalink",
-      host,
-      port: Number(process.env.LAVALINK_PORT || 443),
-      password,
-      secure: (process.env.LAVALINK_SECURE || "true").toLowerCase() === "true",
-      retryAmount: Infinity,
-      retryDelay: 5000,
-      resumeTimeout: 300000
-    }];
-  }
-
-  // Compatibility fallback only. Public nodes can disappear or change
-  // credentials; configure LAVALINK_NODES_JSON for a maintained node pool.
-  return [{
-    id: "lightcore-lavalink",
-    host: "lightcore-lavalink-v4.onrender.com",
-    port: 443,
-    password: "LightCore-Music-Node-2026",
-    secure: true,
-    retryAmount: Infinity,
-    retryDelay: 5000,
-    resumeTimeout: 300000
-  }];
-};
-
-const PUBLIC_LAVALINK_NODES = parseNodePool();
+const PUBLIC_LAVALINK_NODES = [{
+  id: "heavencloud-lavalink",
+  host: "free-lava.heavencloud.in",
+  port: 4000,
+  password: "heavencloud.in",
+  authorization: "heavencloud.in",
+  secure: false,
+  retryAmount: Infinity,
+  retryDelay: 3000,
+  resumeTimeout: 300000
+}];
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
@@ -70,7 +25,7 @@ export const config = {
   nodes: PUBLIC_LAVALINK_NODES,
   environment: process.env.NODE_ENV || "development",
   debug: process.env.DEBUG === "true" || process.env.NODE_ENV === "development",
-  database: { guild: "./database/data/guild.bread", user: "./database/data/user.bread", premium: "./database/data/premium.bread", antiabuse: "./database/data/antiabuse.bread", playlists: "./database/data/playlists.bread", ticket: "./database/data/ticket.bread", invites: "./database/data/invites.bread", automation: "./database/data/automation.bread" },
+  database: { guild: "/var/data/guild.sqlite", user: "/var/data/user.sqlite", premium: "/var/data/premium.sqlite", antiabuse: "/var/data/antiabuse.sqlite", playlists: "/var/data/playlists.sqlite", ticket: "/var/data/ticket.sqlite", invites: "/var/data/invites.sqlite", automation: "/var/data/automation.sqlite" },
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/aerox" },
   status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: "CUSTOM" },
   colors: { info: "#3498db", success: "#2ecc71", warning: "#f39c12", error: "#e74c3c" },
