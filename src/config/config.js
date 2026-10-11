@@ -1,27 +1,19 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// Node priority: JSON pool, explicit host/password variables, then the existing
-// hardcoded Lavalink endpoint as a compatibility fallback.
-const nodeDefaults = { retryAmount: Infinity, retryDelay: 3000, resumeTimeout: 300000, requestTimeout: 15000 };
+// Public community node from the Stackryze Lavalink list.
+// Public-node uptime, latency, password and installed plugins can change without notice.
+const nodeDefaults = { retryAmount: 3, retryDelay: 3000, resumeTimeout: 300000, requestTimeout: 15000 };
 
-function parseLavalinkNodes() {
-  // Requested hardcoded Serenetia Lavalink node. This deliberately takes
-  // precedence over stale Render LAVALINK_* variables so the bot uses this
-  // endpoint consistently; keep the credentials in this public config only
-  // if the provider intends them to be public.
-  return [{
-    ...nodeDefaults,
-    id: "serenetia-lavalink",
-    host: "lavalinkv4.serenetia.com",
-    port: 443,
-    password: "https://seretia.link/discord",
-    authorization: "https://seretia.link/discord",
-    secure: true
-  }];
-}
-
-const PUBLIC_LAVALINK_NODES = parseLavalinkNodes();
+const PUBLIC_LAVALINK_NODES = [{
+  ...nodeDefaults,
+  id: "stackryze-lavalink-v4",
+  host: "188.245.207.225",
+  port: 2333,
+  password: "youshallnotpass",
+  authorization: "youshallnotpass",
+  secure: false
+}];
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
