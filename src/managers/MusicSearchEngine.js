@@ -1,12 +1,13 @@
 /**
  * Resilient search and track resolution for AeroX / LightCore.
- * Tries the requested provider first, then compatible fallbacks. Direct URLs
- * are never silently converted into text searches, which can play the wrong song.
+ * Keeps direct URLs exact, bounds provider latency, and normalizes Lavalink
+ * responses so commands fail with a useful message instead of hanging.
  */
-const SEARCH_ORDER = ["ytmsearch", "ytsearch", "scsearch"];
+const SEARCH_ORDER = ["ytmsearch", "ytsearch", "scsearch", "spsearch"];
 const URL_PATTERN = /^https?:\/\//i;
+const SEARCH_TIMEOUT_MS = 12000;
 const hasPlayableTrack = track => Boolean(
-  track && (track.encoded || track.info?.identifier || track.info?.uri)
+  track && (track.encoded || track.track || track.info?.identifier || track.info?.uri)
 );
 
 function normalizeSource(source) {
@@ -24,6 +25,16 @@ function getTracks(result) {
   return Array.isArray(result?.tracks) ? result.tracks.filter(hasPlayableTrack) : [];
 }
 
+function withTimeout(promise, ms, provider) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(provider + " search timed out.")), ms);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
 export class MusicSearchEngine {
   constructor(manager) {
     this.manager = manager;
@@ -36,39 +47,35 @@ export class MusicSearchEngine {
 
     const directUrl = Boolean(isUrl || URL_PATTERN.test(q));
     const preferred = normalizeSource(source) || "ytmsearch";
-    const supported = new Set(["ytmsearch", "ytsearch", "scsearch", "spsearch"]);
-    if (!supported.has(preferred)) {
+    if (!SEARCH_ORDER.includes(preferred)) {
       throw new Error("Unsupported music source. Choose YouTube Music, YouTube, SoundCloud, or Spotify.");
     }
 
-    // URLs must be resolved as URLs exactly once. For text, keep the requested
-    // provider first, then fall back to providers commonly enabled on Lavalink.
-    const providers = directUrl
-      ? [preferred]
-      : [...new Set([preferred, ...SEARCH_ORDER, "spsearch"].filter(p => supported.has(p)))];
+    // Never turn a URL into a different song search: resolve it exactly.
+    const providers = directUrl ? [preferred] : [...new Set([preferred, ...SEARCH_ORDER])];
     const failures = [];
 
     for (const provider of providers) {
       try {
-        const result = directUrl
-          ? await this.manager.resolve(q, { source: provider, requester })
-          : await this.manager.search(q, { source: provider, requester });
+        const operation = directUrl
+          ? this.manager.resolve(q, { source: provider, requester })
+          : this.manager.search(q, { source: provider, requester });
+        const result = await withTimeout(operation, SEARCH_TIMEOUT_MS, provider);
         const tracks = getTracks(result);
         if (tracks.length) {
           return { ...result, tracks, searchSource: provider };
         }
 
         const loadType = String(result?.loadType || "empty").toLowerCase();
-        failures.push(provider + ": " + (loadType === "error" ? "source error" : "no playable tracks"));
+        failures.push(provider + ": " + (loadType === "error" ? "provider returned an error" : "no playable tracks"));
       } catch (error) {
-        failures.push(provider + ": " + String(error?.message || "search failed").slice(0, 180));
+        failures.push(provider + ": " + String(error?.message || "search failed").slice(0, 140));
       }
     }
 
-    const attempted = failures.map(item => item.split(":")[0]).join(", ");
     if (directUrl) {
-      throw new Error("That link could not be resolved by the configured Lavalink node. Check that the link is supported and the node's source plugins are enabled.");
+      throw new Error("That URL could not be loaded by the configured Lavalink node. Confirm the source is supported and its Lavalink plugin is enabled.");
     }
-    throw new Error("No playable results were found. Sources tried: " + (attempted || providers.join(", ")) + ".");
+    throw new Error("No playable results were found. Tried " + providers.join(", ") + ". " + failures.slice(0, 2).join("; "));
   }
 }
