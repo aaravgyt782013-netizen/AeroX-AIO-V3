@@ -30,21 +30,36 @@ const run = async x => {
     if (key === "announce" || key === "announcesongs") c.client.db.guild.setAnnounceSongs(guild, enabled);
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
     if (key === "247") {
+      const existing = c.client.music?.getPlayer?.(guild);
+      const v = existing ? c.guild.channels.cache.get(existing.voiceChannelId) : c.member?.voice?.channel;
+      if (enabled && !v) return safeReply(x, "⚙️ Settings", "Join a voice channel or start music before enabling 24/7.", 0xED4245);
       c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
-      const p = c.client.music?.getPlayer?.(guild);
-      if (enabled) {
-        const v = c.member?.voice?.channel;
-        if (v) c.client.db.guild.set247Mode(guild, true, v.id, c.channel.id);
-      } else c.client.db.guild.set247Mode(guild, false);
-      if (p) {
-        p.set("stayAlive", enabled || Boolean(c.client.db.guild.getMusicSettings(guild).autoplay));
+      if (enabled) c.client.db.guild.set247Mode(guild, true, v.id, c.client.db.guild.getMusicSettings(guild).requestChannel || c.channel.id);
+      else c.client.db.guild.set247Mode(guild, false);
+      if (existing) {
+        existing.set("stay247", enabled);
+        existing.set("stayAlive", enabled || Boolean(c.client.db.guild.getMusicSettings(guild).autoplay));
         c.client.music?.refreshVoiceStayAlive?.(guild, true);
       }
     }
-    const player = c.client.music?.getPlayer?.(guild);
+    let player = c.client.music?.getPlayer?.(guild);
+    const saved = c.client.db.guild.getMusicSettings(guild);
+    if (key === "autoplay") {
+      const voice = c.member?.voice?.channel;
+      if (enabled && !player && voice) {
+        player = await c.client.music?.createPlayer?.({
+          guildId: guild,
+          voiceChannelId: voice.id,
+          textChannelId: saved.requestChannel || c.channel.id
+        });
+      }
+      if (enabled && player) c.client.db.guild.setAutoplayVoiceSession(guild, true, player.voiceChannelId, saved.requestChannel || player.textChannelId);
+      else if (!enabled) c.client.db.guild.setAutoplayVoiceSession(guild, false);
+    }
     if (player) {
-      player.set("autoplayEnabled", enabled);
-      player.set("stayAlive", enabled || Boolean(c.client.db.guild.getMusicSettings(guild).mode247));
+      player.set("autoplayEnabled", Boolean(saved.autoplay));
+      player.set("stay247", Boolean(saved.mode247));
+      player.set("stayAlive", Boolean(saved.autoplay || saved.mode247));
     }
     if (key === "autoplay") c.client.music?.refreshVoiceStayAlive?.(guild, true);
     return render(x, key + " " + (enabled ? "enabled" : "disabled"));
