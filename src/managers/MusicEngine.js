@@ -462,14 +462,23 @@ export class MusicEngine {
     for (const queued of player.queue?.tracks || []) {
       if (queued?.info?.identifier) blocked.add(queued.info.identifier);
       if (queued?.info?.uri) blocked.add(queued.info.uri);
+      if (queued?.info?.title) blocked.add(queued.info.title);
     }
-    for (let attempt = 0; attempt < AUTOPLAY_QUERIES.length; attempt++) {
-      const query = AUTOPLAY_QUERIES[Math.floor(Math.random() * AUTOPLAY_QUERIES.length)];
+
+    const title = endedTrack?.info?.title || player.get("lastPlayedTrack")?.info?.title || "";
+    const artist = endedTrack?.info?.author || player.get("lastPlayedTrack")?.info?.author || "";
+    const tailored = [
+      artist ? artist + " songs" : "",
+      title ? title + " similar songs" : ""
+    ].filter(Boolean);
+    const queries = [...new Set([...tailored, ...AUTOPLAY_QUERIES])].slice(0, 3);
+
+    for (const query of queries) {
       try {
         const result = await this.search(query, { source: "ytsearch", requester: endedTrack?.requester });
         const candidates = (result?.tracks || []).filter(track => {
-          const id = track?.info?.identifier, uri = track?.info?.uri, title = track?.info?.title;
-          return id && !blocked.has(id) && !blocked.has(uri) && !blocked.has(title);
+          const id = track?.info?.identifier, uri = track?.info?.uri, trackTitle = track?.info?.title;
+          return id && !blocked.has(id) && !blocked.has(uri) && !blocked.has(trackTitle);
         });
         if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)];
       } catch (error) {
