@@ -573,7 +573,7 @@ class HelpCommand extends Command {
       );
 
       let content = category.toLowerCase() === "music"
-        ? "**Music Category** · Prefix-only commands\nUse the `.` prefix; music commands are not slash commands.\n\n"
+        ? "**Music Category** · Prefix commands\nUse this server’s configured prefix (default `.`). Music commands are available as prefix commands.\n\n"
         : `**${this._capitalize(category)} Category**\n\n`;
 
       const directCommands = commands.filter((cmd) => {
@@ -711,7 +711,7 @@ class HelpCommand extends Command {
       );
 
       let content = category.toLowerCase() === "music"
-        ? `**Music > ${this._capitalize(subcatName)}** · Prefix-only (dot prefix)\n\n`
+        ? `**Music > ${this._capitalize(subcatName)}** · Prefix commands (default prefix `.`)\n\n`
         : `**${this._capitalize(category)} > ${this._capitalize(subcatName)}**\n\n`;
 
       subcatCommands.forEach((cmd, index) => {
