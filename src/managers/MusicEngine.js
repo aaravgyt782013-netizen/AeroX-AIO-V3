@@ -189,8 +189,15 @@ export class MusicEngine {
 
 
       try {
-        const textChannel = player.textChannelId ? await this.client.channels.fetch(player.textChannelId).catch(() => null) : null;
-        if (textChannel?.isTextBased?.()) await textChannel.send(v2Payload(nowPlayingEmbed(new PlayerManager(player))));
+        const settings = db.guild.getMusicSettings(player.guildId);
+        const targetChannelId = settings.requestChannel || player.textChannelId;
+        const textChannel = targetChannelId ? await this.client.channels.fetch(targetChannelId).catch(() => null) : null;
+        if (textChannel?.isTextBased?.()) {
+          await textChannel.send(v2Payload(nowPlayingEmbed(new PlayerManager(player))));
+        } else if (targetChannelId !== player.textChannelId && player.textChannelId) {
+          const fallbackChannel = await this.client.channels.fetch(player.textChannelId).catch(() => null);
+          if (fallbackChannel?.isTextBased?.()) await fallbackChannel.send(v2Payload(nowPlayingEmbed(new PlayerManager(player))));
+        }
       } catch (panelError) {
         logger.warn("MusicEngine", "Could not send new-song control panel [" + player.guildId + "]: " + (panelError?.message || panelError));
       }
