@@ -75,6 +75,13 @@ export class CommandHandler {
 			const category = command.category || folderCategory;
 			command.category = category;
 
+			// LightCore music is intentionally prefix-only. Enforce this centrally
+			// so music commands cannot accidentally register as slash commands.
+			if (String(category).toLowerCase() === 'music') {
+				command.enabledSlash = false;
+				command.slashData = null;
+			}
+
 			if (!this.categories.has(category)) this.categories.set(category, []);
 
 			this.commandPaths.set(command.name, filePath);

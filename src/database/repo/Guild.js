@@ -476,6 +476,9 @@ export class Guild extends Database {
       ["request_channel", "TEXT DEFAULT NULL"],
       ["music_source", "TEXT DEFAULT 'ytmsearch'"],
       ["music_247", "BOOLEAN DEFAULT FALSE"],
+      ["music_voice_channel", "TEXT DEFAULT NULL"],
+      ["autoplay_voice_channel", "TEXT DEFAULT NULL"],
+      ["autoplay_text_channel", "TEXT DEFAULT NULL"],
     ]);
   }
 
@@ -488,19 +491,32 @@ export class Guild extends Database {
       voteSkip: !!guild.vote_skip,
       requestChannel: guild.request_channel || null,
       source: guild.music_source || "ytmsearch",
-      mode247: !!guild.music_247
+      mode247: !!guild.music_247,
+      musicVoiceChannel: guild.music_voice_channel || null
     };
   }
 
   setMusicSettings(guildId, settings = {}) {
     this.ensureGuild(guildId);
-    const allowed = { djRole:"dj_role", autoplay:"autoplay", announceSongs:"announce_songs", voteSkip:"vote_skip", requestChannel:"request_channel", source:"music_source", mode247:"music_247" };
+    const allowed = { djRole:"dj_role", autoplay:"autoplay", announceSongs:"announce_songs", voteSkip:"vote_skip", requestChannel:"request_channel", musicVoiceChannel:"music_voice_channel", source:"music_source", mode247:"music_247" };
     const entries = Object.entries(settings).filter(([k]) => allowed[k]).map(([k,v]) => [allowed[k],v]);
     if (!entries.length) return null;
     const set = entries.map(([k]) => k + " = ?").join(", ");
     const values = entries.map(([,v]) => v === true ? 1 : v === false ? 0 : v);
     values.push(guildId);
     return this.exec("UPDATE guilds SET " + set + ", updated_at = CURRENT_TIMESTAMP WHERE id = ?", values);
+  }
+
+  setAutoplayVoiceSession(guildId, enabled, voiceChannelId = null, textChannelId = null) {
+    this.ensureGuild(guildId);
+    return this.exec(
+      "UPDATE guilds SET autoplay_voice_channel = ?, autoplay_text_channel = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [enabled ? voiceChannelId : null, enabled ? textChannelId : null, guildId]
+    );
+  }
+
+  getAllAutoplayVoiceGuilds() {
+    return this.all("SELECT * FROM guilds WHERE autoplay = 1 AND autoplay_voice_channel IS NOT NULL AND autoplay_voice_channel != ''");
   }
 
   setDJRole(guildId, roleId = null) { return this.setMusicSettings(guildId, { djRole: roleId }); }

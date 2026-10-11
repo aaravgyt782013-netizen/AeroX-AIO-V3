@@ -10,7 +10,7 @@ lavalink:
       snapshot: false
   pluginsDir: "./plugins"
   server:
-    password: "LightCore-Music-Node-2026"
+    password: "${LAVALINK_SERVER_PASSWORD:change-this-password}"
     sources:
       youtube: false
       bandcamp: true

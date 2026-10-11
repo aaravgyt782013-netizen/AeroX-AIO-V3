@@ -117,11 +117,13 @@ export function musicSettings(x) {
       autoplay: Boolean(s.autoplay),
       announceSongs: s.announceSongs !== false,
       voteSkip: Boolean(s.voteSkip),
-      source: s.source || "ytmsearch",
-      mode247: Boolean(s.mode247)
+      source: ["ytmsearch", "ytsearch", "scsearch"].includes(s.source) ? s.source : "ytmsearch",
+      mode247: Boolean(s.mode247),
+      requestChannel: s.requestChannel ?? null,
+      musicVoiceChannel: s.musicVoiceChannel ?? null
     };
   } catch {
-    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false };
+    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false, requestChannel: null, musicVoiceChannel: null };
   }
 }
 
@@ -144,7 +146,16 @@ export function sameVoiceError(x, player) {
 export async function ensurePlayer(x) {
   const c = context(x);
   if (!c.guild) throw new Error("Music commands can only be used in a server.");
-  const voice = voiceChannel(x);
+  const settings = musicSettings(x);
+  const memberVoice = voiceChannel(x);
+  const configuredVoice = settings.musicVoiceChannel ? c.guild.channels.cache.get(settings.musicVoiceChannel) : null;
+  if (settings.musicVoiceChannel && (!configuredVoice || !configuredVoice.isVoiceBased?.())) {
+    throw new Error("The configured music voice channel no longer exists. Update it in .settings.");
+  }
+  if (configuredVoice && c.member?.voice?.channelId !== configuredVoice.id) {
+    throw new Error("Join the configured music voice channel <#" + configuredVoice.id + "> first.");
+  }
+  const voice = configuredVoice || memberVoice;
   if (!voice) throw new Error("Join a voice channel first.");
 
   if (!c.client.music) throw new Error("The music engine is still starting. Try again in a few seconds.");
@@ -157,7 +168,7 @@ export async function ensurePlayer(x) {
   if (!p) {
     const raw = await c.client.music.createPlayer({
       guildId: c.guild.id,
-      textChannelId: c.channel.id,
+      textChannelId: settings.requestChannel || c.channel.id,
       voiceChannelId: voice.id
     });
     if (!raw) throw new Error("Music is temporarily unavailable: no configured Lavalink node is connected. Check the Lavalink connection logs.");
@@ -194,6 +205,7 @@ export async function resolveTrack(x, query, source) {
 }
 
 export async function enqueue(x, result, position) {
+  const c = context(x);
   if (!result?.tracks?.length) throw new Error("No playable tracks were returned by Lavalink.");
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
@@ -222,10 +234,10 @@ export async function enqueue(x, result, position) {
 
     try {
       // lavalink-client's supported queue flow is: queue.add() -> player.play().
-      await withTimeout(p.play(), 12000, "Playback start timed out.");
+      await withTimeout(p.play(), 6500, "Playback start timed out.");
 
       // A successful REST update is not the same thing as audio actually starting.
-      if (!(await waitForPlayback(10000))) {
+      if (!(await waitForPlayback(3500))) {
         throw new Error("Lavalink accepted the track but audio did not start.");
       }
     } catch (primaryError) {
@@ -252,9 +264,9 @@ export async function enqueue(x, result, position) {
         await p.stopPlaying(false, false).catch(() => {});
         await p.addTracks(fallbackTrack, 0);
 
-        await withTimeout(p.play(), 12000, "SoundCloud fallback playback timed out.");
+        await withTimeout(p.play(), 6500, "SoundCloud fallback playback timed out.");
 
-        if (!(await waitForPlayback(10000))) {
+        if (!(await waitForPlayback(3500))) {
           throw new Error("SoundCloud fallback loaded but audio did not start.");
         }
       } catch {
@@ -358,8 +370,12 @@ export function settingsRows(settings) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("lc_music_setting_247").setLabel("24/7: " + on(settings.mode247)).setEmoji("♾️").setStyle(settings.mode247 ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel("Source: " + (settings.source === "ytmsearch" ? "YouTube Music" : settings.source)).setEmoji(emojiObject("music", "🎵")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("lc_music_setting_source").setLabel("Playback Source").setEmoji(emojiObject("music", "🎵")).setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("DJ Role").setEmoji(emojiObject("owner", "👑")).setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("lc_music_setting_channel").setLabel("Music Panel Channel").setEmoji("📨").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("lc_music_setting_voice_channel").setLabel("Music Voice Channel").setEmoji("🔊").setStyle(ButtonStyle.Primary)
     )
   ];
 }
@@ -371,7 +387,7 @@ export function settingsContainer(settings, notice = "") {
     description: notice ? E("check", "✅") + " **" + notice + "**" : "Rythm-style playback controls, access and search settings.",
     sections: [
       E("music", "🎵") + " **PLAYBACK**\n" + E("reload", "🔄") + " Autoplay: **" + (s.autoplay ? "ON" : "OFF") + "**  •  📢 Announcements: **" + (s.announceSongs ? "ON" : "OFF") + "**  •  🗳️ Vote Skip: **" + (s.voteSkip ? "ON" : "OFF") + "**",
-      "♾️ **STAY CONNECTED**\n24/7: **" + (s.mode247 ? "ON" : "OFF") + "**  •  🔎 Source: **" + (s.source === "ytmsearch" ? "YouTube Music" : s.source) + "**\n" + E("owner", "👑") + " DJ role: " + (s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control")
+      "♾️ **STAY CONNECTED**\n24/7: **" + (s.mode247 ? "ON" : "OFF") + "**  •  🔎 Source: **" + (s.source === "ytmsearch" ? "YouTube Music" : s.source) + "**\n" + E("owner", "👑") + " DJ role: " + (s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control") + "\n🔊 Music voice channel: " + (s.musicVoiceChannel ? "<#" + s.musicVoiceChannel + ">" : "Your current voice channel") + "\n📨 Music panel channel: " + (s.requestChannel ? "<#" + s.requestChannel + ">" : "Command channel (default)")
     ],
     components: settingsRows(s)
   });
@@ -384,8 +400,6 @@ export function sourceFromFlag(value) {
     youtube: "ytsearch",
     ytm: "ytmsearch",
     youtubemusic: "ytmsearch",
-    sp: "spsearch",
-    spotify: "spsearch",
     sc: "scsearch",
     soundcloud: "scsearch"
   };
@@ -397,7 +411,6 @@ export function sourceMenu() {
     new StringSelectMenuBuilder().setCustomId("lc_music_source_select").setPlaceholder("🎧 Choose a music source").addOptions(
       { label: "YouTube Music", value: "ytmsearch", emoji: emojiObject("youtube", "▶️") },
       { label: "YouTube", value: "ytsearch", emoji: emojiObject("youtube", "📺") },
-      { label: "Spotify", value: "spsearch", emoji: emojiObject("spotify", "🟢") },
       { label: "SoundCloud", value: "scsearch", emoji: "🟠" }
     )
   );

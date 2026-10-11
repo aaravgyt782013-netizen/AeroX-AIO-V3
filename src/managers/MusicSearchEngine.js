@@ -1,24 +1,23 @@
 /**
- * LightCore music search and track resolver.
- * Tries the most reliable YouTube search first, then YouTube Music and
- * secondary providers. Normalizes Lavalink v4 and lavalink-client response
- * shapes so commands never mistake valid results for an empty search.
+ * Source resolver for Discord voice playback.
+ *
+ * Spotify catalog lookup is intentionally handled by SpotifyCatalog.js. Spotify
+ * links are not forwarded to a different streaming provider; the Spotify API
+ * is used for metadata and official links only. Audio playback remains separate.
  */
-const SEARCH_ORDER = ["ytsearch", "ytmsearch", "scsearch", "spsearch"];
+const SEARCH_ORDER = ["ytmsearch", "ytsearch", "scsearch"];
 const URL_PATTERN = /^https?:\/\//i;
-const SEARCH_TIMEOUT_MS = 11000;
+const SPOTIFY_URL_PATTERN = /^(?:https?:\/\/(?:open\.)?spotify\.com\/(?:track|playlist)\/|spotify:(?:track|playlist):)/i;
+const SEARCH_TIMEOUT_MS = 12000;
 
-const isTrack = track => Boolean(
-  track && (track.encoded || track.track || track.info?.identifier || track.info?.uri)
-);
+const isTrack = track => Boolean(track && (track.encoded || track.track || track.info?.identifier || track.info?.uri));
 
 function normalizeSource(source) {
   const value = String(source || "").trim().toLowerCase();
   const aliases = {
     youtube: "ytsearch", yt: "ytsearch",
     ytmusic: "ytmsearch", ytm: "ytmsearch", "youtube music": "ytmsearch",
-    soundcloud: "scsearch", sc: "scsearch",
-    spotify: "spsearch", sp: "spsearch"
+    soundcloud: "scsearch", sc: "scsearch"
   };
   return aliases[value] || value;
 }
@@ -33,8 +32,9 @@ function normalizeResult(result) {
   tracks = tracks.filter(isTrack);
   if (!tracks.length) return { ...result, loadType, tracks: [] };
   const normalizedType = loadType === "track" || loadType === "loaded" ? "track"
-    : loadType === "playlist" || loadType === "search" || loadType === "search_result"
-      ? loadType : (tracks.length > 1 ? "search" : "track");
+    : loadType === "playlist" ? "playlist"
+      : loadType === "search" || loadType === "search_result" ? "search"
+        : (tracks.length > 1 ? "search" : "track");
   return { ...result, loadType: normalizedType, tracks };
 }
 
@@ -49,51 +49,34 @@ function withTimeout(promise, ms, provider) {
 export class MusicSearchEngine {
   constructor(manager) { this.manager = manager; }
 
-  async search(query, { source = "ytsearch", requester, isUrl = false } = {}) {
+  async search(query, { source = "ytmsearch", requester, isUrl = false } = {}) {
     const q = String(query || "").trim();
-    if (!q) throw new Error("Type a song name or paste a supported music URL.");
+    if (!q) throw new Error("Type a song name or paste a supported audio URL.");
+    if (SPOTIFY_URL_PATTERN.test(q)) {
+      throw new Error("Spotify links cannot be streamed directly into Discord. Use .spotify <link> for Spotify details, or .play <song title> to search a supported audio source.");
+    }
     if (!this.manager) throw new Error("LightCore's music engine is still starting. Try again in a few seconds.");
 
     const directUrl = Boolean(isUrl || URL_PATTERN.test(q));
-    const preferred = normalizeSource(source) || "ytsearch";
+    const requested = normalizeSource(source);
+    const preferred = requested === "spsearch" || requested === "spotify" ? "ytmsearch" : requested || "ytmsearch";
     if (!SEARCH_ORDER.includes(preferred)) {
-      throw new Error("Unsupported source. Choose YouTube, YouTube Music, SoundCloud, or Spotify.");
+      throw new Error("Unsupported playback source. Choose YouTube Music, YouTube, or SoundCloud.");
     }
 
-    // For text queries, never let a provider with disabled plugins block the
-    // whole request. Try independent providers in a predictable order.
-    const providers = directUrl ? [preferred] : [...new Set([preferred, ...SEARCH_ORDER])];
+    // MusicEngine.search already tries the configured provider fallbacks for text queries.
+    // Calling it once avoids repeating the same three-provider cascade in this resolver.
+    const providers = [preferred];
     const failures = [];
-
     for (const provider of providers) {
       try {
-        let raw;
-        if (directUrl) {
-          raw = await withTimeout(this.manager.resolve(q, { source: provider, requester }), SEARCH_TIMEOUT_MS, provider);
-        } else {
-          raw = await withTimeout(this.manager.search(q, { source: provider, requester }), SEARCH_TIMEOUT_MS, provider);
-        }
+        let raw = directUrl
+          ? await withTimeout(this.manager.resolve(q, { source: provider, requester }), SEARCH_TIMEOUT_MS, provider)
+          : await withTimeout(this.manager.search(q, { source: provider, requester }), SEARCH_TIMEOUT_MS, provider);
         let result = normalizeResult(raw);
 
-        // MusicEngine already includes a Lavalink REST fallback. If its
-        // wrapper returns null/empty, try the node API directly when available.
-        if ((!result || !result.tracks.length) && typeof this.manager.waitForNode === "function") {
-          const nodes = await this.manager.waitForNode(2500);
-          for (const node of nodes || []) {
-            try {
-              const identifier = directUrl ? q : provider + ":" + q;
-              const direct = await withTimeout(
-                node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
-                SEARCH_TIMEOUT_MS,
-                provider + " REST"
-              );
-              const normalized = normalizeResult(direct);
-              if (normalized?.tracks?.length) { result = normalized; break; }
-            } catch (error) {
-              failures.push(provider + " REST: " + String(error?.message || "failed").slice(0, 100));
-            }
-          }
-        }
+        // MusicEngine.search already performs parallel node/source and REST fallback.
+        // Repeating the same REST lookups here made a failed query take much longer.
 
         if (result?.tracks?.length) return { ...result, tracks: result.tracks, searchSource: provider };
         failures.push(provider + ": no playable tracks");
@@ -102,12 +85,7 @@ export class MusicSearchEngine {
       }
     }
 
-    if (directUrl) {
-      throw new Error("I couldn't load that URL from the configured Lavalink node. Try a YouTube or SoundCloud link, or search by song title.");
-    }
-    throw new Error(
-      "I couldn't find a playable result for **" + q.slice(0, 100) + "**. " +
-      "Tried " + providers.join(", ") + ". Check that the Lavalink node is connected and its YouTube/SoundCloud plugins are enabled."
-    );
+    if (directUrl) throw new Error("I couldn't load that URL from the configured Lavalink node. Try a supported audio URL or search by song title.");
+    throw new Error("I couldn't find a playable result for **" + q.slice(0, 100) + "**. Tried " + providers.join(", ") + ". Check that the Lavalink node and its source plugins are available.");
   }
 }

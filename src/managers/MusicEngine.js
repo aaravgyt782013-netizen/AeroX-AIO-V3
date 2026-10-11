@@ -130,33 +130,47 @@ export class MusicEngine {
   }
 
   async _restore247Players() {
-    let saved = [];
-    try { saved = db.guild.getAll247Guilds(); } catch (error) {
-      logger.warn("MusicEngine", "Could not load saved 24/7 sessions: " + (error?.message || error));
+    let persistent = [];
+    try {
+      const rows247 = db.guild.getAll247Guilds();
+      const rowsAutoplay = db.guild.getAllAutoplayVoiceGuilds?.() || [];
+      const byGuild = new Map();
+      for (const row of [...rows247, ...rowsAutoplay]) byGuild.set(row.id, row);
+      persistent = [...byGuild.values()];
+    } catch (error) {
+      logger.warn("MusicEngine", "Could not load persistent voice sessions: " + (error?.message || error));
       return;
     }
-    if (!saved.length) return;
+    if (!persistent.length) return;
     const nodes = await this.waitForNode(20000);
     if (!nodes.length) {
-      logger.warn("MusicEngine", "Saved 24/7 sessions will not restore until a Lavalink node is available.");
+      logger.warn("MusicEngine", "Saved persistent voice sessions will not restore until a Lavalink node is available.");
       return;
     }
-    for (const row of saved) {
+    for (const row of persistent) {
       const guildId = row.id;
-      const voiceChannelId = row.stay_247_voice_channel;
+      const is247 = row.stay_247 === 1 || row.stay_247 === true;
+      const voiceChannelId = is247 ? row.stay_247_voice_channel : row.autoplay_voice_channel;
+      const textChannelId = row.request_channel || (is247 ? row.stay_247_text_channel : row.autoplay_text_channel);
       if (!guildId || !voiceChannelId || this.getPlayer(guildId)) continue;
       const guild = this.client.guilds.cache.get(guildId);
       const voice = guild?.channels?.cache?.get(voiceChannelId);
       if (!guild || !voice || !voice.isVoiceBased?.()) {
-        logger.warn("MusicEngine", "Skipping 24/7 restore; saved voice channel is unavailable in guild " + guildId + ".");
+        logger.warn("MusicEngine", "Skipping persistent voice restore; saved voice channel is unavailable in guild " + guildId + ".");
         continue;
       }
-      const textChannelId = row.stay_247_text_channel || voiceChannelId;
-      const player = await this.createPlayer({ guildId, voiceChannelId, textChannelId });
+      const settings = db.guild.getMusicSettings(guildId);
+      const panelChannel = textChannelId || settings.requestChannel || null;
+      if (!panelChannel) {
+        logger.warn("MusicEngine", "Skipping persistent voice restore; no text channel is saved for guild " + guildId + ".");
+        continue;
+      }
+      const player = await this.createPlayer({ guildId, voiceChannelId, textChannelId: panelChannel });
       if (player) {
-        player.set("stay247", true);
-        player.set("stayAlive", true);
-        logger.success("MusicEngine", "Restored 24/7 voice session for guild " + guildId + ".");
+        player.set("stay247", is247);
+        player.set("autoplayEnabled", Boolean(settings.autoplay));
+        player.set("stayAlive", is247 || Boolean(settings.autoplay));
+        logger.success("MusicEngine", "Restored " + (is247 ? "24/7" : "autoplay") + " voice session for guild " + guildId + ".");
       }
     }
   }
@@ -189,8 +203,23 @@ export class MusicEngine {
 
 
       try {
-        const textChannel = player.textChannelId ? await this.client.channels.fetch(player.textChannelId).catch(() => null) : null;
-        if (textChannel?.isTextBased?.()) await textChannel.send(v2Payload(nowPlayingEmbed(new PlayerManager(player))));
+        const settings = db.guild.getMusicSettings(player.guildId);
+        const targetChannelId = settings.requestChannel || player.textChannelId;
+        const payload = v2Payload(nowPlayingEmbed(new PlayerManager(player)));
+        const textChannel = targetChannelId ? await this.client.channels.fetch(targetChannelId).catch(() => null) : null;
+        let sent = false;
+        if (textChannel?.isTextBased?.()) {
+          try {
+            await textChannel.send(payload);
+            sent = true;
+          } catch (sendError) {
+            logger.warn("MusicEngine", "Configured music panel channel send failed [" + player.guildId + "]: " + (sendError?.message || sendError));
+          }
+        }
+        if (!sent && player.textChannelId && targetChannelId !== player.textChannelId) {
+          const fallbackChannel = await this.client.channels.fetch(player.textChannelId).catch(() => null);
+          if (fallbackChannel?.isTextBased?.()) await fallbackChannel.send(payload);
+        }
       } catch (panelError) {
         logger.warn("MusicEngine", "Could not send new-song control panel [" + player.guildId + "]: " + (panelError?.message || panelError));
       }
@@ -288,43 +317,61 @@ export class MusicEngine {
   }
 
   normalizeSource(source = "ytmsearch") {
-    const map = { yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch", sp: "spsearch", spotify: "spsearch", sc: "scsearch", soundcloud: "scsearch" };
+    const map = { yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch", sc: "scsearch", soundcloud: "scsearch" };
     return map[String(source).toLowerCase()] || source || "ytmsearch";
   }
 
   async search(query, { source = "ytmsearch", requester } = {}) {
     const q = String(query || "").trim();
     if (!q) return null;
-    const nodes = await this.waitForNode();
-    if (!nodes.length) return null;
-    const selected = this.normalizeSource(source);
-    const sources = this.isUrl(q) ? [selected] : selected === "ytmsearch" ? ["ytsearch", "ytmsearch", "scsearch"] : selected === "spsearch" ? ["spsearch", "ytsearch", "ytmsearch", "scsearch"] : selected === "scsearch" ? ["scsearch", "ytsearch", "ytmsearch"] : [selected, "ytsearch", "ytmsearch", "scsearch"];
+    if (/(?:open\.)?spotify\.com\/(?:track|playlist)\//i.test(q) || /^spotify:(?:track|playlist):/i.test(q)) {
+      throw new Error("Spotify links are supported for catalog lookup only. Use .spotify for metadata; play a YouTube Music, YouTube, or SoundCloud link instead.");
+    }
 
-    const attempt = async node => {
-      for (const src of [...new Set(sources)]) {
-        try {
-          try {
-            const result = await timeout(node.search({ query: q, source: src }, requester), 10000, "Search timed out.");
-            if (result?.tracks?.length || result?.loadType === "playlist") return result;
-          } catch (error) {
-            logger.warn("MusicEngine", "Client search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
-          }
-          try {
-            const identifier = this.isUrl(q) ? q : src + ":" + q;
-            const raw = await timeout(node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)), 10000, "Direct Lavalink search timed out.");
-            if (raw?.loadType === "search" && Array.isArray(raw.data) && raw.data.length) return { loadType: "search", tracks: raw.data, data: raw.data };
-            if (raw?.loadType === "playlist" && raw.data?.tracks?.length) return { loadType: "playlist", tracks: raw.data.tracks, data: raw.data };
-            if (raw?.loadType === "track" && raw.data) return { loadType: "track", tracks: [raw.data], data: raw.data };
-          } catch (error) {
-            logger.warn("MusicEngine", "Direct Lavalink search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
-          }
-        } catch (error) {
-          logger.warn("MusicEngine", "Search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
-        }
+    const nodes = await this.waitForNode(7000);
+    if (!nodes.length) return null;
+    const normalized = this.normalizeSource(source);
+    const selected = ["ytmsearch", "ytsearch", "scsearch"].includes(normalized) ? normalized : "ytmsearch";
+    const direct = this.isUrl(q);
+    const sources = direct ? [selected] : [...new Set([selected, ...(selected === "ytmsearch" ? ["ytsearch", "scsearch"] : selected === "scsearch" ? ["ytsearch", "ytmsearch"] : ["ytmsearch", "scsearch"])])];
+
+    // Ask all available nodes for the preferred source concurrently; use the
+    // first successful response rather than making users wait on a slow node.
+    const attempt = async (node, src) => {
+      try {
+        const result = await timeout(
+          node.search({ query: q, source: src }, requester),
+          5000,
+          "Search timed out."
+        );
+        if (result?.tracks?.length || result?.loadType === "playlist") return result;
+      } catch (error) {
+        logger.warn("MusicEngine", "Search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
       }
-      throw new Error("No result");
+      try {
+        const identifier = direct ? q : src + ":" + q;
+        const raw = await timeout(
+          node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
+          5000,
+          "Direct Lavalink search timed out."
+        );
+        if (raw?.loadType === "search" && Array.isArray(raw.data) && raw.data.length) return { loadType: "search", tracks: raw.data, data: raw.data };
+        if (raw?.loadType === "playlist" && raw.data?.tracks?.length) return { loadType: "playlist", tracks: raw.data.tracks, data: raw.data };
+        if (raw?.loadType === "track" && raw.data) return { loadType: "track", tracks: [raw.data], data: raw.data };
+      } catch (error) {
+        logger.warn("MusicEngine", "Direct Lavalink search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
+      }
+      return null;
     };
-    try { return await Promise.any(nodes.map(attempt)); } catch { return null; }
+
+    try {
+      return await Promise.any(nodes.flatMap(node => sources.map(src => attempt(node, src).then(result => {
+        if (result?.tracks?.length || result?.loadType === "playlist") return result;
+        throw new Error("No result from " + node.id + " [" + src + "]");
+      }))));
+    } catch {
+      return null;
+    }
   }
 
   async resolve(query, options = {}) { return this.search(query, options); }
@@ -337,10 +384,10 @@ export class MusicEngine {
     }
     const nodes = await this.waitForNode();
     if (!nodes.length) return null;
-    let volume = 100, autoplay = false, mode247 = false;
+    let volume = 100, autoplay = false, mode247 = false, settings = {};
     try {
       volume = Number(db.guild.getDefaultVolume(guildId)) || 100;
-      const settings = db.guild.getMusicSettings(guildId);
+      settings = db.guild.getMusicSettings(guildId);
       autoplay = Boolean(settings.autoplay);
       mode247 = Boolean(settings.mode247);
     } catch {}
@@ -350,6 +397,7 @@ export class MusicEngine {
         player.set("autoplayEnabled", autoplay);
         player.set("stay247", mode247);
         player.set("stayAlive", autoplay || mode247);
+        if (autoplay) db.guild.setAutoplayVoiceSession(guildId, true, voiceChannelId, settings.requestChannel || textChannelId);
         await timeout(player.connect(), 12000, "Voice connection timed out.");
         return player;
       } catch (error) {
@@ -414,14 +462,23 @@ export class MusicEngine {
     for (const queued of player.queue?.tracks || []) {
       if (queued?.info?.identifier) blocked.add(queued.info.identifier);
       if (queued?.info?.uri) blocked.add(queued.info.uri);
+      if (queued?.info?.title) blocked.add(queued.info.title);
     }
-    for (let attempt = 0; attempt < AUTOPLAY_QUERIES.length; attempt++) {
-      const query = AUTOPLAY_QUERIES[Math.floor(Math.random() * AUTOPLAY_QUERIES.length)];
+
+    const title = endedTrack?.info?.title || player.get("lastPlayedTrack")?.info?.title || "";
+    const artist = endedTrack?.info?.author || player.get("lastPlayedTrack")?.info?.author || "";
+    const tailored = [
+      artist ? artist + " songs" : "",
+      title ? title + " similar songs" : ""
+    ].filter(Boolean);
+    const queries = [...new Set([...tailored, ...AUTOPLAY_QUERIES])].slice(0, 3);
+
+    for (const query of queries) {
       try {
         const result = await this.search(query, { source: "ytsearch", requester: endedTrack?.requester });
         const candidates = (result?.tracks || []).filter(track => {
-          const id = track?.info?.identifier, uri = track?.info?.uri, title = track?.info?.title;
-          return id && !blocked.has(id) && !blocked.has(uri) && !blocked.has(title);
+          const id = track?.info?.identifier, uri = track?.info?.uri, trackTitle = track?.info?.title;
+          return id && !blocked.has(id) && !blocked.has(uri) && !blocked.has(trackTitle);
         });
         if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)];
       } catch (error) {
