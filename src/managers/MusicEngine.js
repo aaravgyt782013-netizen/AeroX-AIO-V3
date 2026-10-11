@@ -130,33 +130,47 @@ export class MusicEngine {
   }
 
   async _restore247Players() {
-    let saved = [];
-    try { saved = db.guild.getAll247Guilds(); } catch (error) {
-      logger.warn("MusicEngine", "Could not load saved 24/7 sessions: " + (error?.message || error));
+    let persistent = [];
+    try {
+      const rows247 = db.guild.getAll247Guilds();
+      const rowsAutoplay = db.guild.getAllAutoplayVoiceGuilds?.() || [];
+      const byGuild = new Map();
+      for (const row of [...rows247, ...rowsAutoplay]) byGuild.set(row.id, row);
+      persistent = [...byGuild.values()];
+    } catch (error) {
+      logger.warn("MusicEngine", "Could not load persistent voice sessions: " + (error?.message || error));
       return;
     }
-    if (!saved.length) return;
+    if (!persistent.length) return;
     const nodes = await this.waitForNode(20000);
     if (!nodes.length) {
-      logger.warn("MusicEngine", "Saved 24/7 sessions will not restore until a Lavalink node is available.");
+      logger.warn("MusicEngine", "Saved persistent voice sessions will not restore until a Lavalink node is available.");
       return;
     }
-    for (const row of saved) {
+    for (const row of persistent) {
       const guildId = row.id;
-      const voiceChannelId = row.stay_247_voice_channel;
+      const is247 = row.stay_247 === 1 || row.stay_247 === true;
+      const voiceChannelId = is247 ? row.stay_247_voice_channel : row.autoplay_voice_channel;
+      const textChannelId = row.request_channel || (is247 ? row.stay_247_text_channel : row.autoplay_text_channel);
       if (!guildId || !voiceChannelId || this.getPlayer(guildId)) continue;
       const guild = this.client.guilds.cache.get(guildId);
       const voice = guild?.channels?.cache?.get(voiceChannelId);
       if (!guild || !voice || !voice.isVoiceBased?.()) {
-        logger.warn("MusicEngine", "Skipping 24/7 restore; saved voice channel is unavailable in guild " + guildId + ".");
+        logger.warn("MusicEngine", "Skipping persistent voice restore; saved voice channel is unavailable in guild " + guildId + ".");
         continue;
       }
-      const textChannelId = row.stay_247_text_channel || voiceChannelId;
-      const player = await this.createPlayer({ guildId, voiceChannelId, textChannelId });
+      const settings = db.guild.getMusicSettings(guildId);
+      const panelChannel = textChannelId || settings.requestChannel || null;
+      if (!panelChannel) {
+        logger.warn("MusicEngine", "Skipping persistent voice restore; no text channel is saved for guild " + guildId + ".");
+        continue;
+      }
+      const player = await this.createPlayer({ guildId, voiceChannelId, textChannelId: panelChannel });
       if (player) {
-        player.set("stay247", true);
-        player.set("stayAlive", true);
-        logger.success("MusicEngine", "Restored 24/7 voice session for guild " + guildId + ".");
+        player.set("stay247", is247);
+        player.set("autoplayEnabled", Boolean(settings.autoplay));
+        player.set("stayAlive", is247 || Boolean(settings.autoplay));
+        logger.success("MusicEngine", "Restored " + (is247 ? "24/7" : "autoplay") + " voice session for guild " + guildId + ".");
       }
     }
   }
