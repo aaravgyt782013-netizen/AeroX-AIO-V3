@@ -1,21 +1,12 @@
 import { logger } from "#utils/logger";
-import defaultClient from "../../../index.js";
 
+// AeroX forwards Discord gateway voice packets directly to its LavalinkManager
+// in the constructor. Forwarding them again here duplicates voice-state packets
+// and can destabilize voice sessions, so this legacy event is intentionally inert.
 export default {
   name: "raw",
   once: false,
-  async execute(data, client = defaultClient) {
-    try {
-      // MusicEngine owns the LavalinkManager. The old handler called
-      // client.lavalink, which is not the manager created by MusicEngine.
-      const manager = client?.music?.lavalink;
-      if (!manager || typeof manager.sendRawData !== "function") {
-        logger.warn("LavalinkClient", "Dropped a raw gateway packet because the Lavalink manager is not ready.");
-        return;
-      }
-      manager.sendRawData(data);
-    } catch (error) {
-      logger.error("LavalinkClient", "Error in raw event handler:", error);
-    }
+  async execute() {
+    logger.debug?.("LavalinkClient", "Legacy raw event ignored; gateway forwarding is owned by AeroX.");
   }
 };
