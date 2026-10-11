@@ -232,77 +232,80 @@ async function _handleExpiredGuildPerks(guildId, channel) {
 }
 
 function _parseCommand(message, client) {
-  const content = message.content.trim();
-  const mentionPrefixRegex = new RegExp(`^<@!?${client.user.id}>\\s+`);
-  const mentionMatch = content.match(mentionPrefixRegex);
+  const content = String(message.content || "").trim();
+  if (!content) return null;
 
+  const mentionPrefixRegex = new RegExp(`^<@!?${client.user.id}>\\\\s+`);
+  const mentionMatch = content.match(mentionPrefixRegex);
   let commandText = null;
 
   if (mentionMatch) {
     commandText = content.slice(mentionMatch[0].length).trim();
   } else {
-    // Custom personal prefixes are also a User Premium perk.
+    // Support custom personal prefixes for premium users.
     if (db.isUserPremium(message.author.id)) {
-      const userPrefix = db
-        .getUserPrefixes(message.author.id)
-        .find((p) => p && content.startsWith(p));
+      let personalPrefixes = [];
+      try { personalPrefixes = db.getUserPrefixes(message.author.id) || []; } catch {}
+      const userPrefix = personalPrefixes
+        .filter(p => typeof p === "string" && p.length > 0)
+        .sort((a, b) => b.length - a.length)
+        .find(p => content.startsWith(p));
       if (userPrefix) commandText = content.slice(userPrefix.length).trim();
     }
 
+    // Always retain the configured default prefix as a fallback, even when
+    // this guild has an older/custom prefix saved in its database.
     if (commandText === null) {
-      const guildPrefix = db
-        .getPrefixes(message.guild.id)
-        .find((p) => p && content.startsWith(p));
+      let guildPrefixes = [];
+      try { guildPrefixes = db.getPrefixes(message.guild.id) || []; } catch {}
+      const prefixes = [...new Set([
+        ...guildPrefixes,
+        config.prefix,
+      ].filter(p => typeof p === "string" && p.length > 0))]
+        .sort((a, b) => b.length - a.length);
+      const guildPrefix = prefixes.find(p => content.startsWith(p));
       if (guildPrefix) commandText = content.slice(guildPrefix.length).trim();
     }
 
-    // Any registered prefix command or alias can be invoked without a prefix
-    // by active User Premium subscribers. Command discovery is dynamic, so new
-    // commands are supported automatically without maintaining a manual list.
+    // Premium users may invoke registered commands without a prefix.
     if (commandText === null && Boolean(db.isUserPremium(message.author.id))) {
       commandText = content;
     }
 
-    if (commandText === null && /^yuki/i.test(content)) {
-      commandText = content.slice(4).trim();
+    // Keep the legacy text trigger working without interfering with prefixes.
+    if (commandText === null && /^yuki\\s+/i.test(content)) {
+      commandText = content.replace(/^yuki\\s+/i, "").trim();
     }
   }
 
-  if (commandText === null) return null;
+  if (commandText === null || !commandText) return null;
 
-  const parts = commandText.split(/\s+/).filter(Boolean);
+  const parts = commandText.split(/\\s+/).filter(Boolean);
   if (!parts.length) return null;
 
-  const normalized = parts.map((part) => part.toLowerCase());
+  const normalized = parts.map(part => part.toLowerCase());
   const commands = client.commandHandler.commands;
   const aliases = client.commandHandler.aliases;
-
-  // Normalize all registered names and aliases once per message. Match the
-  // longest full command/alias name, regardless of how many words it contains.
   const commandNames = new Map();
+
   for (const [name, command] of commands) {
     if (name) commandNames.set(String(name).toLowerCase(), command.name);
     for (const alias of command.aliases || []) {
       if (alias) commandNames.set(String(alias).toLowerCase(), command.name);
     }
   }
-  // Include aliases registered by the handler even if a command's own alias
-  // list is not normalized identically.
   for (const [alias, target] of aliases) {
     if (alias && target) commandNames.set(String(alias).toLowerCase(), target);
   }
 
+  // Longest match supports commands whose names contain spaces.
   for (let length = normalized.length; length >= 1; length--) {
     const candidate = normalized.slice(0, length).join(" ");
     const canonicalName = commandNames.get(candidate);
     if (canonicalName) {
-      return {
-        commandName: String(canonicalName).toLowerCase(),
-        args: parts.slice(length),
-      };
+      return { commandName: String(canonicalName), args: parts.slice(length) };
     }
   }
-
   return null;
 }
 
@@ -435,12 +438,18 @@ export default {
     if (!commandInfo) return;
 
     const { commandName, args } = commandInfo;
-    let command = client.commandHandler.commands.get(commandName);
+    const commandMap = client.commandHandler.commands;
+    const findCommand = name => {
+      if (!name) return null;
+      return commandMap.get(name) ||
+        Array.from(commandMap.values()).find(item => String(item.name).toLowerCase() === String(name).toLowerCase()) ||
+        null;
+    };
+    let command = findCommand(commandName);
     if (!command) {
-      const aliasTarget = client.commandHandler.aliases.get(commandName);
-      if (aliasTarget) {
-        command = client.commandHandler.commands.get(aliasTarget);
-      }
+      const aliasTarget = client.commandHandler.aliases.get(String(commandName).toLowerCase()) ||
+        client.commandHandler.aliases.get(commandName);
+      if (aliasTarget) command = findCommand(aliasTarget);
     }
     if (!command) return;
 
@@ -530,7 +539,7 @@ const djSettings = db.guild.getMusicSettings(message.guild.id);
         return _sendError(
           message,
           "No Player Active",
-          "There is no music player in this server. Use `/play` to start one.",
+          "There is no music player in this server. Use `.play` to start one.",
         );
       }
       if (command.playingRequired && (!player || !player.queue.current)) {
