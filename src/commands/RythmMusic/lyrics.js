@@ -2,43 +2,40 @@ import { EmbedBuilder } from "discord.js";
 import { command, context, getArgs, getPlayer, safeReply, reply } from "#utils/RythmCommands";
 
 const MAX_LYRICS = 3800;
+const clean = value => String(value || "").replace(/\s+/g, " ").trim();
 
-function clean(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-async function findLyrics(title, artist = "") {
-  const parts = [clean(artist), clean(title)].filter(Boolean);
-  if (!parts.length) throw new Error("Give a song title, or start a track and run .lyrics.");
+async function findLyrics(query, track) {
+  const search = clean(query || [track?.info?.title, track?.info?.author].filter(Boolean).join(" "));
+  if (!search) throw new Error("Give a song title, or start a track and run .lyrics.");
   const response = await fetch(
-    "https://api.lyrics.ovh/v1/" + encodeURIComponent(parts[0]) + "/" + encodeURIComponent(parts.slice(1).join(" ")),
-    { signal: AbortSignal.timeout(8000) }
+    "https://lrclib.net/api/search?q=" + encodeURIComponent(search),
+    { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "LightCore Discord Music Bot" } }
   );
-  if (!response.ok) {
-    if (response.status === 404) throw new Error("Lyrics were not found for that track.");
-    throw new Error("The lyrics provider is temporarily unavailable. Try again shortly.");
-  }
-  const data = await response.json();
-  const text = String(data.lyrics || "").trim();
-  if (!text) throw new Error("No lyrics were returned for that track.");
-  return text;
+  if (!response.ok) throw new Error("The lyrics provider is temporarily unavailable. Try again shortly.");
+  const results = await response.json();
+  const match = Array.isArray(results) ? results.find(item => item.plainLyrics || item.syncedLyrics) : null;
+  if (!match) throw new Error("Lyrics were not found for that track.");
+  return {
+    title: clean(match.trackName) || search,
+    artist: clean(match.artistName),
+    lyrics: String(match.plainLyrics || match.syncedLyrics || "").trim()
+  };
 }
 
 async function run(x) {
-  const c = context(x);
-  const args = getArgs(x);
+  const query = x.interaction?.options?.getString("query") || getArgs(x).join(" ").trim();
   const player = getPlayer(x);
-  const query = x.interaction?.options?.getString("query") || args.join(" ").trim();
-  const track = player?.currentTrack;
-  const title = query || track?.info?.title || "";
-  const artist = query ? "" : track?.info?.author || "";
   try {
-    const lyrics = await findLyrics(title, artist);
+    const result = await findLyrics(query, player?.currentTrack);
+    const description = result.lyrics.length > MAX_LYRICS
+      ? result.lyrics.slice(0, MAX_LYRICS) + "\n\n…Lyrics shortened to fit Discord's message limit."
+      : result.lyrics;
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
-      .setTitle(("🎤 Lyrics • " + title).slice(0, 256))
-      .setDescription(lyrics.length > MAX_LYRICS ? lyrics.slice(0, MAX_LYRICS) + "\n\n…Lyrics truncated to fit Discord's message limit." : lyrics)
-      .setFooter({ text: "LightCore • Lyrics provided by lyrics.ovh" });
+      .setTitle(("🎤 " + result.title + " • Lyrics").slice(0, 256))
+      .setDescription(description)
+      .setFooter({ text: "LightCore • Lyrics by LRCLIB" });
+    if (result.artist) embed.setAuthor({ name: result.artist.slice(0, 256) });
     return reply(x, { embeds: [embed] });
   } catch (error) {
     return safeReply(x, "🎤 LightCore Lyrics", error?.message || "Lyrics lookup failed.", 0xED4245);
