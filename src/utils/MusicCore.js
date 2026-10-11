@@ -118,7 +118,8 @@ export function musicSettings(x) {
       announceSongs: s.announceSongs !== false,
       voteSkip: Boolean(s.voteSkip),
       source: ["ytmsearch", "ytsearch", "scsearch"].includes(s.source) ? s.source : "ytmsearch",
-      mode247: Boolean(s.mode247)
+      mode247: Boolean(s.mode247),
+      requestChannel: s.requestChannel ?? null
     };
   } catch {
     return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false, requestChannel: null };
