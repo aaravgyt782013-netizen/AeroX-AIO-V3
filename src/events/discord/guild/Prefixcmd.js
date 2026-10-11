@@ -235,7 +235,7 @@ function _parseCommand(message, client) {
   const content = String(message.content || "").trim();
   if (!content) return null;
 
-  const mentionPrefixRegex = new RegExp(`^<@!?${client.user.id}>\\s+`);
+  const mentionPrefixRegex = new RegExp(`^<@!?${client.user.id}>\s+`);
   const mentionMatch = content.match(mentionPrefixRegex);
   let commandText = null;
 
@@ -273,14 +273,14 @@ function _parseCommand(message, client) {
     }
 
     // Keep the legacy text trigger working without interfering with prefixes.
-    if (commandText === null && /^yuki\\s+/i.test(content)) {
-      commandText = content.replace(/^yuki\\s+/i, "").trim();
+    if (commandText === null && /^yuki\s+/i.test(content)) {
+      commandText = content.replace(/^yuki\s+/i, "").trim();
     }
   }
 
   if (commandText === null || !commandText) return null;
 
-  const parts = commandText.split(/\\s+/).filter(Boolean);
+  const parts = commandText.split(/\s+/).filter(Boolean);
   if (!parts.length) return null;
 
   const normalized = parts.map(part => part.toLowerCase());
@@ -368,7 +368,7 @@ export default {
       }
     }
 
-    const mentionRegex = new RegExp(`^<@!?${client.user.id}>\\s*$`);
+    const mentionRegex = new RegExp(`^<@!?${client.user.id}>\s*$`);
     if (mentionRegex.test(message.content.trim())) {
       if (!antiAbuse.canShowMentionResponse(message.author.id)) {
         return;
