@@ -119,10 +119,11 @@ export function musicSettings(x) {
       voteSkip: Boolean(s.voteSkip),
       source: ["ytmsearch", "ytsearch", "scsearch"].includes(s.source) ? s.source : "ytmsearch",
       mode247: Boolean(s.mode247),
-      requestChannel: s.requestChannel ?? null
+      requestChannel: s.requestChannel ?? null,
+      musicVoiceChannel: s.musicVoiceChannel ?? null
     };
   } catch {
-    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false, requestChannel: null };
+    return { djRole: null, autoplay: false, announceSongs: true, voteSkip: false, source: "ytmsearch", mode247: false, requestChannel: null, musicVoiceChannel: null };
   }
 }
 
@@ -364,7 +365,8 @@ export function settingsRows(settings) {
       new ButtonBuilder().setCustomId("lc_music_setting_dj").setLabel("DJ Role").setEmoji(emojiObject("owner", "👑")).setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("lc_music_setting_channel").setLabel("Music Panel Channel").setEmoji("📨").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("lc_music_setting_channel").setLabel("Music Panel Channel").setEmoji("📨").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("lc_music_setting_voice_channel").setLabel("Music Voice Channel").setEmoji("🔊").setStyle(ButtonStyle.Primary)
     )
   ];
 }
