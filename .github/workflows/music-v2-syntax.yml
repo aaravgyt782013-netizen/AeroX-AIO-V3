@@ -22,3 +22,4 @@ jobs:
           node --check src/managers/SpotifyCatalog.js
           node --check src/utils/MusicCore.js
           node --check src/utils/RythmCommands.js
+          node --check src/commands/info/help.js
