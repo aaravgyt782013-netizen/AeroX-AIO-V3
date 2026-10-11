@@ -18,6 +18,8 @@ jobs:
         run: |
           node --check src/managers/SpotifyCatalog.js
           node --check src/managers/MusicSearchEngine.js
+          node --check src/managers/MusicEngine.js
+          node --check src/utils/MusicCore.js
           node --check src/commands/RythmMusic/spotify.js
           node --check src/commands/RythmMusic/play.js
           node --check src/commands/RythmMusic/settings.js
