@@ -195,6 +195,7 @@ export async function resolveTrack(x, query, source) {
 }
 
 export async function enqueue(x, result, position) {
+  const c = context(x);
   if (!result?.tracks?.length) throw new Error("No playable tracks were returned by Lavalink.");
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
