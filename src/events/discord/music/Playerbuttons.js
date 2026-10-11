@@ -111,7 +111,7 @@ export default {
 
         if (interaction.isModalSubmit() && id === "lc_music_setting_voice_channel_modal") {
           const raw = interaction.fields.getTextInputValue("voice_channel_id").trim();
-          const channelId = raw.match(/\\d{15,25}/)?.[0] || null;
+          const channelId = raw.match(/\d{15,25}/)?.[0] || null;
           const voice = channelId ? interaction.guild.channels.cache.get(channelId) : null;
           if (channelId && (!voice || !voice.isVoiceBased?.())) {
             return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a valid voice channel."), { ephemeral: true }));
