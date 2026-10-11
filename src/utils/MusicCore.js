@@ -19,8 +19,6 @@ export const ERROR_COLOR = 0xED4245;
 export const SUCCESS_COLOR = 0x57F287;
 export const v2Flags = MessageFlags.IsComponentsV2;
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 async function withTimeout(promise, ms, message) {
   let timer;
   try {
