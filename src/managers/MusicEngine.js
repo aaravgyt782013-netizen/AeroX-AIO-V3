@@ -324,40 +324,56 @@ export class MusicEngine {
   async search(query, { source = "ytmsearch", requester } = {}) {
     const q = String(query || "").trim();
     if (!q) return null;
-    if (/(?:open\.)?spotify\.com\/(?:track|playlist)\//i.test(q) || /^spotify:(?:track|playlist):/i.test(q)) {
+    if (/(?:open\\.)?spotify\\.com\\/(?:track|playlist)\\//i.test(q) || /^spotify:(?:track|playlist):/i.test(q)) {
       throw new Error("Spotify links are supported for catalog lookup only. Use .spotify for metadata; play a YouTube Music, YouTube, or SoundCloud link instead.");
     }
-    const nodes = await this.waitForNode();
+
+    const nodes = await this.waitForNode(7000);
     if (!nodes.length) return null;
     const normalized = this.normalizeSource(source);
     const selected = ["ytmsearch", "ytsearch", "scsearch"].includes(normalized) ? normalized : "ytmsearch";
-    const sources = this.isUrl(q) ? [selected] : selected === "ytmsearch" ? ["ytsearch", "ytmsearch", "scsearch"] : selected === "scsearch" ? ["scsearch", "ytsearch", "ytmsearch"] : ["ytsearch", "ytmsearch", "scsearch"];
+    const direct = this.isUrl(q);
+    const sources = direct ? [selected] : [...new Set([selected, ...(selected === "ytmsearch" ? ["ytsearch", "scsearch"] : selected === "scsearch" ? ["ytsearch", "ytmsearch"] : ["ytmsearch", "scsearch"])])];
 
-    const attempt = async node => {
-      for (const src of [...new Set(sources)]) {
-        try {
-          try {
-            const result = await timeout(node.search({ query: q, source: src }, requester), 10000, "Search timed out.");
-            if (result?.tracks?.length || result?.loadType === "playlist") return result;
-          } catch (error) {
-            logger.warn("MusicEngine", "Client search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
-          }
-          try {
-            const identifier = this.isUrl(q) ? q : src + ":" + q;
-            const raw = await timeout(node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)), 10000, "Direct Lavalink search timed out.");
-            if (raw?.loadType === "search" && Array.isArray(raw.data) && raw.data.length) return { loadType: "search", tracks: raw.data, data: raw.data };
-            if (raw?.loadType === "playlist" && raw.data?.tracks?.length) return { loadType: "playlist", tracks: raw.data.tracks, data: raw.data };
-            if (raw?.loadType === "track" && raw.data) return { loadType: "track", tracks: [raw.data], data: raw.data };
-          } catch (error) {
-            logger.warn("MusicEngine", "Direct Lavalink search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
-          }
-        } catch (error) {
-          logger.warn("MusicEngine", "Search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
-        }
+    // Ask all available nodes for the preferred source concurrently; use the
+    // first successful response rather than making users wait on a slow node.
+    const attempt = async (node, src) => {
+      try {
+        const result = await timeout(
+          node.search({ query: q, source: src }, requester),
+          5000,
+          "Search timed out."
+        );
+        if (result?.tracks?.length || result?.loadType === "playlist") return result;
+      } catch (error) {
+        logger.warn("MusicEngine", "Search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
       }
-      throw new Error("No result");
+      try {
+        const identifier = direct ? q : src + ":" + q;
+        const raw = await timeout(
+          node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
+          5000,
+          "Direct Lavalink search timed out."
+        );
+        if (raw?.loadType === "search" && Array.isArray(raw.data) && raw.data.length) return { loadType: "search", tracks: raw.data, data: raw.data };
+        if (raw?.loadType === "playlist" && raw.data?.tracks?.length) return { loadType: "playlist", tracks: raw.data.tracks, data: raw.data };
+        if (raw?.loadType === "track" && raw.data) return { loadType: "track", tracks: [raw.data], data: raw.data };
+      } catch (error) {
+        logger.warn("MusicEngine", "Direct Lavalink search failed on " + node.id + " [" + src + "]: " + (error?.message || error));
+      }
+      return null;
     };
-    try { return await Promise.any(nodes.map(attempt)); } catch { return null; }
+
+    for (const src of sources) {
+      try {
+        const results = await Promise.any(nodes.map(node => attempt(node, src).then(result => {
+          if (result?.tracks?.length || result?.loadType === "playlist") return result;
+          throw new Error("No result from " + node.id);
+        })));
+        if (results) return results;
+      } catch {}
+    }
+    return null;
   }
 
   async resolve(query, options = {}) { return this.search(query, options); }
