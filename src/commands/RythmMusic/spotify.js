@@ -25,19 +25,19 @@ async function run(x) {
         .setColor(0x1DB954)
         .setTitle(t.name)
         .setURL(t.url)
-        .setDescription("**Artist:** " + t.artists + "\\n**Album:** " + t.album + "\\n**Duration:** " + t.duration + "\\n\\nSpotify provides catalog information and links here; this command does not stream Spotify audio into Discord.")
+        .setDescription("**Artist:** " + t.artists + "\n**Album:** " + t.album + "\n**Duration:** " + t.duration + "\n\nSpotify provides catalog information and links here; this command does not stream Spotify audio into Discord.")
         .setFooter({ text: "Spotify • LightCore" });
       return reply(x, { embeds: [embed], components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setLabel("Open in Spotify").setStyle(ButtonStyle.Link).setURL(t.url))] });
     }
 
     if (result.kind === "playlist") {
       const p = result.playlist;
-      const list = p.tracks.length ? p.tracks.map((t, i) => (i + 1) + ". **" + t.name + "** — " + t.artists + " (" + t.duration + ")").join("\\n") : "No track details were returned.";
+      const list = p.tracks.length ? p.tracks.map((t, i) => (i + 1) + ". **" + t.name + "** — " + t.artists + " (" + t.duration + ")").join("\n") : "No track details were returned.";
       const embed = new EmbedBuilder()
         .setColor(0x1DB954)
         .setTitle(p.name)
         .setURL(p.url)
-        .setDescription("**Owner:** " + p.owner + "\\n**Tracks in playlist:** " + p.total + "\\n\\n" + list + "\\n\\nSpotify catalog details only; audio is not streamed into Discord.")
+        .setDescription("**Owner:** " + p.owner + "\n**Tracks in playlist:** " + p.total + "\n\n" + list + "\n\nSpotify catalog details only; audio is not streamed into Discord.")
         .setFooter({ text: "Showing up to 10 tracks • Spotify • LightCore" });
       return reply(x, { embeds: [embed], components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setLabel("Open playlist in Spotify").setStyle(ButtonStyle.Link).setURL(p.url))] });
     }
@@ -46,7 +46,7 @@ async function run(x) {
     const embed = new EmbedBuilder()
       .setColor(0x1DB954)
       .setTitle("Spotify search results")
-      .setDescription(result.tracks.map((t, i) => "**" + (i + 1) + ". [" + t.name + "](" + t.url + ")**\\n" + t.artists + " • " + t.duration + " • " + t.album).join("\\n\\n"))
+      .setDescription(result.tracks.map((t, i) => "**" + (i + 1) + ". [" + t.name + "](" + t.url + ")**\n" + t.artists + " • " + t.duration + " • " + t.album).join("\n\n"))
       .setFooter({ text: "Choose a result to open in Spotify • LightCore" });
     const row = new ActionRowBuilder().addComponents(result.tracks.filter(t => t.url).slice(0, 5).map(trackButton));
     return reply(x, { embeds: [embed], components: row.components.length ? [row] : [] });

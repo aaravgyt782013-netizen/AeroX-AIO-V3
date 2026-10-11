@@ -7,8 +7,8 @@ function spotifyId(input) {
   if (uri) return { type: uri[1].toLowerCase(), id: uri[2] };
   try {
     const url = new URL(value);
-    if (!/(^|\\.)spotify\\.com$/i.test(url.hostname)) return null;
-    const match = url.pathname.match(/^\\/(track|playlist)\\/([A-Za-z0-9]+)/i);
+    if (!/(^|\.)spotify\.com$/i.test(url.hostname)) return null;
+    const match = url.pathname.match(/^\/(track|playlist)\/([A-Za-z0-9]+)/i);
     return match ? { type: match[1].toLowerCase(), id: match[2] } : null;
   } catch {
     return null;
