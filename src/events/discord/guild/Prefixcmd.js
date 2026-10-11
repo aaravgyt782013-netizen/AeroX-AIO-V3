@@ -235,7 +235,7 @@ function _parseCommand(message, client) {
   const content = String(message.content || "").trim();
   if (!content) return null;
 
-  const mentionPrefixRegex = new RegExp(`^<@!?${client.user.id}>\\\\s+`);
+  const mentionPrefixRegex = new RegExp(`^<@!?${client.user.id}>\\s+`);
   const mentionMatch = content.match(mentionPrefixRegex);
   let commandText = null;
 
