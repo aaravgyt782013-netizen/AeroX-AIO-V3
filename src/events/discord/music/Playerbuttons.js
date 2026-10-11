@@ -146,6 +146,9 @@ export default {
           if (key === "mode247") {
             const voiceId = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
             const textId = player?.textChannelId || interaction.channelId || null;
+            if (enabled && !voiceId) {
+              return updateSettings(interaction, client, "Join a voice channel or start music first, then enable 24/7.");
+            }
             if (enabled) db.guild.set247Mode(interaction.guild.id, true, voiceId, textId);
             else db.guild.set247Mode(interaction.guild.id, false);
             if (player) {
