@@ -30,11 +30,20 @@ const run = async x => {
     if (key === "announce" || key === "announcesongs") c.client.db.guild.setAnnounceSongs(guild, enabled);
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
     if (key === "247") {
-      const existing = c.client.music?.getPlayer?.(guild);
-      const v = existing ? c.guild.channels.cache.get(existing.voiceChannelId) : c.member?.voice?.channel;
-      if (enabled && !v) return safeReply(x, "⚙️ Settings", "Join a voice channel or start music before enabling 24/7.", 0xED4245);
+      let existing = c.client.music?.getPlayer?.(guild);
+      const before = c.client.db.guild.getMusicSettings(guild);
+      const voiceId = before.musicVoiceChannel || existing?.voiceChannelId || c.member?.voice?.channelId || null;
+      if (enabled && !voiceId) return safeReply(x, "⚙️ Settings", "Join a voice channel or configure the Music Voice Channel before enabling 24/7.", 0xED4245);
+      if (enabled && !existing && voiceId) {
+        existing = await c.client.music?.createPlayer?.({
+          guildId: guild,
+          voiceChannelId: voiceId,
+          textChannelId: before.requestChannel || c.channel.id
+        });
+        if (!existing) return safeReply(x, "⚙️ Settings", "I couldn't connect to the configured voice channel. Check Lavalink and my voice permissions.", 0xED4245);
+      }
       c.client.db.guild.setMusicSettings(guild, { mode247: enabled });
-      if (enabled) c.client.db.guild.set247Mode(guild, true, v.id, c.client.db.guild.getMusicSettings(guild).requestChannel || c.channel.id);
+      if (enabled) c.client.db.guild.set247Mode(guild, true, voiceId, before.requestChannel || existing?.textChannelId || c.channel.id);
       else c.client.db.guild.set247Mode(guild, false);
       if (existing) {
         existing.set("stay247", enabled);
@@ -45,13 +54,15 @@ const run = async x => {
     let player = c.client.music?.getPlayer?.(guild);
     const saved = c.client.db.guild.getMusicSettings(guild);
     if (key === "autoplay") {
-      const voice = c.member?.voice?.channel;
+      const voice = saved.musicVoiceChannel ? c.guild.channels.cache.get(saved.musicVoiceChannel) : c.member?.voice?.channel;
+      if (enabled && !player && !voice) return safeReply(x, "⚙️ Settings", "Join a voice channel or configure the Music Voice Channel before enabling autoplay.", 0xED4245);
       if (enabled && !player && voice) {
         player = await c.client.music?.createPlayer?.({
           guildId: guild,
           voiceChannelId: voice.id,
           textChannelId: saved.requestChannel || c.channel.id
         });
+        if (!player) return safeReply(x, "⚙️ Settings", "I couldn't connect to the configured voice channel. Check Lavalink and my voice permissions.", 0xED4245);
       }
       if (enabled && player) c.client.db.guild.setAutoplayVoiceSession(guild, true, player.voiceChannelId, saved.requestChannel || player.textChannelId);
       else if (!enabled) c.client.db.guild.setAutoplayVoiceSession(guild, false);
