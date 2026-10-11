@@ -6,59 +6,18 @@ dotenv.config();
 const nodeDefaults = { retryAmount: Infinity, retryDelay: 3000, resumeTimeout: 300000, requestTimeout: 15000 };
 
 function parseLavalinkNodes() {
-  const raw = process.env.LAVALINK_NODES_JSON;
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      // Accept either a node array or a single-node object. Render env vars are
-      // often entered as the exact JSON object supplied by a Lavalink provider.
-      const candidates = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === "object" ? [parsed] : []);
-      if (candidates.length) {
-        const nodes = candidates.filter(n => n && typeof n.host === "string" && n.host.trim() && (n.password || n.authorization))
-          .map((n, i) => ({
-            ...nodeDefaults,
-            id: String(n.id || "aerox-node-" + (i + 1)),
-            host: n.host.trim(),
-            port: Number(n.port || (n.secure ? 443 : 2333)),
-            password: String(n.password || n.authorization),
-            authorization: String(n.authorization || n.password),
-            secure: n.secure === true || String(n.secure).toLowerCase() === "true"
-          }))
-          .filter(n => Number.isInteger(n.port) && n.port > 0 && n.port <= 65535);
-        if (nodes.length) return nodes;
-      }
-    } catch {
-      console.error("[MusicEngine] LAVALINK_NODES_JSON is invalid; checking single-node configuration.");
-    }
-  }
-  if (process.env.LAVALINK_HOST?.trim()) {
-    const password = process.env.LAVALINK_PASSWORD || process.env.LAVALINK_SERVER_PASSWORD || "";
-    if (password) return [{
-      ...nodeDefaults,
-      id: process.env.LAVALINK_NODE_ID || "aerox-self-hosted-lavalink",
-      host: process.env.LAVALINK_HOST.trim(),
-      port: Number(process.env.LAVALINK_PORT || 2333),
-      password,
-      authorization: password,
-      secure: String(process.env.LAVALINK_SECURE || "false").toLowerCase() === "true"
-    }, {
-      ...nodeDefaults,
-      id: "heavencloud-lavalink-fallback",
-      host: "free-lava.heavencloud.in",
-      port: 4000,
-      password: "heavencloud.in",
-      authorization: "heavencloud.in",
-      secure: false
-    }];
-  }
+  // Requested hardcoded Serenetia Lavalink node. This deliberately takes
+  // precedence over stale Render LAVALINK_* variables so the bot uses this
+  // endpoint consistently; keep the credentials in this public config only
+  // if the provider intends them to be public.
   return [{
     ...nodeDefaults,
-    id: "heavencloud-lavalink",
-    host: "free-lava.heavencloud.in",
-    port: 4000,
-    password: "heavencloud.in",
-    authorization: "heavencloud.in",
-    secure: false
+    id: "serenetia-lavalink",
+    host: "lavalinkv4.serenetia.com",
+    port: 443,
+    password: "https://seretia.link/discord",
+    authorization: "https://seretia.link/discord",
+    secure: true
   }];
 }
 
