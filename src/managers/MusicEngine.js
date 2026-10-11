@@ -83,19 +83,45 @@ export class MusicEngine {
   }
 
   async _start() {
+    // Lavalink can start later than the Discord client. Do not mark the engine
+    // ready after a failed init: command handlers use this state to decide if
+    // playback can be attempted. Retry with bounded backoff until init succeeds.
     const start = async () => {
-      try {
-        await this.lavalink.init({ id: this.client.user.id, username: this.client.user.username });
-        this.ready = true;
-        logger.success("MusicEngine", "LightCore music engine initialized.");
-        this._restore247Players().catch(error => logger.warn("MusicEngine", "24/7 session restore failed: " + (error?.message || error)));
-      } catch (error) {
-        this.ready = true;
-        logger.error("MusicEngine", "Music engine initialization failed", error);
+      let attempt = 0;
+      while (!this.ready) {
+        try {
+          await this.lavalink.init({
+            id: this.client.user.id,
+            username: this.client.user.username
+          });
+          this.ready = true;
+          logger.success("MusicEngine", "Music engine initialized; waiting for a connected Lavalink node.");
+          this._restore247Players().catch(error =>
+            logger.warn("MusicEngine", "24/7 session restore failed: " + (error?.message || error))
+          );
+          return;
+        } catch (error) {
+          attempt += 1;
+          const delay = Math.min(30000, 2000 * (2 ** Math.min(attempt - 1, 4)));
+          logger.error(
+            "MusicEngine",
+            "Lavalink initialization attempt " + attempt + " failed; retrying in " + delay + "ms: " + (error?.message || error)
+          );
+          await sleep(delay);
+        }
       }
     };
-    if (this.client.isReady?.()) await start();
-    else await new Promise(resolve => this.client.once("clientReady", async () => { await start(); resolve(); }));
+
+    if (this.client.isReady?.()) {
+      await start();
+    } else {
+      await new Promise(resolve => {
+        this.client.once("clientReady", async () => {
+          await start();
+          resolve();
+        });
+      });
+    }
   }
 
   async _restore247Players() {
