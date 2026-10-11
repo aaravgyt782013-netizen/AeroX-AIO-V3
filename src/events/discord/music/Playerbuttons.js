@@ -111,7 +111,7 @@ export default {
 
         if (interaction.isModalSubmit() && id === "lc_music_setting_channel_modal") {
           const raw = interaction.fields.getTextInputValue("channel_id").trim();
-          const channelId = raw.match(/\\d{15,25}/)?.[0] || null;
+          const channelId = raw.match(/\d{15,25}/)?.[0] || null;
           const channel = channelId ? interaction.guild.channels.cache.get(channelId) : null;
           if (channelId && (!channel || !channel.isTextBased?.())) {
             return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a text channel that LightCore can send messages in."), { ephemeral: true }));
@@ -168,7 +168,7 @@ export default {
 
           if (key === "mode247") {
             const voiceId = player?.voiceChannelId || interaction.member?.voice?.channelId || null;
-            const textId = player?.textChannelId || interaction.channelId || null;
+            const textId = db.guild.getMusicSettings(interaction.guild.id).requestChannel || player?.textChannelId || interaction.channelId || null;
             if (enabled && !voiceId) {
               return updateSettings(interaction, client, "Join a voice channel or start music first, then enable 24/7.");
             }
