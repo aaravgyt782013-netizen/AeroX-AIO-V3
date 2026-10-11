@@ -11,6 +11,7 @@ import {
   TextDisplayBuilder
 } from "discord.js";
 import emoji from "#config/emoji";
+import { config } from "#config/config";
 import { PlayerManager } from "#managers/PlayerManager";
 
 export const MUSIC_COLOR = 0x5865F2;
