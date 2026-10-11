@@ -295,7 +295,7 @@ export class MusicEngine {
   async search(query, { source = "ytmsearch", requester } = {}) {
     const q = String(query || "").trim();
     if (!q) return null;
-    if (/^(?:https?:\\/\\/(?:open\\.)?spotify\\.com\\/(?:track|playlist)\\/|spotify:(?:track|playlist):)/i.test(q)) {
+    if (/(?:open\.)?spotify\.com\/(?:track|playlist)\//i.test(q) || /^spotify:(?:track|playlist):/i.test(q)) {
     if (/^(?:https?:\/\/(?:open\.)?spotify\.com\/(?:track|playlist)\/|spotify:(?:track|playlist):)/i.test(q)) {
     }
     const nodes = await this.waitForNode();
