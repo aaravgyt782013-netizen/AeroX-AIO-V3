@@ -8,7 +8,7 @@
 const SEARCH_ORDER = ["ytmsearch", "ytsearch", "scsearch"];
 const URL_PATTERN = /^https?:\/\//i;
 const SPOTIFY_URL_PATTERN = /^(?:https?:\/\/(?:open\.)?spotify\.com\/(?:track|playlist)\/|spotify:(?:track|playlist):)/i;
-const SEARCH_TIMEOUT_MS = 11000;
+const SEARCH_TIMEOUT_MS = 12000;
 
 const isTrack = track => Boolean(track && (track.encoded || track.track || track.info?.identifier || track.info?.uri));
 
@@ -75,28 +75,9 @@ export class MusicSearchEngine {
           : await withTimeout(this.manager.search(q, { source: provider, requester }), SEARCH_TIMEOUT_MS, provider);
         let result = normalizeResult(raw);
 
-        if ((!result || !result.tracks.length) && typeof this.manager.waitForNode === "function") {
-          const nodes = await this.manager.waitForNode(2500);
-          const restProviders = directUrl ? [preferred] : SEARCH_ORDER;
-          for (const restProvider of restProviders) {
-            let found = false;
-            for (const node of nodes || []) {
-              try {
-                const identifier = directUrl ? q : restProvider + ":" + q;
-                const direct = await withTimeout(
-                  node.request("/loadtracks?identifier=" + encodeURIComponent(identifier)),
-                  SEARCH_TIMEOUT_MS,
-                  restProvider + " REST"
-                );
-                const normalized = normalizeResult(direct);
-                if (normalized?.tracks?.length) { result = normalized; found = true; break; }
-              } catch (error) {
-                failures.push(restProvider + " REST: " + String(error?.message || "failed").slice(0, 100));
-              }
-            }
-            if (found) break;
-          }
-        }
+        // MusicEngine.search already performs parallel node/source and REST fallback.
+        // Repeating the same REST lookups here made a failed query take much longer.
+
         if (result?.tracks?.length) return { ...result, tracks: result.tracks, searchSource: provider };
         failures.push(provider + ": no playable tracks");
       } catch (error) {
