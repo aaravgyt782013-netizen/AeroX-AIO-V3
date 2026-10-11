@@ -12,12 +12,14 @@ export class Guild extends Database {
       honeypot: false,
       music: false,
       reactionroles: false,
+      autoreactions: false,
     };
     this.initTable();
     this.initRoleSettings();
     this.initLoggingSettings();
     this.initMusicSettings();
     this.initReactionRoleSettings();
+    this.initAutoReactionSettings();
   }
 
   _ensureGuildColumns(flag, columns) {
@@ -390,6 +392,34 @@ export class Guild extends Database {
   setHoneypotAction(guildId, action) {
     const current = this.getHoneypotSettings(guildId);
     return this.setHoneypot(guildId, current.channelId, action);
+  }
+
+
+  initAutoReactionSettings() {
+    this._ensureGuildColumns("autoreactions", [
+      ["auto_reactions", "TEXT DEFAULT '{}'"],
+    ]);
+  }
+
+  getAutoReactions(guildId) {
+    this.ensureGuild(guildId);
+    this.initAutoReactionSettings();
+    const guild = this.getGuild(guildId);
+    try {
+      const parsed = JSON.parse(guild?.auto_reactions || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  setAutoReactions(guildId, settings = {}) {
+    this.ensureGuild(guildId);
+    this.initAutoReactionSettings();
+    return this.exec(
+      "UPDATE guilds SET auto_reactions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [JSON.stringify(settings || {}), guildId],
+    );
   }
 
   initReactionRoleSettings() {
