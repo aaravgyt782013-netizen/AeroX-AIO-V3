@@ -166,6 +166,9 @@ export default {
           db.guild.setMusicSettings(interaction.guild.id, { [key]: enabled });
 
           if (key === "autoplay") {
+            if (enabled && !player && interaction.member?.voice?.channelId && !interaction.deferred && !interaction.replied) {
+              await interaction.deferUpdate();
+            }
             if (enabled && !player && interaction.member?.voice?.channelId) {
               player = await client.music?.createPlayer?.({
                 guildId: interaction.guild.id,
