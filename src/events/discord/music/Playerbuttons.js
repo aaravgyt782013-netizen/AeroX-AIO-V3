@@ -97,6 +97,29 @@ export default {
           return interaction.reply(v2Payload(container, { ephemeral: true }));
         }
 
+        if (interaction.isButton() && id === "lc_music_setting_channel") {
+          const modal = new ModalBuilder().setCustomId("lc_music_setting_channel_modal").setTitle("Set Music Panel Channel");
+          const input = new TextInputBuilder()
+            .setCustomId("channel_id")
+            .setLabel("Text channel ID or #channel (blank resets)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setPlaceholder("123456789012345678");
+          modal.addComponents(new ActionRowBuilder().addComponents(input));
+          return interaction.showModal(modal);
+        }
+
+        if (interaction.isModalSubmit() && id === "lc_music_setting_channel_modal") {
+          const raw = interaction.fields.getTextInputValue("channel_id").trim();
+          const channelId = raw.match(/\\d{15,25}/)?.[0] || null;
+          const channel = channelId ? interaction.guild.channels.cache.get(channelId) : null;
+          if (channelId && (!channel || !channel.isTextBased?.())) {
+            return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a text channel that LightCore can send messages in."), { ephemeral: true }));
+          }
+          db.guild.setMusicSettings(interaction.guild.id, { requestChannel: channelId });
+          return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Music panel channel updated"), { ephemeral: true }));
+        }
+
         if (interaction.isButton() && id === "lc_music_setting_dj") {
           const modal = new ModalBuilder().setCustomId("lc_music_setting_dj_modal").setTitle("Set LightCore DJ Role");
           const input = new TextInputBuilder()
