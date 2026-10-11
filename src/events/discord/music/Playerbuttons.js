@@ -135,8 +135,20 @@ export default {
           if (channelId && saved.autoplay) db.guild.setAutoplayVoiceSession(interaction.guild.id, true, channelId, saved.requestChannel || player?.textChannelId || interaction.channelId);
           if (channelId && saved.mode247) db.guild.set247Mode(interaction.guild.id, true, channelId, saved.requestChannel || player?.textChannelId || interaction.channelId);
           if (!channelId) {
-            if (saved.autoplay) db.guild.setAutoplayVoiceSession(interaction.guild.id, false);
-            if (saved.mode247) db.guild.set247Mode(interaction.guild.id, false);
+            const fallbackVoiceId = player?.voiceChannelId || null;
+            const fallbackTextId = saved.requestChannel || player?.textChannelId || interaction.channelId;
+            if (saved.autoplay && fallbackVoiceId) {
+              db.guild.setAutoplayVoiceSession(interaction.guild.id, true, fallbackVoiceId, fallbackTextId);
+            } else if (saved.autoplay) {
+              db.guild.setMusicSettings(interaction.guild.id, { autoplay: false });
+              db.guild.setAutoplayVoiceSession(interaction.guild.id, false);
+            }
+            if (saved.mode247 && fallbackVoiceId) {
+              db.guild.set247Mode(interaction.guild.id, true, fallbackVoiceId, fallbackTextId);
+            } else if (saved.mode247) {
+              db.guild.setMusicSettings(interaction.guild.id, { mode247: false });
+              db.guild.set247Mode(interaction.guild.id, false);
+            }
           }
           if (player) {
             player.set("autoplayEnabled", Boolean(saved.autoplay));
