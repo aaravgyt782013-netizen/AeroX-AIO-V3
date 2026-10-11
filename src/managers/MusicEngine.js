@@ -16,10 +16,18 @@ const AUTOPLAY_QUERIES = [
   "lofi music",
   "viral songs"
 ];
-const timeout = (promise, ms, message) => Promise.race([
-  promise,
-  sleep(ms).then(() => { throw new Error(message); })
-]);
+// Every timeout must clear its timer after success or failure. The old
+// Promise.race-only helper left a timer alive for every search/play request,
+// creating a growing timer backlog during busy music sessions.
+const timeout = (promise, ms, message) => {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    })
+  ]).finally(() => clearTimeout(timer));
+};
 
 export class MusicEngine {
   constructor(client) {
@@ -33,13 +41,10 @@ export class MusicEngine {
     this.lastUnavailable = 0;
 
     this.lavalink = new LavalinkManager({
-      nodes: (Array.isArray(config.nodes) && config.nodes.length ? config.nodes : [{
-        id: "lightcore-lavalink",
-        host: process.env.LAVALINK_HOST || "lightcore-lavalink-v4.onrender.com",
-        port: Number(process.env.LAVALINK_PORT || 443),
-        password: process.env.LAVALINK_SERVER_PASSWORD || process.env.LAVALINK_PASSWORD || "LightCore-Music-Node-2026",
-        secure: (process.env.LAVALINK_SECURE || "true") === "true"
-      }]).map(node => ({
+      // Use the configured node pool only. config/config.js owns the user's
+      // hardcoded Lavalink endpoint and optional backup; inventing a second
+      // fallback host here made logs misleading and bypassed that configuration.
+      nodes: (Array.isArray(config.nodes) ? config.nodes : []).map(node => ({
         ...node,
         authorization: node.authorization || node.password,
         retryAmount: Infinity,
