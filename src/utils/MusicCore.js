@@ -146,7 +146,16 @@ export function sameVoiceError(x, player) {
 export async function ensurePlayer(x) {
   const c = context(x);
   if (!c.guild) throw new Error("Music commands can only be used in a server.");
-  const voice = voiceChannel(x);
+  const settings = musicSettings(x);
+  const memberVoice = voiceChannel(x);
+  const configuredVoice = settings.musicVoiceChannel ? c.guild.channels.cache.get(settings.musicVoiceChannel) : null;
+  if (settings.musicVoiceChannel && (!configuredVoice || !configuredVoice.isVoiceBased?.())) {
+    throw new Error("The configured music voice channel no longer exists. Update it in .settings.");
+  }
+  if (configuredVoice && c.member?.voice?.channelId !== configuredVoice.id) {
+    throw new Error("Join the configured music voice channel <#" + configuredVoice.id + "> first.");
+  }
+  const voice = configuredVoice || memberVoice;
   if (!voice) throw new Error("Join a voice channel first.");
 
   if (!c.client.music) throw new Error("The music engine is still starting. Try again in a few seconds.");
@@ -159,7 +168,7 @@ export async function ensurePlayer(x) {
   if (!p) {
     const raw = await c.client.music.createPlayer({
       guildId: c.guild.id,
-      textChannelId: c.channel.id,
+      textChannelId: settings.requestChannel || c.channel.id,
       voiceChannelId: voice.id
     });
     if (!raw) throw new Error("Music is temporarily unavailable: no configured Lavalink node is connected. Check the Lavalink connection logs.");
