@@ -378,7 +378,7 @@ export function settingsContainer(settings, notice = "") {
     description: notice ? E("check", "✅") + " **" + notice + "**" : "Rythm-style playback controls, access and search settings.",
     sections: [
       E("music", "🎵") + " **PLAYBACK**\n" + E("reload", "🔄") + " Autoplay: **" + (s.autoplay ? "ON" : "OFF") + "**  •  📢 Announcements: **" + (s.announceSongs ? "ON" : "OFF") + "**  •  🗳️ Vote Skip: **" + (s.voteSkip ? "ON" : "OFF") + "**",
-      "♾️ **STAY CONNECTED**\n24/7: **" + (s.mode247 ? "ON" : "OFF") + "**  •  🔎 Source: **" + (s.source === "ytmsearch" ? "YouTube Music" : s.source) + "**\n" + E("owner", "👑") + " DJ role: " + (s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control") + "\n📨 Music panel channel: " + (s.requestChannel ? "<#" + s.requestChannel + ">" : "Command channel (default)")
+      "♾️ **STAY CONNECTED**\n24/7: **" + (s.mode247 ? "ON" : "OFF") + "**  •  🔎 Source: **" + (s.source === "ytmsearch" ? "YouTube Music" : s.source) + "**\n" + E("owner", "👑") + " DJ role: " + (s.djRole ? "<@&" + s.djRole + ">" : "Everyone can control") + "\n🔊 Music voice channel: " + (s.musicVoiceChannel ? "<#" + s.musicVoiceChannel + ">" : "Your current voice channel") + "\n📨 Music panel channel: " + (s.requestChannel ? "<#" + s.requestChannel + ">" : "Command channel (default)")
     ],
     components: settingsRows(s)
   });
