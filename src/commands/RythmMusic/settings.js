@@ -26,6 +26,13 @@ const run = async x => {
   if (["autoplay","announce","announcesongs","voteskip","247"].includes(key)) {
     const enabled = bool(value);
     if (enabled === null) return safeReply(x, "⚙️ Settings", "Use on or off.", 0xED4245);
+    if (key === "autoplay" && enabled) {
+      const current = c.client.db.guild.getMusicSettings(guild);
+      const existing = c.client.music?.getPlayer?.(guild);
+      if (!existing && !current.musicVoiceChannel && !c.member?.voice?.channel) {
+        return safeReply(x, "⚙️ Settings", "Join a voice channel or configure the Music Voice Channel before enabling autoplay.", 0xED4245);
+      }
+    }
     if (key === "autoplay") c.client.db.guild.setAutoplay(guild, enabled);
     if (key === "announce" || key === "announcesongs") c.client.db.guild.setAnnounceSongs(guild, enabled);
     if (key === "voteskip") c.client.db.guild.setVoteSkip(guild, enabled);
