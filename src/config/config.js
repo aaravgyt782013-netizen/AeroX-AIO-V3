@@ -27,7 +27,7 @@ export const config = {
   debug: process.env.DEBUG === "true" || process.env.NODE_ENV === "development",
   // Render free web services cannot write to /var/data unless a persistent disk is mounted.
   // DATA_DIR can point to a mounted disk; default to a writable local directory for startup.
-  database: (() => { const dir = (process.env.DATA_DIR || "./data").replace(/\\/+$/, ""); return { guild: `${dir}/guild.sqlite`, user: `${dir}/user.sqlite`, premium: `${dir}/premium.sqlite`, antiabuse: `${dir}/antiabuse.sqlite`, playlists: `${dir}/playlists.sqlite`, ticket: `${dir}/ticket.sqlite`, invites: `${dir}/invites.sqlite`, automation: `${dir}/automation.sqlite` }; })(),
+  database: (() => { const dir = (process.env.DATA_DIR || "./data").replace(/\/+$/, ""); return { guild: `${dir}/guild.sqlite`, user: `${dir}/user.sqlite`, premium: `${dir}/premium.sqlite`, antiabuse: `${dir}/antiabuse.sqlite`, playlists: `${dir}/playlists.sqlite`, ticket: `${dir}/ticket.sqlite`, invites: `${dir}/invites.sqlite`, automation: `${dir}/automation.sqlite` }; })(),
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/aerox" },
   status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: "CUSTOM" },
   colors: { info: "#3498db", success: "#2ecc71", warning: "#f39c12", error: "#e74c3c" },
