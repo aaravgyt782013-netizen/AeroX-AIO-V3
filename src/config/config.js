@@ -10,8 +10,11 @@ function parseLavalinkNodes() {
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const nodes = parsed.filter(n => n && typeof n.host === "string" && n.host.trim() && (n.password || n.authorization))
+      // Accept either a node array or a single-node object. Render env vars are
+      // often entered as the exact JSON object supplied by a Lavalink provider.
+      const candidates = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === "object" ? [parsed] : []);
+      if (candidates.length) {
+        const nodes = candidates.filter(n => n && typeof n.host === "string" && n.host.trim() && (n.password || n.authorization))
           .map((n, i) => ({
             ...nodeDefaults,
             id: String(n.id || "aerox-node-" + (i + 1)),
