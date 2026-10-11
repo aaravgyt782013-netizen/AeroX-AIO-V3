@@ -117,7 +117,7 @@ export function musicSettings(x) {
       autoplay: Boolean(s.autoplay),
       announceSongs: s.announceSongs !== false,
       voteSkip: Boolean(s.voteSkip),
-      source: s.source || "ytmsearch",
+      source: ["ytmsearch", "ytsearch", "scsearch"].includes(s.source) ? s.source : "ytmsearch",
       mode247: Boolean(s.mode247)
     };
   } catch {
@@ -384,8 +384,6 @@ export function sourceFromFlag(value) {
     youtube: "ytsearch",
     ytm: "ytmsearch",
     youtubemusic: "ytmsearch",
-    sp: "spsearch",
-    spotify: "spsearch",
     sc: "scsearch",
     soundcloud: "scsearch"
   };
@@ -397,7 +395,6 @@ export function sourceMenu() {
     new StringSelectMenuBuilder().setCustomId("lc_music_source_select").setPlaceholder("🎧 Choose a music source").addOptions(
       { label: "YouTube Music", value: "ytmsearch", emoji: emojiObject("youtube", "▶️") },
       { label: "YouTube", value: "ytsearch", emoji: emojiObject("youtube", "📺") },
-      { label: "Spotify", value: "spsearch", emoji: emojiObject("spotify", "🟢") },
       { label: "SoundCloud", value: "scsearch", emoji: "🟠" }
     )
   );

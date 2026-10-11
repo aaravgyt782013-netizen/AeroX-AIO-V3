@@ -288,17 +288,21 @@ export class MusicEngine {
   }
 
   normalizeSource(source = "ytmsearch") {
-    const map = { yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch", sp: "spsearch", spotify: "spsearch", sc: "scsearch", soundcloud: "scsearch" };
+    const map = { yt: "ytsearch", youtube: "ytsearch", ytm: "ytmsearch", youtubemusic: "ytmsearch", sc: "scsearch", soundcloud: "scsearch" };
     return map[String(source).toLowerCase()] || source || "ytmsearch";
   }
 
   async search(query, { source = "ytmsearch", requester } = {}) {
     const q = String(query || "").trim();
     if (!q) return null;
+    if (/^(?:https?:\\/\\/(?:open\\.)?spotify\\.com\\/(?:track|playlist)\\/|spotify:(?:track|playlist):)/i.test(q)) {
+      throw new Error("Spotify links are handled by .spotify for catalog details and are not sent to audio providers.");
+    }
     const nodes = await this.waitForNode();
     if (!nodes.length) return null;
-    const selected = this.normalizeSource(source);
-    const sources = this.isUrl(q) ? [selected] : selected === "ytmsearch" ? ["ytsearch", "ytmsearch", "scsearch"] : selected === "spsearch" ? ["spsearch", "ytsearch", "ytmsearch", "scsearch"] : selected === "scsearch" ? ["scsearch", "ytsearch", "ytmsearch"] : [selected, "ytsearch", "ytmsearch", "scsearch"];
+    const normalized = this.normalizeSource(source);
+    const selected = ["ytmsearch", "ytsearch", "scsearch"].includes(normalized) ? normalized : "ytmsearch";
+    const sources = this.isUrl(q) ? [selected] : selected === "ytmsearch" ? ["ytsearch", "ytmsearch", "scsearch"] : selected === "scsearch" ? ["scsearch", "ytsearch", "ytmsearch"] : ["ytsearch", "ytmsearch", "scsearch"];
 
     const attempt = async node => {
       for (const src of [...new Set(sources)]) {
