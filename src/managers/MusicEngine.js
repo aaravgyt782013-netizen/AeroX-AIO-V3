@@ -364,16 +364,14 @@ export class MusicEngine {
       return null;
     };
 
-    for (const src of sources) {
-      try {
-        const results = await Promise.any(nodes.map(node => attempt(node, src).then(result => {
-          if (result?.tracks?.length || result?.loadType === "playlist") return result;
-          throw new Error("No result from " + node.id);
-        })));
-        if (results) return results;
-      } catch {}
+    try {
+      return await Promise.any(nodes.flatMap(node => sources.map(src => attempt(node, src).then(result => {
+        if (result?.tracks?.length || result?.loadType === "playlist") return result;
+        throw new Error("No result from " + node.id + " [" + src + "]");
+      }))));
+    } catch {
+      return null;
     }
-    return null;
   }
 
   async resolve(query, options = {}) { return this.search(query, options); }
