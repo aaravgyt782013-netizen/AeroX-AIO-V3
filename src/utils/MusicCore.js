@@ -19,6 +19,20 @@ export const ERROR_COLOR = 0xED4245;
 export const SUCCESS_COLOR = 0x57F287;
 export const v2Flags = MessageFlags.IsComponentsV2;
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function withTimeout(promise, ms, message) {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 const text = value => new TextDisplayBuilder().setContent(String(value ?? ""));
 function emojiObject(name, fallback = null) {
   const raw = emoji.get(name, fallback || "");
@@ -185,10 +199,11 @@ export async function enqueue(x, result, position) {
   if (!result?.tracks?.length) throw new Error("No playable tracks were returned by Lavalink.");
   const p = await ensurePlayer(x);
   const idle = !p.currentTrack && p.queueSize === 0;
-  const maxSongs = Number(config.queue?.maxSongs?.free || 50);
+  const premium = p.getPremiumStatus(c.guild.id, c.user?.id);
+  const maxSongs = Number(premium?.maxSongs || config.queue?.maxSongs?.free || 50);
   const requestedCount = result.loadType === "playlist" ? result.tracks.length : 1;
   if (p.queueSize + requestedCount > maxSongs) {
-    throw new Error("This server's queue limit is " + maxSongs + " tracks. Clear or shorten the queue before adding more.");
+    throw new Error("This server's " + (premium?.hasPremium ? "Premium" : "free") + " queue limit is " + maxSongs + " tracks. " + (premium?.hasPremium ? "Remove tracks or clear the queue." : "Upgrade to Premium for a larger queue, or remove tracks before adding this request."));
   }
 
   if (result.loadType === "playlist") {
@@ -209,10 +224,7 @@ export async function enqueue(x, result, position) {
 
     try {
       // lavalink-client's supported queue flow is: queue.add() -> player.play().
-      await Promise.race([
-        p.play(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Playback start timed out.")), 12000))
-      ]);
+      await withTimeout(p.play(), 12000, "Playback start timed out.");
 
       // A successful REST update is not the same thing as audio actually starting.
       if (!(await waitForPlayback(10000))) {
@@ -242,10 +254,7 @@ export async function enqueue(x, result, position) {
         await p.stopPlaying(false, false).catch(() => {});
         await p.addTracks(fallbackTrack, 0);
 
-        await Promise.race([
-          p.play(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("SoundCloud fallback playback timed out.")), 12000))
-        ]);
+        await withTimeout(p.play(), 12000, "SoundCloud fallback playback timed out.");
 
         if (!(await waitForPlayback(10000))) {
           throw new Error("SoundCloud fallback loaded but audio did not start.");
