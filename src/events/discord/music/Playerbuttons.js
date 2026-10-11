@@ -97,6 +97,52 @@ export default {
           return interaction.reply(v2Payload(container, { ephemeral: true }));
         }
 
+        if (interaction.isButton() && id === "lc_music_setting_voice_channel") {
+          const modal = new ModalBuilder().setCustomId("lc_music_setting_voice_channel_modal").setTitle("Set Music Voice Channel");
+          const input = new TextInputBuilder()
+            .setCustomId("voice_channel_id")
+            .setLabel("Voice channel ID or #channel (blank clears)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setPlaceholder("123456789012345678");
+          modal.addComponents(new ActionRowBuilder().addComponents(input));
+          return interaction.showModal(modal);
+        }
+
+        if (interaction.isModalSubmit() && id === "lc_music_setting_voice_channel_modal") {
+          const raw = interaction.fields.getTextInputValue("voice_channel_id").trim();
+          const channelId = raw.match(/\\d{15,25}/)?.[0] || null;
+          const voice = channelId ? interaction.guild.channels.cache.get(channelId) : null;
+          if (channelId && (!voice || !voice.isVoiceBased?.())) {
+            return interaction.reply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Choose a valid voice channel."), { ephemeral: true }));
+          }
+          await interaction.deferReply({ ephemeral: true });
+          db.guild.setMusicSettings(interaction.guild.id, { musicVoiceChannel: channelId });
+          const saved = db.guild.getMusicSettings(interaction.guild.id);
+          let player = client.music?.getPlayer?.(interaction.guild.id);
+          if (channelId && !player && (saved.autoplay || saved.mode247)) {
+            player = await client.music?.createPlayer?.({
+              guildId: interaction.guild.id,
+              voiceChannelId: channelId,
+              textChannelId: saved.requestChannel || interaction.channelId
+            });
+          } else if (channelId && player && player.voiceChannelId !== channelId) {
+            await player.changeVoiceState({ channelId });
+          }
+          if (channelId && saved.autoplay) db.guild.setAutoplayVoiceSession(interaction.guild.id, true, channelId, saved.requestChannel || player?.textChannelId || interaction.channelId);
+          if (channelId && saved.mode247) db.guild.set247Mode(interaction.guild.id, true, channelId, saved.requestChannel || player?.textChannelId || interaction.channelId);
+          if (!channelId) {
+            if (saved.autoplay) db.guild.setAutoplayVoiceSession(interaction.guild.id, false);
+            if (saved.mode247) db.guild.set247Mode(interaction.guild.id, false);
+          }
+          if (player) {
+            player.set("autoplayEnabled", Boolean(saved.autoplay));
+            player.set("stay247", Boolean(saved.mode247));
+            player.set("stayAlive", Boolean(saved.autoplay || saved.mode247));
+          }
+          return interaction.editReply(v2Payload(settingsContainer(musicSettings({ interaction, client }), "Music voice channel updated")));
+        }
+
         if (interaction.isButton() && id === "lc_music_setting_channel") {
           const modal = new ModalBuilder().setCustomId("lc_music_setting_channel_modal").setTitle("Set Music Panel Channel");
           const input = new TextInputBuilder()
