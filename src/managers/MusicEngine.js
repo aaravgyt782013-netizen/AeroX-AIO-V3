@@ -205,12 +205,20 @@ export class MusicEngine {
       try {
         const settings = db.guild.getMusicSettings(player.guildId);
         const targetChannelId = settings.requestChannel || player.textChannelId;
+        const payload = v2Payload(nowPlayingEmbed(new PlayerManager(player)));
         const textChannel = targetChannelId ? await this.client.channels.fetch(targetChannelId).catch(() => null) : null;
+        let sent = false;
         if (textChannel?.isTextBased?.()) {
-          await textChannel.send(v2Payload(nowPlayingEmbed(new PlayerManager(player))));
-        } else if (targetChannelId !== player.textChannelId && player.textChannelId) {
+          try {
+            await textChannel.send(payload);
+            sent = true;
+          } catch (sendError) {
+            logger.warn("MusicEngine", "Configured music panel channel send failed [" + player.guildId + "]: " + (sendError?.message || sendError));
+          }
+        }
+        if (!sent && player.textChannelId && targetChannelId !== player.textChannelId) {
           const fallbackChannel = await this.client.channels.fetch(player.textChannelId).catch(() => null);
-          if (fallbackChannel?.isTextBased?.()) await fallbackChannel.send(v2Payload(nowPlayingEmbed(new PlayerManager(player))));
+          if (fallbackChannel?.isTextBased?.()) await fallbackChannel.send(payload);
         }
       } catch (panelError) {
         logger.warn("MusicEngine", "Could not send new-song control panel [" + player.guildId + "]: " + (panelError?.message || panelError));
