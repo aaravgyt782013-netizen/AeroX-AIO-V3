@@ -150,7 +150,7 @@ export default {
           const modal = new ModalBuilder().setCustomId("lc_music_setting_channel_modal").setTitle("Set Music Panel Channel");
           const input = new TextInputBuilder()
             .setCustomId("channel_id")
-            .setLabel("Text channel or voice-chat channel ID (blank resets)")
+            .setLabel("Panel channel ID (text or voice chat)")
             .setStyle(TextInputStyle.Short)
             .setRequired(false)
             .setPlaceholder("123456789012345678");
