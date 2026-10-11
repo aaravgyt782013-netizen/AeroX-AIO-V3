@@ -711,7 +711,7 @@ class HelpCommand extends Command {
       );
 
       let content = category.toLowerCase() === "music"
-        ? `**Music > ${this._capitalize(subcatName)}** · Prefix commands (default prefix `.`)\n\n`
+        ? `**Music > ${this._capitalize(subcatName)}** · Prefix commands (default prefix \\` .\\`)\n\n`
         : `**${this._capitalize(category)} > ${this._capitalize(subcatName)}**\n\n`;
 
       subcatCommands.forEach((cmd, index) => {
