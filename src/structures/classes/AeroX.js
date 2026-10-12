@@ -122,8 +122,15 @@ export class LightCore extends Client {
                         } catch (error) {
                             this.logger.error('LightCore', 'Failed to load no-prefix users:', error);
                         }
-                        await registerSlashCommands(this);
+                        // Connect to Discord before making the optional global slash-command REST request.
+                        // A Discord REST 429 must not prevent the gateway client from logging in.
                         await this.login(config.token);
+                        this.logger.success('LightCore', 'Discord gateway login completed; bot is connecting.');
+
+                        // Slash registration handles its own errors and can be rate-limited independently.
+                        void registerSlashCommands(this).catch(error =>
+                                this.logger.error('SlashRegistration', 'Unexpected registration failure:', error),
+                        );
 
                         this.logger.success(
                                 'LightCore',
