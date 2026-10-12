@@ -13,7 +13,6 @@ import {
 
 import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
-import { PlayerManager } from "#managers/PlayerManager";
 import { antiAbuse } from "#utils/AntiAbuse";
 import { logger } from "#utils/logger";
 import emoji from "#config/emoji";
@@ -330,32 +329,6 @@ async function handleChatInputCommand(interaction, client) {
           `You must be in the same voice channel as me: **${interaction.guild.members.me.voice.channel.name}**.`,
         );
       }
-    }
-
-    const player = client.music.getPlayer(interaction.guild.id);
-
-    if (commandToExecute.playerRequired && !player) {
-      return _sendError(
-        interaction,
-        "No Player Active",
-        "There is no music player active in this server.\nUse `/play` to start one.",
-      );
-    }
-    if (
-      commandToExecute.playingRequired &&
-      (!player || !player.queue.current)
-    ) {
-      return _sendError(
-        interaction,
-        "Nothing Playing",
-        "There is no track currently playing.\nUse `/play` to start a song.",
-      );
-    }
-
-    const executionContext = { interaction, client };
-
-    if (commandToExecute.playerRequired || commandToExecute.playingRequired) {
-      executionContext.pm = new PlayerManager(player);
     }
 
     antiAbuse.setCooldown(interaction.user.id, commandToExecute);
