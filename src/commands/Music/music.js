@@ -62,7 +62,7 @@ export default {
           `**Autoplay:** ${settings.autoplay ? "On" : "Off"}`,
           `**Loop:** ${settings.loop}`,
           "",
-          "Set: `.music config volume 75`, `maxqueue 150`, `djrole ROLE_ID`, `announce off`, or `source ytmsearch`."
+          "Set: `.music config volume 75`, `maxqueue 150`, `djrole ROLE_ID`, `announce off`, `autoplay on`, or `source ytmsearch`."
         ].join("\n"), "⚙️ Server Music Settings");
         let patch = {};
         if (key === "volume") {
@@ -87,7 +87,7 @@ export default {
         } else return reply("Unknown setting. Use `.music config` to see supported options.", "Invalid setting", 0xED4245);
         const updated = await manager.updateSettings(guildId, patch);
         if (key === "volume" && player) await player.setVolume(updated.defaultVolume);
-        return reply(`Saved **${key}**. The setting is now ${key === "djrole" ? (updated.djRoleId ? `<@&${updated.djRoleId}>` : "off") : key === "announce" ? (updated.announceNowPlaying ? "on" : "off") : key === "source" ? updated.defaultSource : key === "volume" ? updated.defaultVolume + "%" : updated.maxQueue}.`, "✅ Music settings saved", 0x57F287);
+        return reply(`Saved **${key}**. The setting is now ${key === "djrole" ? (updated.djRoleId ? `<@&${updated.djRoleId}>` : "off") : key === "announce" ? (updated.announceNowPlaying ? "on" : "off") : key === "source" ? updated.defaultSource : key === "volume" ? updated.defaultVolume + "%" : key === "autoplay" ? (updated.autoplay ? "on" : "off") : updated.maxQueue}.`, "✅ Music settings saved", 0x57F287);
       }
 
       if (["pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "shuffle", "loop"].includes(sub)) {
@@ -102,7 +102,7 @@ export default {
           const n = Number(args[0]); if (!Number.isInteger(n) || n < 0 || n > 100) return reply("Use `.music volume <0-100>`.", "Invalid volume", 0xED4245);
           await player.setVolume(n); return reply(`🔊 Volume set to **${n}%**.`);
         }
-        if (sub === "shuffle") { const tracks = player.queue.tracks; if (!tracks || tracks.length < 2) return reply("Add at least two queued tracks before shuffling."); player.queue.shuffle(); return reply("🔀 Shuffled the upcoming queue."); }
+        if (sub === "shuffle") { const tracks = player.queue.tracks; if (!tracks || tracks.length < 2) return reply("Add at least two queued tracks before shuffling."); await player.queue.shuffle(); return reply("🔀 Shuffled the upcoming queue."); }
         if (sub === "loop") {
           const mode = (args[0] || "").toLowerCase();
           if (!["off", "queue"].includes(mode)) return reply("Use `.music loop off` or `.music loop queue`.", "Invalid loop mode", 0xED4245);
@@ -140,13 +140,13 @@ export default {
         if (result.loadType === "playlist") {
           const tracks = result.tracks.slice(0, Math.max(0, settings.maxQueue - active.queue.tracks.length));
           if (!tracks.length) return reply(`The queue is full (${settings.maxQueue} tracks).`, "Queue limit reached", 0xED4245);
-          for (const track of tracks) active.queue.add(track);
+          for (const track of tracks) await active.queue.add(track);
           if (!active.playing && !active.paused) await active.play();
           return reply(`📚 Added **${tracks.length}** tracks from **${clean(result.playlistInfo?.name || "playlist")}**.`, "Playlist queued", 0x57F287);
         }
         const track = result.tracks[0];
         if ((active.queue.tracks?.length || 0) >= settings.maxQueue) return reply(`The queue is full (${settings.maxQueue} tracks). Remove or play queued tracks before adding more.`, "Queue limit reached", 0xED4245);
-        active.queue.add(track);
+        await active.queue.add(track);
         if (!active.playing && !active.paused) await active.play();
         return reply(`🎶 Added [**${clean(track.info?.title)}**](${track.info?.uri || "https://discord.com"}) · ${fmt(track.info?.duration)}\nRequested by ${message.author}`, "Added to queue", 0x57F287);
       }
