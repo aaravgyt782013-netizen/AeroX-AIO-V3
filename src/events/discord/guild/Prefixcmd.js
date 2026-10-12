@@ -314,10 +314,25 @@ export default {
   async execute(message, client) {
     if (message.author.bot || !message.guild) return;
 
-    await _handleExpiredGuildPerks(message.guild.id, message.channel);
-    await _handleExpiredUserPerks(message.author.id, message.author);
+    // Expired-premium housekeeping is ancillary: a database/migration error here
+    // must never prevent normal prefix commands from running.
+    try {
+      await _handleExpiredGuildPerks(message.guild.id, message.channel);
+    } catch (error) {
+      logger.warn("MessageCreate", "Guild premium housekeeping failed; continuing command handling.", error);
+    }
+    try {
+      await _handleExpiredUserPerks(message.author.id, message.author);
+    } catch (error) {
+      logger.warn("MessageCreate", "User premium housekeeping failed; continuing command handling.", error);
+    }
 
-    const userBlacklist = db.isUserBlacklisted(message.author.id);
+    let userBlacklist = false;
+    try {
+      userBlacklist = db.isUserBlacklisted(message.author.id);
+    } catch (error) {
+      logger.error("MessageCreate", "Could not check user blacklist; command handling continues.", error);
+    }
     if (userBlacklist) {
       const premium = db.isUserPremium(message.author.id);
       const automatedCooldownBlacklist =
@@ -335,7 +350,11 @@ export default {
       }
     }
 
-    if (db.isGuildBlacklisted(message.guild.id)) return;
+    try {
+      if (db.isGuildBlacklisted(message.guild.id)) return;
+    } catch (error) {
+      logger.error("MessageCreate", "Could not check guild blacklist; command handling continues.", error);
+    }
 
     // Award XP for ordinary server messages and announce level-ups.
     if (message.content.trim()) {
