@@ -1,6 +1,5 @@
 import { Guild } from "#db/Guild";
 import { User } from "#db/User";
-import { Playlists } from "#db/Playlists";
 import { Premium } from "#db/Premium";
 import { Moderation } from "#db/Moderation";
 import { Ticket } from "#db/Ticket";
@@ -18,7 +17,6 @@ export class DatabaseManager {
       this.guild = new Guild();
       this.user = new User();
       this.premium = new Premium();
-      this.playlists = new Playlists();
       this.moderation = new Moderation();
       this.ticket = new Ticket();
       this.invites = new Invites();
@@ -35,7 +33,6 @@ export class DatabaseManager {
       this.guild.close();
       this.user.close();
       this.premium.close();
-      this.playlists.close();
       this.moderation.close();
       this.ticket.close();
       this.invites.close();
