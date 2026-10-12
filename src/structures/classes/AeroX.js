@@ -14,6 +14,7 @@ import { CommandHandler } from '#handlers/CommandHandler';
 import { EventLoader } from '#handlers/EventLoader';
 import { logger } from '#utils/logger';
 import { registerSlashCommands } from '#utils/slashRegistration';
+import { MusicManager } from '#managers/MusicManager';
 
 let shardInfo = null;
 try {
@@ -61,6 +62,7 @@ export class LightCore extends Client {
                 this.logger = logger;
                 this.config = config;
                 this.db = db;
+                this.music = new MusicManager(this);
                 // Keep premium state accurate across restarts.
                 try {
                         const cleaned = this.db.premium.cleanupExpired();
@@ -111,9 +113,11 @@ export class LightCore extends Client {
                         }
                         // Log the actual gateway lifecycle so an online-looking deploy
                         // cannot hide a failed Discord connection.
-                        this.once('ready', () => {
+                        this.once('ready', async () => {
                                 this.logger.success('DiscordGateway', `Ready as ${this.user?.tag || this.user?.id}`);
+                                try { await this.music.init(); } catch (error) { this.logger.error('Music', 'Music service initialization failed:', error); }
                         });
+                        this.on('raw', data => this.music.sendRawData(data));
                         this.on('shardError', (error, shardId) => {
                                 this.logger.error('DiscordGateway', `Shard ${shardId} error:`, error);
                         });
