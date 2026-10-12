@@ -122,8 +122,26 @@ export class LightCore extends Client {
                         } catch (error) {
                             this.logger.error('LightCore', 'Failed to load no-prefix users:', error);
                         }
-                        await registerSlashCommands(this);
+                        // Log the actual gateway lifecycle so an online-looking deploy
+                        // cannot hide a failed Discord connection.
+                        this.once('ready', () => {
+                                this.logger.success('DiscordGateway', `Ready as ${this.user?.tag || this.user?.id}`);
+                        });
+                        this.on('shardError', (error, shardId) => {
+                                this.logger.error('DiscordGateway', `Shard ${shardId} error:`, error);
+                        });
+                        this.on('shardDisconnect', (event, shardId) => {
+                                this.logger.warn('DiscordGateway', `Shard ${shardId} disconnected (code ${event?.code ?? 'unknown'}).`);
+                        });
+
+                        // Connect to Discord first. Slash-command REST registration can
+                        // be rate-limited and must not delay the gateway login.
                         await this.login(config.token);
+                        this.logger.info('DiscordGateway', 'Login started; waiting for Ready event.');
+
+                        void registerSlashCommands(this).catch(error => {
+                                this.logger.error('SlashRegistration', 'Unexpected registration failure:', error);
+                        });
 
                         this.logger.success(
                                 'LightCore',
