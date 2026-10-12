@@ -331,6 +331,7 @@ async function handleChatInputCommand(interaction, client) {
       }
     }
 
+    const executionContext = { interaction, client };
     antiAbuse.setCooldown(interaction.user.id, commandToExecute);
     await commandToExecute.slashExecute(executionContext);
   } catch (error) {
