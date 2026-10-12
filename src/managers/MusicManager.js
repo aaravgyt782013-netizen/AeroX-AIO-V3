@@ -20,7 +20,21 @@ export class MusicManager {
       },
       autoSkip: true,
       client: { id: config.clientId, username: "LightCore" },
-      playerOptions: { defaultSearchPlatform: "ytmsearch", onDisconnect: { autoReconnect: true, destroyPlayer: false }, onEmptyQueue: { destroyAfterMs: 60_000 } },
+      playerOptions: {
+        defaultSearchPlatform: "ytmsearch",
+        onDisconnect: { autoReconnect: true, destroyPlayer: false },
+        onEmptyQueue: {
+          destroyAfterMs: 60_000,
+          autoPlayFunction: async (player, lastPlayedTrack) => {
+            if (!this.getSettings(player.guildId).autoplay || !lastPlayedTrack?.info?.title) return;
+            const info = lastPlayedTrack.info;
+            const query = info.author ? `${info.author} - ${info.title}` : info.title;
+            const result = await player.search({ query, source: this.getSettings(player.guildId).defaultSource }, lastPlayedTrack.requester || "LightCore");
+            const next = result?.tracks?.find(track => track.info?.identifier !== info.identifier);
+            if (next) await player.queue.add(next);
+          },
+        },
+      },
     }) : null;
     if (!this.lavalink) return;
     this.lavalink.on("trackStart", (player, track) => this.announce(player, track).catch(error => logger.warn("Music", "Now-playing announcement failed:", error)));
