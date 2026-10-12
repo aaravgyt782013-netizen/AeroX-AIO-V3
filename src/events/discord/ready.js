@@ -3,7 +3,6 @@ import { logger } from "#utils/logger";
 import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
 import { antiAbuse } from "#utils/AntiAbuse";
-import { PlayerManager } from "#managers/PlayerManager";
 import fs from "fs";
 import path from "path";
 import { AttachmentBuilder } from "discord.js";
@@ -19,7 +18,7 @@ export default {
     logger.success("Bot", `Logged in as ${user.tag}`);
     logger.info("Bot", `Serving ${guilds.cache.size} guilds`);
 
-    if (config.features.stay247) {
+    if (false) { // Legacy 24/7 music mode was removed; standard bot startup continues normally.
       logger.info(
         "Bot",
         "Waiting 10 seconds for Lavalink to be ready before initializing 24/7 mode...",
