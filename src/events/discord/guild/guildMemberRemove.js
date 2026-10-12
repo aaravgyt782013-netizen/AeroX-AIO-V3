@@ -19,6 +19,20 @@ export default {
     } catch (error) {
       logger.error("InviteTracker", `Error handling member leave for ${member.user.tag}:`, error);
     }
-  },
-    await LoggingManager.send(member.guild,"member",{emoji:"📤",title:"Member Left",color:0xED4245,description:"<@"+member.id+"> left the server.",fields:[{name:"Member",value:member.user?.tag||member.id,inline:true},{name:"Member Count",value:String(member.guild.memberCount),inline:true}]});
+
+    try {
+      await LoggingManager.send(member.guild, "member", {
+        emoji: "📤",
+        title: "Member Left",
+        color: 0xED4245,
+        description: "<@" + member.id + "> left the server.",
+        fields: [
+          { name: "Member", value: member.user?.tag || member.id, inline: true },
+          { name: "Member Count", value: String(member.guild.memberCount), inline: true }
+        ]
+      });
+    } catch (error) {
+      logger.error("MemberLeave", "Failed to send member-leave log:", error);
+    }
+  }
 };
