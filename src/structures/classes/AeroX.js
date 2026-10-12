@@ -12,7 +12,6 @@ import { config } from '#config/config';
 import { db } from '#database/DatabaseManager';
 import { CommandHandler } from '#handlers/CommandHandler';
 import { EventLoader } from '#handlers/EventLoader';
-import { MusicManager } from '#managers/MusicManager';
 import { logger } from '#utils/logger';
 import { registerSlashCommands } from '#utils/slashRegistration';
 
@@ -71,18 +70,6 @@ export class LightCore extends Client {
                 } catch (error) {
                         this.logger.error("LightCore", "Failed to clean expired premium grants:", error);
                 }
-                this.music = new MusicManager(this);
-                this.lavalink = this.music.lavalink;
-
-                // Lavalink v4 needs the Discord gateway voice packets forwarded to it.
-                this.on('raw', packet => {
-                        try {
-                                this.lavalink?.sendRawData?.(packet);
-                        } catch (error) {
-                                this.logger.debug?.('MusicGateway', 'Failed to forward gateway packet: ' + (error?.message || error));
-                        }
-                });
-
                 this.commandHandler = new CommandHandler(this);
                 this.eventHandler = new EventLoader(this);
 
