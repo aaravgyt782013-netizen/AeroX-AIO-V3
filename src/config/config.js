@@ -1,18 +1,18 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// Public community node from the Stackryze Lavalink list.
-// Public-node uptime, latency, password and installed plugins can change without notice.
-const nodeDefaults = { retryAmount: 3, retryDelay: 3000, resumeTimeout: 300000, requestTimeout: 15000 };
+// HeavenCloud's published public Lavalink v4 India endpoint.
+// Public nodes can change availability, credentials, and plugin support without notice.
+const nodeDefaults = { retryAmount: 5, retryDelay: 3000, resumeTimeout: 300000, requestTimeout: 20000 };
 
 const PUBLIC_LAVALINK_NODES = [{
   ...nodeDefaults,
-  id: "stackryze-lavalink-v4",
-  host: "188.245.207.225",
-  port: 2333,
-  password: "youshallnotpass",
-  authorization: "youshallnotpass",
-  secure: false
+  id: "heavencloud-india-v4",
+  host: process.env.LAVALINK_HOST || "lavalink.heavencloud.in",
+  port: Number(process.env.LAVALINK_PORT || 443),
+  password: process.env.LAVALINK_PASSWORD || "heavencloud",
+  authorization: process.env.LAVALINK_PASSWORD || "heavencloud",
+  secure: (process.env.LAVALINK_SECURE || "true") === "true"
 }];
 
 export const config = {
