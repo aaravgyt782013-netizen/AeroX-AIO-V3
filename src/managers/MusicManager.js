@@ -11,8 +11,9 @@ export class MusicManager {
   constructor(client) {
     this.client = client;
     this.settings = {};
-    this.lavalink = new LavalinkManager({
-      nodes: [...config.music.nodes, ...config.music.node],
+    const nodes = [...config.music.nodes, ...config.music.node];
+    this.lavalink = nodes.length ? new LavalinkManager({
+      nodes,
       sendToShard: (guildId, payload) => {
         const guild = this.client.guilds.cache.get(guildId);
         if (guild) guild.shard.send(payload);
@@ -20,7 +21,8 @@ export class MusicManager {
       autoSkip: true,
       client: { id: config.clientId, username: "LightCore" },
       playerOptions: { defaultSearchPlatform: "ytmsearch", onDisconnect: { autoReconnect: true, destroyPlayer: false }, onEmptyQueue: { destroyAfterMs: 60_000 } },
-    });
+    }) : null;
+    if (!this.lavalink) return;
     this.lavalink.on("trackStart", (player, track) => this.announce(player, track).catch(error => logger.warn("Music", "Now-playing announcement failed:", error)));
     this.lavalink.on("trackError", (player, track, payload) => {
       logger.error("Music", `Track failed in guild ${player.guildId}: ${track?.info?.title || "unknown"}`, payload);
@@ -41,7 +43,7 @@ export class MusicManager {
       logger.warn("Music", "Music is disabled by MUSIC_ENABLED=false.");
       return;
     }
-    if (!config.music.nodes.length && !config.music.node.length) {
+    if (!this.lavalink) {
       logger.warn("Music", "No Lavalink node configured. Set LAVALINK_HOST/PORT/PASSWORD or LAVALINK_NODES in Render environment variables.");
       return;
     }
@@ -54,7 +56,7 @@ export class MusicManager {
     try { void this.lavalink.sendRawData(data); } catch (error) { logger.warn("Music", "Failed to forward Discord voice packet:", error); }
   }
 
-  getPlayer(guildId) { return this.lavalink.getPlayer(guildId); }
+  getPlayer(guildId) { return this.lavalink?.getPlayer(guildId); }
   getSettings(guildId) { return { ...DEFAULTS, ...(this.settings[guildId] || {}) }; }
 
   async updateSettings(guildId, patch) {
