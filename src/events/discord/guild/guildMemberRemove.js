@@ -14,11 +14,32 @@ export default {
 
       if (memberData && memberData.inviter_id) {
         db.invites.incrementLeft(guildId, memberData.inviter_id, 1);
-        logger.debug("InviteTracker", `${member.user.tag} left, incrementing left count for inviter ${memberData.inviter_id}`);
+        logger.debug(
+          "InviteTracker",
+          `${member.user.tag} left, incrementing left count for inviter ${memberData.inviter_id}`,
+        );
       }
     } catch (error) {
-      logger.error("InviteTracker", `Error handling member leave for ${member.user.tag}:`, error);
+      logger.error(
+        "InviteTracker",
+        `Error handling member leave for ${member.user.tag}:`,
+        error,
+      );
+    }
+
+    try {
+      await LoggingManager.send(member.guild, "member", {
+        emoji: "📤",
+        title: "Member Left",
+        color: 0xED4245,
+        description: `<@${member.id}> left the server.`,
+        fields: [
+          { name: "Member", value: member.user?.tag || member.id, inline: true },
+          { name: "Member Count", value: String(member.guild.memberCount), inline: true },
+        ],
+      });
+    } catch (error) {
+      logger.error("MemberLogging", "Failed to log member leave:", error);
     }
   },
-    await LoggingManager.send(member.guild,"member",{emoji:"📤",title:"Member Left",color:0xED4245,description:"<@"+member.id+"> left the server.",fields:[{name:"Member",value:member.user?.tag||member.id,inline:true},{name:"Member Count",value:String(member.guild.memberCount),inline:true}]});
 };
