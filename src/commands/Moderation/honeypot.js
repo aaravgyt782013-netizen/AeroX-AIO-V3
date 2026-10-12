@@ -27,7 +27,7 @@ export default {
     options: [
       { name: "setup", description: "Enable the honeypot on a channel.", type: 1, options: [
         { name: "channel", description: "Trap text channel.", type: 7, required: true, channel_types: [0] },
-        { name: "action", description: "Action for bot accounts.", type: 3, required: false, choices: [{name:"Ban",value:"ban"},{name:"Kick",value:"kick"},{name:"Timeout",value:"timeout"}] },
+        { name: "action", description: "Action for any account that posts in the honeypot channel.", type: 3, required: false, choices: [{name:"Ban",value:"ban"},{name:"Kick",value:"kick"},{name:"Timeout",value:"timeout"}] },
       ]},
       { name: "create", description: "Create a dedicated honeypot channel.", type: 1, options: [
         { name: "action", description: "Action for bot accounts.", type: 3, required: false, choices: [{name:"Ban",value:"ban"},{name:"Kick",value:"kick"},{name:"Timeout",value:"timeout"}] },
@@ -42,7 +42,7 @@ export default {
     const settings = db.guild.getHoneypotSettings(message.guild.id);
     if (sub === "status") {
       const ch = settings.channelId ? message.guild.channels.cache.get(settings.channelId) : null;
-      return message.reply({ embeds: [new EmbedBuilder().setColor(0xF1C40F).setTitle("🍯 LightCore Honeypot").setDescription(ch ? "Enabled in <#" + ch.id + ">\nBot action: **" + settings.action + "**" : "Disabled. Use honeypot setup #channel.").setTimestamp()] });
+      return message.reply({ embeds: [new EmbedBuilder().setColor(0xF1C40F).setTitle("🍯 LightCore Honeypot").setDescription(ch ? "Enabled in <#" + ch.id + ">\nAction for any account: **" + settings.action + "**" : "Disabled. Use honeypot setup #channel.").setTimestamp()] });
     }
     if (sub === "disable" || sub === "off") {
       db.guild.setHoneypot(message.guild.id, null, settings.action);
@@ -66,7 +66,7 @@ export default {
       if (!channel) return message.reply("❌ Use honeypot setup #channel [ban|kick|timeout].");
       const action = ["ban","kick","timeout"].includes((args[2] || "").toLowerCase()) ? args[2].toLowerCase() : settings.action;
       db.guild.setHoneypot(message.guild.id, channel.id, action);
-      return message.reply("🍯 Honeypot enabled in <#" + channel.id + "> with **" + action + "**.");
+      return message.reply("🍯 Honeypot enabled in <#" + channel.id + "> for any account: **" + action + "**.");
     }
     return message.reply("❌ Use honeypot setup, create, disable, status, or action.");
   },
@@ -76,7 +76,7 @@ export default {
     if (sub === "status") return interaction.reply({ content: settings.channelId ? "🍯 Honeypot enabled in <#" + settings.channelId + "> with " + settings.action + "." : "🍯 Honeypot disabled.", ephemeral: true });
     if (sub === "disable") { db.guild.setHoneypot(interaction.guild.id, null, settings.action); return interaction.reply({content:"🍯 Honeypot disabled.",ephemeral:true}); }
     if (sub === "action") { const action=interaction.options.getString("value",true); db.guild.setHoneypotAction(interaction.guild.id,action); return interaction.reply({content:"🍯 Honeypot action set to " + action + ".",ephemeral:true}); }
-    if (sub === "setup") { const ch=interaction.options.getChannel("channel",true); const action=interaction.options.getString("action") || settings.action; db.guild.setHoneypot(interaction.guild.id,ch.id,action); return interaction.reply({content:"🍯 Honeypot enabled in <#" + ch.id + "> with " + action + ".",ephemeral:true}); }
+    if (sub === "setup") { const ch=interaction.options.getChannel("channel",true); const action=interaction.options.getString("action") || settings.action; db.guild.setHoneypot(interaction.guild.id,ch.id,action); return interaction.reply({content:"🍯 Honeypot enabled in <#" + ch.id + "> for any account: " + action + ".",ephemeral:true}); }
     if (sub === "create") { const action=interaction.options.getString("action") || settings.action; const existing=interaction.guild.channels.cache.find(c=>c.type===ChannelType.GuildText&&c.name==="🍯・honeypot"); const ch=existing || await interaction.guild.channels.create({name:"🍯・honeypot",type:ChannelType.GuildText,topic:"LightCore security honeypot. Do not use this channel.",reason:"LightCore honeypot setup"}); db.guild.setHoneypot(interaction.guild.id,ch.id,action); return interaction.reply({content:"🍯 Honeypot enabled in <#" + ch.id + "> with " + action + ".",ephemeral:true}); }
   },
 };

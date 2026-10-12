@@ -33,8 +33,15 @@ export class MusicEngine {
     this.lastUnavailable = 0;
 
     this.lavalink = new LavalinkManager({
-      nodes: (config.nodes || []).map(node => ({
+      nodes: (Array.isArray(config.nodes) && config.nodes.length ? config.nodes : [{
+        id: "lightcore-lavalink",
+        host: process.env.LAVALINK_HOST || "lightcore-lavalink-v4.onrender.com",
+        port: Number(process.env.LAVALINK_PORT || 443),
+        password: process.env.LAVALINK_SERVER_PASSWORD || "LightCore-Music-Node-2026",
+        secure: (process.env.LAVALINK_SECURE || "true") === "true"
+      }]).map(node => ({
         ...node,
+        authorization: node.authorization || node.password,
         retryAmount: 4,
         retryDelay: 15000,
         resumeTimeout: 300000,
@@ -81,6 +88,8 @@ export class MusicEngine {
         await this.lavalink.init({ id: this.client.user.id, username: this.client.user.username });
         this.ready = true;
         logger.success("MusicEngine", "LightCore music engine initialized.");
+        // Restore saved 24/7 voice sessions after a process restart.
+        this._restore247Players().catch(error => logger.warn("MusicEngine", "24/7 session restore failed: " + (error?.message || error)));
       } catch (error) {
         this.ready = true;
         logger.error("MusicEngine", "Music engine initialization failed", error);
@@ -88,6 +97,38 @@ export class MusicEngine {
     };
     if (this.client.isReady?.()) await start();
     else await new Promise(resolve => this.client.once("clientReady", async () => { await start(); resolve(); }));
+  }
+
+  async _restore247Players() {
+    let saved = [];
+    try { saved = db.guild.getAll247Guilds(); } catch (error) {
+      logger.warn("MusicEngine", "Could not load saved 24/7 sessions: " + (error?.message || error));
+      return;
+    }
+    if (!saved.length) return;
+    const nodes = await this.waitForNode(20000);
+    if (!nodes.length) {
+      logger.warn("MusicEngine", "Saved 24/7 sessions will not restore until a Lavalink node is available.");
+      return;
+    }
+    for (const row of saved) {
+      const guildId = row.id;
+      const voiceChannelId = row.stay_247_voice_channel;
+      if (!guildId || !voiceChannelId || this.getPlayer(guildId)) continue;
+      const guild = this.client.guilds.cache.get(guildId);
+      const voice = guild?.channels?.cache?.get(voiceChannelId);
+      if (!guild || !voice || !voice.isVoiceBased?.()) {
+        logger.warn("MusicEngine", "Skipping 24/7 restore; saved voice channel is unavailable in guild " + guildId + ".");
+        continue;
+      }
+      const textChannelId = row.stay_247_text_channel || voiceChannelId;
+      const player = await this.createPlayer({ guildId, voiceChannelId, textChannelId });
+      if (player) {
+        player.set("stay247", true);
+        player.set("stayAlive", true);
+        logger.success("MusicEngine", "Restored 24/7 voice session for guild " + guildId + ".");
+      }
+    }
   }
 
   _bindEvents() {

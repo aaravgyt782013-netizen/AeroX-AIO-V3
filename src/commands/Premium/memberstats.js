@@ -2,9 +2,6 @@ import { Command } from "#structures/classes/Command";
 import { EmbedBuilder } from "discord.js";
 import { memberStats } from "#managers/MemberStatsManager";
 
-function hasPremium(client, userId, guildId) {
-  return Boolean(client.db.isUserPremium(userId) || client.db.isGuildPremium(guildId));
-}
 function duration(ms) {
   const minutes = Math.floor(ms / 60000);
   const hours = Math.floor(minutes / 60);
@@ -15,22 +12,21 @@ class MemberStatsCommand extends Command {
   constructor() {
     super({
       name: "memberstats",
-      description: "View server activity analytics (Premium)",
+      description: "View server and member activity analytics (free for everyone)",
       usage: "memberstats [@member]",
       aliases: ["mstats"],
-      category: "Premium",
+      category: "Stats",
       cooldown: 5,
       enabledSlash: true,
       slashData: {
         name: "memberstats",
-        description: "View server activity analytics (Premium)",
+        description: "View server and member activity analytics (free for everyone)",
         options: [{ type: 6, name: "member", description: "Optional member to inspect", required: false }],
       },
     });
   }
   async execute({ client, message, args }) {
     if (!message.guild) return message.reply("This command can only be used in a server.");
-    if (!hasPremium(client, message.author.id, message.guild.id)) return message.reply("⭐ **Member Stats requires LightCore User Premium or Guild Premium.**");
     const target = message.mentions.users.first() || (args[0] ? await client.users.fetch(args[0]).catch(() => null) : null);
     if (target) {
       const s = memberStats.getMemberStats(message.guild.id, target.id);
@@ -40,7 +36,6 @@ class MemberStatsCommand extends Command {
   }
   async slashExecute({ client, interaction }) {
     if (!interaction.guild) return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
-    if (!hasPremium(client, interaction.user.id, interaction.guild.id)) return interaction.reply({ content: "⭐ **Member Stats requires LightCore User Premium or Guild Premium.**", ephemeral: true });
     const target = interaction.options.getUser("member");
     if (target) return interaction.reply({ embeds: [this.memberEmbed(interaction.guild, target, memberStats.getMemberStats(interaction.guild.id, target.id))] });
     return interaction.reply({ embeds: [this.buildEmbed(interaction.guild, client)] });

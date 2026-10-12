@@ -158,11 +158,13 @@ export async function resolveTrack(x, query, source) {
   const q = String(query || "").trim();
   if (!q) throw new Error("Give me a song name or URL.");
   const src = source || musicSettings(x).source || "ytmsearch";
-  const result = c.client.music.isUrl(q)
-    ? await c.client.music.resolve(q, { source: src, requester: c.user })
-    : await c.client.music.search(q, { source: src, requester: c.user });
-  if (!result?.tracks?.length) throw new Error("No playable results were found.");
-  return result;
+  const { MusicSearchEngine } = await import("#managers/MusicSearchEngine");
+  const engine = new MusicSearchEngine(c.client.music);
+  return engine.search(q, {
+    source: src,
+    requester: c.user,
+    isUrl: c.client.music.isUrl(q)
+  });
 }
 
 export async function enqueue(x, result, position) {

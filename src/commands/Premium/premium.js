@@ -85,7 +85,11 @@ class PremiumCommand extends Command {
         "memberstats • View member analytics\\n" +
         "membercounter setup <metric> [label] • Create a live counter\\n" +
         "membercounter list • List counters\\n" +
-        "membercounter remove <channel-id> • Remove a counter"
+        "membercounter remove <channel-id> • Remove a counter\\n" +
+        "\\n### Premium AI Answers\\n" +
+        "`aianswers set #channel` • Enable AI answers in one channel\\n" +
+        "`aianswers status` • View AI answer channel\\n" +
+        "`aianswers off` • Disable AI answers"
       ),
       new TextDisplayBuilder().setContent(
         `-# Premium access is granted and managed by the bot owner. Guild Premium can now set LightCore's server nickname, server avatar and server banner through Discord's current-member profile API.`
