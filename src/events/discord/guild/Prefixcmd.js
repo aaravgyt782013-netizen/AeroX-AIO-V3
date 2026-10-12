@@ -22,7 +22,6 @@ import {
   inSameVoiceChannel,
 } from "#utils/permissionUtil";
 import { config } from "#config/config";
-import { PlayerManager } from "#managers/PlayerManager";
 import { leveling } from "#managers/LevelingManager";
 
 async function _sendError(message, title, description) {
@@ -376,7 +375,7 @@ export default {
       const guildIconUrl = message.guild.iconURL({ dynamic: true, size: 256 });
 
       const homeContent = `> *Hey <@${message.author.id}>, I'm* __**LightCore**__ ${emoji.get("status")}\n` +
-        `> *A **multipurpose** bot made to manage your server safely and smoothly with **moderation, music, ticket and more...** ${emoji.get("info")}*\n\n` +
+        `> *A **multipurpose** bot made to manage your server safely and smoothly with **moderation, tickets, automation and more...** ${emoji.get("info")}*\n\n` +
         `*Type \`${currentPrefix}help\` to know more about my commands and more...*\n\n` +
         `**Server Prefix:** \`${currentPrefix}\``;
 
@@ -493,12 +492,7 @@ export default {
         }
       }
 
-const djSettings = db.guild.getMusicSettings(message.guild.id);
-      if (command.category?.toLowerCase() === "music" && command.name !== "settings" && djSettings.djRole && !config.ownerIds?.includes(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.roles.cache.has(djSettings.djRole)) {
-        return _sendError(message, "DJ Role Required", `This server has a DJ role configured: <@&${djSettings.djRole}>. You need that role to control music.`);
-      }
-
-            if (command.userPrem && !db.isUserPremium(message.author.id))
+if (command.userPrem && !db.isUserPremium(message.author.id))
         return _sendPremiumError(message, "user");
       if (command.guildPrem && !db.isGuildPremium(message.guild.id))
         return _sendPremiumError(message, "guild");
@@ -525,31 +519,11 @@ const djSettings = db.guild.getMusicSettings(message.guild.id);
         }
       }
 
-      const player = client.music.getPlayer(message.guild.id);
-      if (command.playerRequired && !player) {
-        return _sendError(
-          message,
-          "No Player Active",
-          "There is no music player in this server. Use `/play` to start one.",
-        );
-      }
-      if (command.playingRequired && (!player || !player.queue.current)) {
-        return _sendError(
-          message,
-          "Nothing Is Playing",
-          "There is no track currently playing.",
-        );
-      }
-
       const guildPrefixes = db.getPrefixes(message.guild.id);
       const prefix = guildPrefixes[0] || config.prefix;
       
       const executionContext = { client, message, args, prefix };
-      if (command.playerRequired || command.playingRequired) {
-        executionContext.pm = new PlayerManager(player);
-      }
-
-      antiAbuse.setCooldown(message.author.id, command);
+antiAbuse.setCooldown(message.author.id, command);
       await command.execute(executionContext);
     } catch (error) {
       logger.error(
