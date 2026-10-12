@@ -32,7 +32,7 @@ export default {
     const reply = (description, title = "LightCore Music", color = 0x5865F2) => message.reply({ embeds: [new EmbedBuilder().setColor(color).setTitle(title).setDescription(description).setFooter({ text: "LightCore • Music for your server" })] });
 
     if (!config.music.enabled) return reply("Music is currently disabled by the bot owner.", "Music Disabled", 0xED4245);
-    if (!manager.lavalink.useable) return reply("The music engine has no connected Lavalink node. The bot can stay online, but playback needs a reachable Lavalink v4 node. Configure the Lavalink environment variables in Render.", "Music Node Unavailable", 0xED4245);
+    if (!manager.lavalink?.useable) return reply("The music engine has no connected Lavalink node. The bot can stay online, but playback needs a reachable Lavalink v4 node. Configure the Lavalink environment variables in Render.", "Music Node Unavailable", 0xED4245);
 
     try {
       if (sub === "help") return reply([
@@ -44,7 +44,8 @@ export default {
         "**Server setup**",
         "`.music config` · `.music config volume <1-100>`",
         "`.music config maxqueue <10-500>` · `.music config djrole <role ID|off>`",
-        "`.music config announce <on|off>` · `.music config source <ytmsearch|ytsearch|scsearch>`",
+        "`.music config announce <on|off>` · `.music config autoplay <on|off>`",
+        "`.music config source <ytmsearch|ytsearch|scsearch>`",
         "",
         "Requires the bot to have **Connect** and **Speak** permissions. Search support depends on the configured Lavalink node and its plugins."
       ].join("\n"), "🎛️ Music Controls");
@@ -58,6 +59,7 @@ export default {
           `**DJ role:** ${settings.djRoleId ? `<@&${settings.djRoleId}>` : "Not set (anyone in the same voice channel)"}`,
           `**Now-playing announcements:** ${settings.announceNowPlaying ? "On" : "Off"}`,
           `**Search source:** ${settings.defaultSource}`,
+          `**Autoplay:** ${settings.autoplay ? "On" : "Off"}`,
           `**Loop:** ${settings.loop}`,
           "",
           "Set: `.music config volume 75`, `maxqueue 150`, `djrole ROLE_ID`, `announce off`, or `source ytmsearch`."
@@ -76,6 +78,9 @@ export default {
         } else if (key === "announce") {
           if (!["on", "off"].includes(value.toLowerCase())) return reply("Use `on` or `off`.", "Invalid setting", 0xED4245);
           patch.announceNowPlaying = value.toLowerCase() === "on";
+        } else if (key === "autoplay") {
+          if (!["on", "off"].includes(value.toLowerCase())) return reply("Use `on` or `off`.", "Invalid setting", 0xED4245);
+          patch.autoplay = value.toLowerCase() === "on";
         } else if (key === "source") {
           if (!["ytmsearch", "ytsearch", "scsearch"].includes(value.toLowerCase())) return reply("Supported source aliases: `ytmsearch`, `ytsearch`, `scsearch`.", "Invalid source", 0xED4245);
           patch.defaultSource = value.toLowerCase();
@@ -92,7 +97,7 @@ export default {
         if (sub === "pause") { if (player.paused) return reply("Playback is already paused."); await player.pause(); return reply("⏸️ Playback paused."); }
         if (sub === "resume") { if (!player.paused) return reply("Playback is not paused."); await player.resume(); return reply("▶️ Playback resumed."); }
         if (sub === "skip") { if (!player.queue.current) return reply("There is no current track.", "Nothing to skip", 0xED4245); await player.skip(); return reply("⏭️ Skipped the current track."); }
-        if (sub === "stop") { await player.stopPlaying(true, false); await player.disconnect(); return reply("⏹️ Playback stopped and I left the voice channel."); }
+        if (sub === "stop") { await manager.lavalink.destroyPlayer(guildId, "user-stop"); return reply("⏹️ Playback stopped and I left the voice channel."); }
         if (sub === "volume") {
           const n = Number(args[0]); if (!Number.isInteger(n) || n < 0 || n > 100) return reply("Use `.music volume <0-100>`.", "Invalid volume", 0xED4245);
           await player.setVolume(n); return reply(`🔊 Volume set to **${n}%**.`);
@@ -102,7 +107,7 @@ export default {
           const mode = (args[0] || "").toLowerCase();
           if (!["off", "queue"].includes(mode)) return reply("Use `.music loop off` or `.music loop queue`.", "Invalid loop mode", 0xED4245);
           await manager.updateSettings(guildId, { loop: mode });
-          player.setRepeatMode?.(mode === "queue" ? "queue" : "off");
+          if (typeof player.setRepeatMode === "function") await player.setRepeatMode(mode === "queue" ? "queue" : "off");
           return reply(`🔁 Loop mode set to **${mode}**.`);
         }
         if (sub === "nowplaying") {
