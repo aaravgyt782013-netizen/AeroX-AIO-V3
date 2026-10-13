@@ -15,7 +15,7 @@ function renderPanelV2(style, guildName) {
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
       "# 🎫 LIGHTCORE • SUPPORT CENTER\\n## " + title + "\\n" + description
     ));
-  if (data.image?.url && /^https?:\\/\\//i.test(data.image.url)) {
+  if (data.image?.url && /^https?:\/\//i.test(data.image.url)) {
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(data.image.url)));
   }
