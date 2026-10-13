@@ -71,7 +71,19 @@ export class MusicManager {
       this.sendText(player, "✨ The queue has finished. I'll leave the voice channel in 60 seconds if no more tracks are added.")
         .catch(() => {});
     });
-    this.lavalink.nodeManager.on("connect", node => logger.success("MusicNode", "Connected to Lavalink node: " + node.id));
+    this.lavalink.nodeManager.on("connect", node => {
+      logger.success("MusicNode", "Connected to Lavalink node: " + node.id);
+      try {
+        // Preserve active Lavalink players across brief WebSocket interruptions.
+        node.updateSession(true, 300_000);
+      } catch (error) {
+        logger.warn("MusicNode", "Could not enable session resuming for " + node.id + ":", error);
+      }
+    });
+    this.lavalink.nodeManager.on("resumed", (node, _payload, players) => {
+      logger.success("MusicNode", "Resumed Lavalink session on " + node.id + " with " + (Array.isArray(players) ? players.length : 0) + " player(s).");
+    });
+    this.lavalink.nodeManager.on("reconnecting", node => logger.warn("MusicNode", "Reconnecting to Lavalink node: " + node.id));
     this.lavalink.nodeManager.on("disconnect", (node, reason) => logger.warn("MusicNode", "Node " + node.id + " disconnected: " + (reason?.reason || reason || "unknown")));
     this.lavalink.nodeManager.on("error", (node, error) => logger.error("MusicNode", "Node " + (node?.id || "unknown") + " error:", error));
   }
