@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { config } from "#config/config";
+import { openMusicPanel } from "./panel.js";
 
 const COLORS = { info: 0x5865F2, success: 0x57F287, warning: 0xFEE75C, error: 0xED4245 };
 const safeText = (value, max = 180) => String(value ?? "Unknown").replace(/[@\\*_~]/g, "").replace(/[\r\n]/g, " ").slice(0, max);
@@ -120,12 +121,14 @@ export default {
     const fail = text => reply(text, "Music action unavailable", COLORS.error);
 
     if (!config.music.enabled) return fail("Music is disabled by the bot owner.");
+    if (["panel", "setup", "dashboard"].includes(sub)) return openMusicPanel({ client, message });
     if (!manager.lavalink || !manager.lavalink.useable) return fail("The music engine has no usable Lavalink node. Check the Render Lavalink host, port, password, TLS setting, and node logs; playback cannot work without a reachable node.");
 
     if (sub === "help") return reply([
       "**Playback**", ".play <song or URL> · .search <query> · .pause · .resume · .skip · .back · .stop",
       "**Queue**", ".queue [page] · .nowplaying · .shuffle · .remove <position> · .clear",
       "**Sound**", ".volume <0-100> · .seek <seconds> · .loop <off|track|queue> · .autoplay <on|off>",
+      "**Control panel**", ".music panel or .musicpanel — interactive player and server settings dashboard",
       "**Server configuration**", ".music config · .music config volume <1-100> · .music config maxqueue <10-500>",
       ".music config djrole <role ID|off> · .music config announce <on|off> · .music config source <ytmsearch|ytsearch|scsearch>",
       "", "Requires a reachable Lavalink v4 node with a compatible source plugin. Server settings are saved to Neon."
