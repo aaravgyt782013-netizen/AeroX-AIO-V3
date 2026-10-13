@@ -9,7 +9,7 @@ export default {
   category: "Music",
   cooldown: 2,
   userPermissions: [],
-  permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+  permissions: [],
   async execute(context) {
     return music.execute({ ...context, args: ["play", ...(context.args || [])] });
   }
