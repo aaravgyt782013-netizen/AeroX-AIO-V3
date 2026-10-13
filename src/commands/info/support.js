@@ -77,7 +77,7 @@ class SupportCommand extends Command {
                         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
                 );
 
-                const content = `**Need help with AeroX?**\n\n` +
+                const content = `**Need help with LightCore?**\n\n` +
                         `**${emoji.get('check')} Get Support For:**\n` +
                         `├─ Music playback issues\n` +
                         `├─ Command usage and setup\n` +
@@ -107,7 +107,7 @@ class SupportCommand extends Command {
                         new ButtonBuilder()
                                 .setLabel('Support Server')
                                 .setStyle(ButtonStyle.Link)
-                                .setURL(config.links?.supportServer || "https://discord.gg/aerox")
+                                .setURL(config.links?.supportServer || "https://discord.gg/lightcore")
                                 .setEmoji(emoji.get("add"))
                 );
 
