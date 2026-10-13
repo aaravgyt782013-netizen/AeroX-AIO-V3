@@ -206,7 +206,7 @@ export class MusicManager {
         "# ✦ LIGHTCORE • NOW PLAYING\n-# MUSIC FOR YOUR COMMUNITY\n" +
         (url ? "[" + title + "](" + url + ")" : "**" + title + "**") + "\n\n" + progress
       ));
-    if (/^https?:\\/\\//i.test(String(artwork || ""))) {
+    if (/^https?:\/\//i.test(String(artwork || ""))) {
       playerSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Album artwork for " + title));
     }
     const container = new ContainerBuilder().setAccentColor(0x5865F2)
