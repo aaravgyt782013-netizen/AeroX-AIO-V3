@@ -48,16 +48,16 @@ function nowPlayingEmbed(player, track) {
       { name: "Volume", value: String(player.volume ?? 70) + "%", inline: true }
     ).setThumbnail(info.artworkUrl || null).setFooter({ text: "AeroX Music • Interactive controls" }).setTimestamp();
 }
-function voiceCheck(message, player) {
-  const voice = message.member?.voice?.channel;
+function voiceCheck(message, player, member = message.member) {
+  const voice = member?.voice?.channel;
   if (!voice) return "Join a voice channel first.";
   if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return "Join the same voice channel as the bot to control music.";
   const perms = voice.permissionsFor(message.guild.members.me);
   if (!perms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return "I need Connect and Speak permissions in your voice channel.";
   return null;
 }
-function djCheck(message, settings) {
-  if (!settings.djRoleId || message.member.roles.cache.has(settings.djRoleId) || message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return null;
+function djCheck(message, settings, member = message.member) {
+  if (!settings.djRoleId || member.roles.cache.has(settings.djRoleId) || member.permissions.has(PermissionFlagsBits.ManageGuild)) return null;
   return "You need the configured DJ role <@&" + settings.djRoleId + "> to control playback.";
 }
 async function addTracks(player, tracks, maxQueue) {
@@ -180,6 +180,7 @@ export default {
       try {
         if (!player) player = manager.lavalink.createPlayer({ guildId, voiceChannelId: voice.id, textChannelId: message.channel.id, selfDeaf: true, volume: settings.defaultVolume });
         if (!player.connected) await player.connect();
+        if (typeof player.setRepeatMode === "function") await player.setRepeatMode(settings.loop || "off");
         const isUrl = /^https?:\/\//i.test(query);
         const result = await player.search({ query, ...(isUrl ? {} : { source: settings.defaultSource }) }, message.author);
         const tracks = result?.tracks || [];
@@ -206,9 +207,11 @@ export default {
       collector.on("collect", async interaction => {
         const fresh = manager.getPlayer(guildId);
         if (!fresh) return interaction.reply({ content: "The player has ended. Start another track to continue.", ephemeral: true });
-        const voiceError = voiceCheck(message, fresh);
+        const actor = message.guild.members.cache.get(interaction.user.id) || await message.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!actor) return interaction.reply({ content: "I could not verify your server membership. Try again.", ephemeral: true });
+        const voiceError = voiceCheck(message, fresh, actor);
         if (voiceError) return interaction.reply({ content: voiceError, ephemeral: true });
-        const accessError = djCheck(message, manager.getSettings(guildId));
+        const accessError = djCheck(message, manager.getSettings(guildId), actor);
         if (accessError) return interaction.reply({ content: accessError, ephemeral: true });
         try {
           switch (interaction.customId.split(":").at(-1)) {
