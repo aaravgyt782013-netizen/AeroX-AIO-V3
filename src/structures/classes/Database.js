@@ -14,7 +14,7 @@ export class Database {
 		fs.ensureDirSync(path.dirname(this.path));
 
 		try {
-			this.db = new BetterSQLite3(this.path, {
+			const sqlite = new BetterSQLite3(this.path, {
 				fileMustExist: false,
 				verbose:
 					process.env.NODE_ENV === 'development'
@@ -22,10 +22,42 @@ export class Database {
 						: null,
 			});
 
-			this.db.pragma('journal_mode   =WAL');
-			this.db.pragma('synchronous   =NORMAL');
+			sqlite.pragma('journal_mode   =WAL');
+			sqlite.pragma('synchronous   =NORMAL');
 			this.snapshotKey = path.basename(this.path);
-			registerNeonSnapshot(this.snapshotKey, this.db, this.path);
+			this.sqlite = sqlite;
+			this.db = new Proxy(sqlite, {
+				get: (target, property) => {
+					if (property === 'exec') {
+						return (...args) => {
+							const result = target.exec(...args);
+							scheduleNeonSnapshot(this.snapshotKey);
+							return result;
+						};
+					}
+					if (property === 'prepare') {
+						return (...args) => {
+							const statement = target.prepare(...args);
+							return new Proxy(statement, {
+								get: (stmt, key) => {
+									if (key === 'run') {
+										return (...values) => {
+											const result = stmt.run(...values);
+											scheduleNeonSnapshot(this.snapshotKey);
+											return result;
+										};
+									}
+									const value = Reflect.get(stmt, key, stmt);
+									return typeof value === 'function' ? value.bind(stmt) : value;
+								},
+							});
+						};
+					}
+					const value = Reflect.get(target, property, target);
+					return typeof value === 'function' ? value.bind(target) : value;
+				},
+			});
+			registerNeonSnapshot(this.snapshotKey, sqlite, this.path);
 		} catch (error) {
 			logger.error(
 				'Database',
@@ -38,9 +70,7 @@ export class Database {
 
 	exec(sql, params = []) {
 		try {
-			const result = this.db.prepare(sql).run(params);
-			scheduleNeonSnapshot(this.snapshotKey);
-			return result;
+			return this.db.prepare(sql).run(params);
 		} catch (error) {
 			logger.error('Database', `Failed to execute SQL: ${sql}`, error);
 			throw error;
@@ -67,26 +97,9 @@ export class Database {
 
 	prepare(sql) {
 		try {
-			const statement = this.db.prepare(sql);
-			return new Proxy(statement, {
-				get: (target, property) => {
-					if (property === 'run') {
-						return (...args) => {
-							const result = target.run(...args);
-							scheduleNeonSnapshot(this.snapshotKey);
-							return result;
-						};
-					}
-					const value = Reflect.get(target, property, target);
-					return typeof value === 'function' ? value.bind(target) : value;
-				},
-			});
+			return this.db.prepare(sql);
 		} catch (error) {
-			logger.error(
-				'Database',
-				`Failed to prepare statement: ${sql}`,
-				error,
-			);
+			logger.error('Database', `Failed to prepare statement: ${sql}`, error);
 			throw error;
 		}
 	}
