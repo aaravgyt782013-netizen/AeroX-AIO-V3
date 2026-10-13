@@ -2,7 +2,11 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
   PermissionFlagsBits,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder
@@ -117,14 +121,29 @@ function buildPanel(client, guild, category) {
     "When enabled, LightCore announces tracks in the text channel where playback was requested."
   ].join("\n");
 
-  const panel = new EmbedBuilder().setColor(COLORS.primary)
-    .setAuthor({ name: "LIGHTCORE • MUSIC CONTROL CENTER", iconURL: client.user.displayAvatarURL() })
-    .setTitle("🎛️ " + guild.name + " Music Settings")
-    .setDescription("Your server’s music command center. Tune playback, queue behavior, DJ access and announcements below.\n\n" + details)
-    .addFields(fields)
-    .setFooter({ text: "LightCore Music • Settings sync across redeploys" })
-    .setTimestamp();
-  if (current?.info?.artworkUrl && /^https?:\/\//i.test(current.info.artworkUrl)) panel.setThumbnail(current.info.artworkUrl);
+  const currentLine = current
+    ? "🎵 **Now playing:** " + (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : titleOf(current))
+    : "🎵 **Now playing:** Nothing is playing right now";
+  const statusLines = [
+    currentLine,
+    "🎤 **Artist:** " + clean(current?.info?.author || "—"),
+    "📡 **Player:** " + (!player ? "Idle" : player.paused ? "Paused" : player.playing ? "Playing" : "Connected"),
+    "🔊 **Volume:** " + String(player?.volume ?? settings.defaultVolume) + "%",
+    "📜 **Up next:** " + String(player?.queue?.tracks?.length || 0) + " track(s)",
+    "🔁 **Repeat:** " + settings.loop,
+    "✨ **Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled")
+  ].join("\n");
+  const panel = new ContainerBuilder()
+    .setAccentColor(COLORS.primary)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# 🎛️ LIGHTCORE • MUSIC CONTROL CENTER\n## " + clean(guild.name) + " Music Settings\nYour server’s music command center. Configure playback, queue behavior, DJ access and announcements below."
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("### 📊 Live Player\n" + statusLines))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("### ⚙️ " + category[0].toUpperCase() + category.slice(1) + " Settings\n" + details))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Settings sync across redeploys"));
   const rows = [categoryMenu(category)];
   const menu = settingMenu(category, settings);
   if (menu) rows.push(menu);
@@ -138,24 +157,29 @@ function buildPanel(client, guild, category) {
     ));
   }
   rows.push(...controls(player, settings));
-  return { embeds: [panel], components: rows };
+  return { components: [panel, ...rows] };
 }
 
 async function showQueue(interaction, player) {
   const tracks = player?.queue?.tracks || [];
   const lines = tracks.slice(0, 15).map((track, index) => "**" + (index + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration));
   const current = player?.queue?.current;
-  const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle("📜 LightCore Queue")
-    .setDescription((current ? "**Now playing:** " + titleOf(current) + "\n\n" : "") + (lines.join("\n") || "No upcoming tracks.") + (tracks.length > 15 ? "\n\n…and " + (tracks.length - 15) + " more tracks." : ""))
-    .setFooter({ text: tracks.length + " upcoming track(s)" });
-  return interaction.reply({ embeds: [embed], ephemeral: true });
+  const container = new ContainerBuilder().setAccentColor(COLORS.primary)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# 📜 LIGHTCORE • QUEUE\n" +
+      (current ? "🎵 **Now playing:** " + titleOf(current) + "\n\n" : "") +
+      (lines.join("\n") || "*No upcoming tracks.*") +
+      (tracks.length > 15 ? "\n\n…and " + (tracks.length - 15) + " more tracks." : "") +
+      "\n\n-# " + tracks.length + " upcoming track(s)"
+    ));
+  return interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
 }
 
 export async function openMusicPanel({ client, message }) {
   if (!message.guild || !message.member) return;
   if (!client.music) return message.reply("The music manager is not ready yet.");
   let category = "playback";
-  const sent = await message.reply(buildPanel(client, message.guild, category));
+  const sent = await message.reply({ ...buildPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector({ time: 15 * 60_000 });
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This panel belongs to another server.", ephemeral: true }).catch(() => {});
@@ -189,7 +213,7 @@ export async function openMusicPanel({ client, message }) {
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
             .setCustomId("aerox_panel:volume_setting").setPlaceholder("Choose the default volume")
             .addOptions(choices.map(n => ({ label: n + "%", value: String(n), default: n === settings.defaultVolume }))));
-          return interaction.update({ ...buildPanel(client, message.guild, category), components: [categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
         }
         if (key === "maxQueue") {
           const choices = [25, 50, 100, 250, 500];
@@ -265,7 +289,7 @@ export async function openMusicPanel({ client, message }) {
 export default {
   name: "musicpanel",
   aliases: ["mpanel", "musicsetup"],
-  description: "Open the interactive AeroX music control and settings dashboard.",
+  description: "Open the interactive LightCore music control and settings dashboard.",
   usage: "musicpanel",
   category: "Music",
   cooldown: 5,
@@ -303,7 +327,7 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
     display: [
       "**Now-playing announcements:** " + (settings.announceNowPlaying ? "Enabled" : "Disabled"),
       "",
-      "Choose whether AeroX posts a Now Playing embed for each track."
+      "Choose whether LightCore posts a Now Playing panel for each track."
     ].join("\\n")
   }[category] || "";
   const embed = new EmbedBuilder().setColor(COLORS.primary)
