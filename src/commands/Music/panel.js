@@ -18,7 +18,7 @@ const duration = ms => {
   return hours ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0") : minutes + ":" + String(seconds % 60).padStart(2, "0");
 };
 const titleOf = track => clean(track?.info?.title || "Unknown track");
-const trackLink = track => /^https?:\\/\\//i.test(track?.info?.uri || "") ? track.info.uri : null;
+const trackLink = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
 
 function categoryMenu(category) {
   return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
