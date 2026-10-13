@@ -16,7 +16,7 @@ const trackUrl = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.i
 
 function embed(title, description, color = COLORS.info) {
   return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description)
-    .setFooter({ text: "AeroX Music • Use .music help for all commands" }).setTimestamp();
+    .setFooter({ text: "LightCore Music • Use .music help for all commands" }).setTimestamp();
 }
 function playerControls(player, settings) {
   return [
@@ -47,7 +47,7 @@ function nowPlayingEmbed(player, track) {
       { name: "Requested by", value: safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100), inline: true },
       { name: "Queue", value: String(player.queue?.tracks?.length || 0) + " upcoming", inline: true },
       { name: "Volume", value: String(player.volume ?? 70) + "%", inline: true }
-    ).setThumbnail(info.artworkUrl || "https://cdn.discordapp.com/embed/avatars/0.png").setFooter({ text: "AeroX Music • Interactive controls" }).setTimestamp();
+    ).setThumbnail(info.artworkUrl || "https://cdn.discordapp.com/embed/avatars/0.png").setFooter({ text: "LightCore Music • Interactive controls" }).setTimestamp();
 }
 function voiceCheck(message, player, member = message.member) {
   const voice = member?.voice?.channel;
@@ -117,7 +117,7 @@ export default {
     const sub = String(args.shift() || "help").toLowerCase();
     const settings = manager.getSettings(guildId);
     let player = manager.getPlayer(guildId);
-    const reply = (description, title = "AeroX Music", color = COLORS.info) => message.reply({ embeds: [embed(title, description, color)] });
+    const reply = (description, title = "LightCore Music", color = COLORS.info) => message.reply({ embeds: [embed(title, description, color)] });
     const fail = text => reply(text, "Music action unavailable", COLORS.error);
 
     if (!config.music.enabled) return fail("Music is disabled by the bot owner.");
@@ -146,7 +146,7 @@ export default {
       "`.music config autoplay <on|off>` · `.music config source <ytmsearch|ytsearch|scsearch>`",
       "",
       "Settings are stored per server in Neon. Playback requires a reachable Lavalink v4 node and compatible source plugin."
-    ].join("\n"), "🎛️ AeroX Music Help");
+    ].join("\n"), "🎛️ LightCore Music Help");
 
     if (sub === "config") {
       if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("Only members with Manage Server can change server music settings.");
@@ -261,7 +261,7 @@ export default {
           }
           const updated = manager.getSettings(guildId);
           const currentTrack = fresh.queue?.current;
-          await interaction.update({ embeds: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : embed("🎧 AeroX Music", "The current track has ended.")], components: currentTrack ? playerControls(fresh, updated) : [] });
+          await interaction.update({ embeds: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : embed("🎧 LightCore Music", "The current track has ended.")], components: currentTrack ? playerControls(fresh, updated) : [] });
         } catch (error) {
           if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
         }
