@@ -27,38 +27,37 @@ const trackLink = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.
 function categoryMenu(category) {
   return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
     .setCustomId("aerox_panel:category")
-    .setPlaceholder("Choose a music settings page")
+    .setPlaceholder("🧭  Navigate music settings")
     .setMinValues(1).setMaxValues(1)
     .addOptions(
-      { label: "Playback", value: "playback", description: "Volume, source, repeat and autoplay", emoji: "🎧", default: category === "playback" },
-      { label: "Queue", value: "queue", description: "Queue size and queue behavior", emoji: "📜", default: category === "queue" },
+      { label: "Playback", value: "playback", description: "Volume, search source, repeat and autoplay", emoji: "🎧", default: category === "playback" },
+      { label: "Queue", value: "queue", description: "Queue limits and smart continuation", emoji: "📜", default: category === "queue" },
       { label: "Access", value: "access", description: "DJ role and control permissions", emoji: "🛡️", default: category === "access" },
-      { label: "Display", value: "display", description: "Now-playing announcements", emoji: "🖼️", default: category === "display" }
+      { label: "Display", value: "display", description: "Now-playing announcements", emoji: "🪄", default: category === "display" }
     ));
 }
 
 function settingMenu(category, settings) {
   let options = [];
   if (category === "playback") options = [
-    { label: "Default volume: " + settings.defaultVolume + "%", value: "defaultVolume:" + settings.defaultVolume, description: "Change the starting volume", emoji: "🔊" },
-    { label: "Search source: " + settings.defaultSource, value: "defaultSource:" + settings.defaultSource, description: "Choose the default search provider", emoji: "🔎" },
-    { label: "Default loop: " + settings.loop, value: "loop:" + settings.loop, description: "Choose the repeat mode", emoji: "🔁" },
-    { label: "Autoplay: " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Toggle automatic recommendations", emoji: "✨" }
+    { label: "Default volume · " + settings.defaultVolume + "%", value: "defaultVolume:" + settings.defaultVolume, description: "Choose the starting volume for new sessions", emoji: "🔊" },
+    { label: "Search provider · " + settings.defaultSource, value: "defaultSource:" + settings.defaultSource, description: "YouTube Music, YouTube or SoundCloud", emoji: "🔎" },
+    { label: "Default repeat · " + settings.loop, value: "loop:" + settings.loop, description: "Off, repeat one track or repeat the queue", emoji: "🔁" },
+    { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with recommendations when the queue ends", emoji: "✨" }
   ];
   if (category === "queue") options = [
-    { label: "Queue limit: " + settings.maxQueue, value: "maxQueue:" + settings.maxQueue, description: "Choose the maximum queued tracks", emoji: "📜" },
-    { label: "Autoplay: " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with similar music when queue ends", emoji: "✨" }
+    { label: "Queue capacity · " + settings.maxQueue, value: "maxQueue:" + settings.maxQueue, description: "Maximum upcoming tracks allowed per server", emoji: "📚" },
+    { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with similar music when the queue ends", emoji: "✨" }
   ];
   if (category === "display") options = [
-    { label: "Now-playing announcements: " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Toggle track announcement messages", emoji: "📣" }
+    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Toggle track announcement messages", emoji: "📣" }
   ];
   if (!options.length) return null;
-  const menu = new StringSelectMenuBuilder()
+  return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
     .setCustomId("aerox_panel:setting")
-    .setPlaceholder("Select a setting to edit")
+    .setPlaceholder("⚙️  Select a setting to customise")
     .setMinValues(1).setMaxValues(1)
-    .addOptions(options);
-  return new ActionRowBuilder().addComponents(menu);
+    .addOptions(options));
 }
 
 function controls(player, settings) {
@@ -71,11 +70,11 @@ function controls(player, settings) {
     new ButtonBuilder().setCustomId("aerox_panel:queue").setEmoji("📜").setLabel("Queue").setStyle(ButtonStyle.Secondary).setDisabled(!active)
   );
   const secondary = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("aerox_panel:vol_down").setLabel("− Volume").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:vol_up").setLabel("+ Volume").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:loop").setLabel("Loop: " + settings.loop).setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:autoplay").setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("aerox_panel:vol_down").setLabel("− 10").setEmoji("🔉").setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:vol_up").setLabel("+ 10").setEmoji("🔊").setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:loop").setLabel("Repeat · " + settings.loop).setEmoji("🔁").setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary).setDisabled((player?.queue?.tracks?.length || 0) < 2),
+    new ButtonBuilder().setCustomId("aerox_panel:autoplay").setLabel("Autoplay " + (settings.autoplay ? "On" : "Off")).setEmoji("✨").setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
   return [primary, secondary];
 }
@@ -85,79 +84,82 @@ function buildPanel(client, guild, category) {
   const settings = manager.getSettings(guild.id);
   const player = manager.getPlayer(guild.id);
   const current = player?.queue?.current;
-  const fields = [
-    { name: "🎵 Now playing", value: current ? (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : titleOf(current)) : "*Nothing is playing right now*", inline: false },
-    { name: "🎤 Artist", value: clean(current?.info?.author || "—"), inline: true },
-    { name: "📡 Player", value: !player ? "Idle" : player.paused ? "Paused" : player.playing ? "Playing" : "Connected", inline: true },
-    { name: "🔊 Volume", value: String(player?.volume ?? settings.defaultVolume) + "%", inline: true },
-    { name: "📜 Up next", value: String(player?.queue?.tracks?.length || 0) + " track(s)", inline: true },
-    { name: "🔁 Repeat", value: settings.loop, inline: true },
-    { name: "✨ Autoplay", value: settings.autoplay ? "Enabled" : "Disabled", inline: true }
-  ];
-  let details = "";
-  if (category === "playback") details = [
-    "**Default volume:** " + settings.defaultVolume + "%",
-    "**Search source:** " + settings.defaultSource,
-    "**Default loop:** " + settings.loop,
-    "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
-    "",
-    "Choose an option below to update the server default. The player buttons work on the current live session."
-  ].join("\n");
-  else if (category === "queue") details = [
-    "**Queue limit:** " + settings.maxQueue + " tracks",
-    "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
-    "",
-    "The queue limit applies to new requests and playlists."
-  ].join("\n");
-  else if (category === "access") details = [
-    "**DJ role:** " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not configured"),
-    "**Admin override:** Manage Server",
-    "",
-    "When a DJ role is configured, music controls are restricted to that role or server managers."
-  ].join("\n");
-  else details = [
-    "**Now-playing announcements:** " + (settings.announceNowPlaying ? "Enabled" : "Disabled"),
-    "",
-    "When enabled, LightCore announces tracks in the text channel where playback was requested."
-  ].join("\n");
+  const trackDuration = Number(current?.info?.duration || 0);
+  const position = Math.max(0, Number(player?.position || 0));
+  const progress = trackDuration > 0
+    ? Math.max(0, Math.min(16, Math.floor((position / trackDuration) * 16)))
+    : 0;
+  const progressBar = trackDuration > 0
+    ? "▬".repeat(progress) + "🔘" + "▬".repeat(Math.max(0, 15 - progress))
+    : (current?.info?.isStream ? "🔴 LIVE STREAM" : "━━━━━━━━━━━━━━━━");
+  const playerState = !player ? "IDLE" : player.paused ? "PAUSED" : player.playing ? "NOW PLAYING" : "CONNECTED";
+  const songTitle = current ? (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : "**" + titleOf(current) + "**") : "*Nothing is playing yet*";
+  const artist = clean(current?.info?.author || "Unknown artist");
+  const categoryInfo = {
+    playback: {
+      icon: "🎚️", title: "Playback preferences",
+      description: "Set the sound and behavior LightCore uses when your community starts a session.",
+      detail: "**Starting volume** · " + settings.defaultVolume + "%\n**Search provider** · " + settings.defaultSource + "\n**Default repeat** · " + settings.loop + "\n**Autoplay** · " + (settings.autoplay ? "Enabled" : "Disabled")
+    },
+    queue: {
+      icon: "📚", title: "Queue & discovery",
+      description: "Keep requests manageable and decide what happens when the queue runs out.",
+      detail: "**Queue capacity** · " + settings.maxQueue + " tracks\n**Autoplay** · " + (settings.autoplay ? "Enabled" : "Disabled") + "\n\n-# Queue limits apply to new requests and playlists."
+    },
+    access: {
+      icon: "🛡️", title: "DJ access control",
+      description: "Choose who can manage the player. Server managers always retain an override.",
+      detail: "**DJ role** · " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not configured") + "\n**Override** · Manage Server\n\n-# Select a role below, or remove the restriction to let everyone control playback."
+    },
+    display: {
+      icon: "🪄", title: "Player announcements",
+      description: "Control the extra track announcements posted when music changes.",
+      detail: "**Track announcements** · " + (settings.announceNowPlaying ? "Enabled" : "Disabled") + "\n\n-# The live player panel remains available independently of this preference."
+    }
+  }[category] || { icon: "🎧", title: "Music settings", description: "Customise your server's music experience.", detail: "" };
 
-  const currentLine = current
-    ? "🎵 **Now playing:** " + (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : titleOf(current))
-    : "🎵 **Now playing:** Nothing is playing right now";
-  const statusLines = [
-    currentLine,
-    "🎤 **Artist:** " + clean(current?.info?.author || "—"),
-    "📡 **Player:** " + (!player ? "Idle" : player.paused ? "Paused" : player.playing ? "Playing" : "Connected"),
-    "🔊 **Volume:** " + String(player?.volume ?? settings.defaultVolume) + "%",
-    "📜 **Up next:** " + String(player?.queue?.tracks?.length || 0) + " track(s)",
-    "🔁 **Repeat:** " + settings.loop,
-    "✨ **Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled")
-  ].join("\n");
-  const panel = new ContainerBuilder()
-    .setAccentColor(COLORS.primary)
+  const hero = new ContainerBuilder().setAccentColor(current ? COLORS.success : COLORS.primary)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# 🎛️ LIGHTCORE • MUSIC CONTROL CENTER\n## " + clean(guild.name) + " Music Settings\nYour server’s music command center. Configure playback, queue behavior, DJ access and announcements below."
+      "# 🎧  LIGHTCORE MUSIC\n-# YOUR COMMUNITY. YOUR SOUND.\n## " + clean(guild.name) + "\nA music experience built for your server — live playback, quick controls and settings in one place."
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("### 📊 Live Player\n" + statusLines))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "### " + (player?.paused ? "⏸️ PAUSED" : current ? "🎶 NOW PLAYING" : "💤 PLAYER STANDBY") + "\n" +
+      songTitle + "\n" +
+      "-# " + artist + "\n\n" +
+      progressBar + "\n" +
+      "`" + (current ? duration(position) : "0:00") + " / " + (current ? duration(trackDuration) : "0:00") + "`"
+    ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("### ⚙️ " + category[0].toUpperCase() + category.slice(1) + " Settings\n" + details))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "### 📡 SESSION OVERVIEW\n" +
+      "**Status**  " + playerState + "     **Volume**  " + String(player?.volume ?? settings.defaultVolume) + "%\n" +
+      "**Up next**  " + String(player?.queue?.tracks?.length || 0) + " tracks     **Repeat**  " + settings.loop + "\n" +
+      "**Autoplay**  " + (settings.autoplay ? "On" : "Off")
+    ));
+
+  const settingsCard = new ContainerBuilder().setAccentColor(COLORS.primary)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# " + categoryInfo.icon + "  " + categoryInfo.title + "\n" +
+      categoryInfo.description + "\n\n" + categoryInfo.detail
+    ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Settings sync across redeploys"));
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LIGHTCORE  /  MUSIC SETTINGS  /  SAVED PER SERVER"));
+
   const rows = [categoryMenu(category)];
   const menu = settingMenu(category, settings);
   if (menu) rows.push(menu);
   if (category === "access") {
     rows.push(new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
       .setCustomId("aerox_panel:djrole")
-      .setPlaceholder("Select the server DJ role")
+      .setPlaceholder("🛡️  Choose the DJ role for this server")
       .setMinValues(1).setMaxValues(1)));
     rows.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ role restriction").setEmoji("🔓").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction").setEmoji("🔓").setStyle(ButtonStyle.Secondary)
     ));
   }
   rows.push(...controls(player, settings));
-  return { components: [panel, ...rows] };
+  return { components: [hero, settingsCard, ...rows] };
 }
 
 async function showQueue(interaction, player) {
@@ -303,56 +305,69 @@ export default {
 
 function buildServerSettingsPanel(client, guild, category, selection = null) {
   const settings = client.music.getSettings(guild.id);
-  const details = {
-    playback: [
-      "**Default volume:** " + settings.defaultVolume + "%",
-      "**Search source:** " + settings.defaultSource,
-      "**Default repeat:** " + settings.loop,
-      "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
-      "",
-      "These defaults apply to music sessions in this server."
-    ].join("\n"),
-    queue: [
-      "**Maximum queue:** " + settings.maxQueue + " tracks",
-      "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
-      "",
-      "Queue limits are enforced when new tracks are requested."
-    ].join("\n"),
-    access: [
-      "**DJ role:** " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not configured"),
-      "**Administrator override:** Manage Server",
-      "",
-      "When a DJ role is set, playback controls require that role or Manage Server."
-    ].join("\n"),
-    display: [
-      "**Now-playing announcements:** " + (settings.announceNowPlaying ? "Enabled" : "Disabled"),
-      "",
-      "Choose whether LightCore posts a Now Playing panel for each track."
-    ].join("\n")
-  }[category] || "";
+  const sections = {
+    playback: {
+      icon: "🎚️", title: "Playback",
+      intro: "Fine-tune how music starts and sounds across your server.",
+      summary: [
+        "**Default volume**  ·  " + settings.defaultVolume + "%",
+        "**Search provider**  ·  " + settings.defaultSource,
+        "**Default repeat**  ·  " + settings.loop,
+        "**Autoplay**  ·  " + (settings.autoplay ? "🟢 Enabled" : "⚪ Disabled")
+      ].join("\n")
+    },
+    queue: {
+      icon: "📚", title: "Queue",
+      intro: "Set healthy limits for requests and automatic continuation.",
+      summary: [
+        "**Maximum queue**  ·  " + settings.maxQueue + " tracks",
+        "**Autoplay**  ·  " + (settings.autoplay ? "🟢 Enabled" : "⚪ Disabled")
+      ].join("\n")
+    },
+    access: {
+      icon: "🛡️", title: "Access & DJ role",
+      intro: "Keep control simple: grant a DJ role or allow every listener to use controls.",
+      summary: [
+        "**DJ role**  ·  " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Everyone can control playback"),
+        "**Admin override**  ·  Manage Server"
+      ].join("\n")
+    },
+    display: {
+      icon: "🪄", title: "Display",
+      intro: "Decide how LightCore announces new tracks in the request channel.",
+      summary: [
+        "**Track announcements**  ·  " + (settings.announceNowPlaying ? "🟢 Enabled" : "⚪ Disabled"),
+        "**Live player panel**  ·  Always available"
+      ].join("\n")
+    }
+  };
+  const section = sections[category] || sections.playback;
   const container = new ContainerBuilder().setAccentColor(COLORS.primary)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ⚙️ LIGHTCORE • SERVER MUSIC SETTINGS\n## " + clean(guild.name) +
-      "\nConfigure your server’s music defaults. Changes are saved automatically in Neon."
+      "# ⚙️  LIGHTCORE SETTINGS\n-# SERVER CONFIGURATION\n## " + clean(guild.name) +
+      "\nManage your server's music defaults from one clean dashboard. Every change saves automatically."
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "### 🧭 " + category[0].toUpperCase() + category.slice(1) + " Configuration\n" + details
+      "### " + section.icon + "  " + section.title + "\n" + section.intro + "\n\n" + section.summary
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Server settings persist across redeploys"));
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "-# LIGHTCORE  /  SETTINGS  /  " + category.toUpperCase() + "\nOnly members with Manage Server can edit these options."
+    ));
+
   const rows = [categoryMenu(category)];
   if (selection) {
     const options = selection === "volume"
-      ? [10, 25, 50, 70, 80, 100].map(n => ({ label: n + "%", value: String(n), default: n === settings.defaultVolume }))
+      ? [10, 25, 50, 70, 80, 100].map(n => ({ label: n + "%", value: String(n), description: n === settings.defaultVolume ? "Current default volume" : "Set the default volume to " + n + "%", default: n === settings.defaultVolume }))
       : selection === "queue"
-        ? [25, 50, 100, 250, 500].map(n => ({ label: n + " tracks", value: String(n), default: n === settings.maxQueue }))
+        ? [25, 50, 100, 250, 500].map(n => ({ label: n + " tracks", value: String(n), description: n === settings.maxQueue ? "Current queue limit" : "Allow up to " + n + " queued tracks", default: n === settings.maxQueue }))
         : selection === "source"
-          ? [{ label: "YouTube Music", value: "ytmsearch" }, { label: "YouTube", value: "ytsearch" }, { label: "SoundCloud", value: "scsearch" }].map(o => ({ ...o, default: o.value === settings.defaultSource }))
-          : ["off", "track", "queue"].map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, default: mode === settings.loop }));
+          ? [{ label: "YouTube Music", value: "ytmsearch", description: "Search YouTube Music" }, { label: "YouTube", value: "ytsearch", description: "Search standard YouTube" }, { label: "SoundCloud", value: "scsearch", description: "Search SoundCloud" }].map(o => ({ ...o, default: o.value === settings.defaultSource }))
+          : ["off", "track", "queue"].map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, description: mode === "off" ? "Do not repeat" : mode === "track" ? "Repeat the current track" : "Repeat the full queue", default: mode === settings.loop }));
     const customId = selection === "volume" ? "aerox_panel:volume_setting" : selection === "queue" ? "aerox_panel:queue_setting" : selection === "source" ? "aerox_panel:source_setting" : "aerox_panel:loop_setting";
     rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(customId)
-      .setPlaceholder(selection === "volume" ? "Choose default volume" : selection === "queue" ? "Choose queue limit" : selection === "source" ? "Choose search source" : "Choose default repeat mode")
+      .setPlaceholder(selection === "volume" ? "🔊  Select default volume" : selection === "queue" ? "📚  Select queue capacity" : selection === "source" ? "🔎  Select search provider" : "🔁  Select repeat mode")
       .addOptions(options)));
   } else {
     const menu = settingMenu(category, settings);
@@ -360,10 +375,10 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
   }
   if (category === "access") {
     rows.push(new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
-      .setCustomId("aerox_panel:djrole").setPlaceholder("Select the server DJ role")
+      .setCustomId("aerox_panel:djrole").setPlaceholder("🛡️  Choose the DJ role")
       .setMinValues(1).setMaxValues(1)));
     rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
-      .setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ role restriction")
+      .setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction")
       .setEmoji("🔓").setStyle(ButtonStyle.Secondary)));
   }
   return { components: [container, ...rows] };
