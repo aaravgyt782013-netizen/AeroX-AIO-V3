@@ -162,7 +162,7 @@ export default {
       } else {
         panelContainer.addTextDisplayComponents(new TextDisplayBuilder().setContent(panelText));
       }
-      if (panelData.image?.url && /^https?:\\/\\//i.test(panelData.image.url)) {
+      if (panelData.image?.url && /^https?:\/\//i.test(panelData.image.url)) {
         panelContainer.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
           .addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(panelData.image.url)));
       }
