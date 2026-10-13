@@ -32,7 +32,7 @@ export class MusicManager {
         if (guild) guild.shard.send(payload);
       },
       autoSkip: true,
-      client: { id: config.clientId, username: "AeroX" },
+      client: { id: config.clientId, username: "LightCore" },
       playerOptions: {
         defaultSearchPlatform: "ytmsearch",
         onDisconnect: { autoReconnect: true, destroyPlayer: false },
@@ -43,7 +43,7 @@ export class MusicManager {
             if (!settings.autoplay || !lastPlayedTrack?.info?.title) return;
             const info = lastPlayedTrack.info;
             const query = info.author ? info.author + " - " + info.title : info.title;
-            const result = await player.search({ query, source: settings.defaultSource }, lastPlayedTrack.requester || "AeroX");
+            const result = await player.search({ query, source: settings.defaultSource }, lastPlayedTrack.requester || "LightCore");
             const next = result?.tracks?.find(track => track.info?.identifier !== info.identifier);
             if (next) await player.queue.add(next);
           }
@@ -160,7 +160,7 @@ export class MusicManager {
     const info = track?.info || {};
     const url = String(info.uri || "").startsWith("http://") || String(info.uri || "").startsWith("https://") ? info.uri : null;
     const embed = new EmbedBuilder().setColor(0x5865F2)
-      .setAuthor({ name: "🎧 AeroX • Now Playing", iconURL: this.client.user.displayAvatarURL() })
+      .setAuthor({ name: "🎧 LIGHTCORE • NOW PLAYING", iconURL: this.client.user.displayAvatarURL() })
       .setDescription(url ? "[" + this.escape(info.title || "Unknown track") + "](" + url + ")" : "**" + this.escape(info.title || "Unknown track") + "**")
       .addFields(
         { name: "Artist", value: this.escape(info.author || "Unknown"), inline: true },
@@ -170,7 +170,7 @@ export class MusicManager {
         { name: "Queue", value: String(player?.queue?.tracks?.length || 0) + " upcoming", inline: true },
         { name: "Repeat", value: this.getSettings(player.guildId).loop, inline: true }
       )
-      .setFooter({ text: "AeroX Music • Controls on this message operate the live player" })
+      .setFooter({ text: "LightCore Music • Interactive controls operate the live player" })
       .setTimestamp();
     if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
     return embed;
@@ -190,7 +190,7 @@ export class MusicManager {
       if (!actor) return interaction.reply({ content: "I could not verify your server membership.", ephemeral: true }).catch(() => {});
       const voice = actor.voice.channel;
       if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
-      if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as AeroX to control playback.", ephemeral: true }).catch(() => {});
+      if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
       const settings = this.getSettings(player.guildId);
       if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
         return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
@@ -207,11 +207,11 @@ export class MusicManager {
         } else if (action === "stop") {
           await this.lavalink.destroyPlayer(player.guildId, "track-panel-stop");
           collector.stop("stopped");
-          return interaction.update({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle("⏹️ Playback stopped").setDescription("AeroX has stopped the player.")], components: [] });
+          return interaction.update({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle("⏹️ Playback stopped").setDescription("LightCore has stopped playback.")], components: [] });
         } else if (action === "queue") {
           const list = fresh.queue?.tracks || [];
           const lines = list.slice(0, 15).map((item, index) => "**" + (index + 1) + ".** " + this.escape(item.info?.title || "Unknown track") + " · " + this.formatDuration(item.info?.duration));
-          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("📜 AeroX Queue").setDescription(lines.join("\n") || "No upcoming tracks.")], ephemeral: true });
+          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("📜 LightCore Queue").setDescription(lines.join("\n") || "No upcoming tracks.")], ephemeral: true });
         } else if (action === "vol_down" || action === "vol_up") {
           await fresh.setVolume(Math.max(0, Math.min(100, Number(fresh.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10))));
         } else if (action === "loop") {
