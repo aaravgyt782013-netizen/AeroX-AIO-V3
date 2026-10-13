@@ -274,7 +274,7 @@ export default {
           if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
         }
       });
-      collector.on("end", () => sent.edit({ components: [nowPlayingEmbed(manager.getPlayer(guildId) || player, manager.getPlayer(guildId)?.queue?.current || player.queue.current)] }).catch(() => {}));
+      collector.on("end", (_collected, reason) => { if (reason === "stopped") return; sent.edit({ components: [nowPlayingEmbed(manager.getPlayer(guildId) || player, manager.getPlayer(guildId)?.queue?.current || player.queue.current)] }).catch(() => {}); });
       return;
     }
 
