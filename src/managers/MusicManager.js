@@ -1,3 +1,4 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { LavalinkManager } from "lavalink-client";
 import fs from "fs-extra";
 import path from "node:path";
@@ -137,27 +138,98 @@ export class MusicManager {
     return this.getSettings(guildId);
   }
 
+  trackControls(player) {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("aerox_track:previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:toggle").setEmoji(player?.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("aerox_track:skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("aerox_track:queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− Volume").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ Volume").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Loop: " + this.getSettings(player.guildId).loop).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
+      )
+    ];
+  }
+
+  trackEmbed(player, track) {
+    const info = track?.info || {};
+    const url = String(info.uri || "").startsWith("http://") || String(info.uri || "").startsWith("https://") ? info.uri : null;
+    const embed = new EmbedBuilder().setColor(0x5865F2)
+      .setAuthor({ name: "🎧 AeroX • Now Playing", iconURL: this.client.user.displayAvatarURL() })
+      .setDescription(url ? "[" + this.escape(info.title || "Unknown track") + "](" + url + ")" : "**" + this.escape(info.title || "Unknown track") + "**")
+      .addFields(
+        { name: "Artist", value: this.escape(info.author || "Unknown"), inline: true },
+        { name: "Duration", value: info.isStream ? "LIVE" : this.formatDuration(info.duration), inline: true },
+        { name: "Requested by", value: this.escape(track?.requester?.username || track?.requester?.tag || "A listener"), inline: true },
+        { name: "Volume", value: String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%", inline: true },
+        { name: "Queue", value: String(player?.queue?.tracks?.length || 0) + " upcoming", inline: true },
+        { name: "Repeat", value: this.getSettings(player.guildId).loop, inline: true }
+      )
+      .setFooter({ text: "AeroX Music • Controls on this message operate the live player" })
+      .setTimestamp();
+    if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
+    return embed;
+  }
+
   async announce(player, track) {
     if (!this.getSettings(player.guildId).announceNowPlaying) return;
     const channel = player.textChannelId ? this.client.channels.cache.get(player.textChannelId) : null;
     if (!channel?.isTextBased()) return;
-    const info = track?.info || {};
-    const duration = info.isStream ? "LIVE" : this.formatDuration(info.duration);
-    const url = /^https?:\/\//i.test(info.uri || "") ? info.uri : "https://discord.com";
-    await channel.send({
-      embeds: [{
-        color: 0x5865F2,
-        title: "🎧 Now Playing",
-        description: "[" + this.escape(info.title || "Unknown track") + "](" + url + ")",
-        fields: [
-          { name: "Artist", value: this.escape(info.author || "Unknown"), inline: true },
-          { name: "Duration", value: duration, inline: true },
-          { name: "Requested by", value: this.escape(track.requester?.username || track.requester?.tag || "A listener"), inline: true }
-        ],
-        footer: { text: "AeroX Music • Use .nowplaying for interactive controls" },
-        thumbnail: info.artworkUrl ? { url: info.artworkUrl } : undefined
-      }]
+    const sent = await channel.send({ embeds: [this.trackEmbed(player, track)], components: this.trackControls(player) });
+    const collector = sent.createMessageComponentCollector({ time: Math.max(60_000, Number(track?.info?.duration || 0) || 10 * 60_000) });
+    collector.on("collect", async interaction => {
+      const fresh = this.getPlayer(player.guildId);
+      if (!fresh) return interaction.reply({ content: "The music session has ended. Start a new track to use its controls.", ephemeral: true }).catch(() => {});
+      const guild = interaction.guild;
+      const actor = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+      if (!actor) return interaction.reply({ content: "I could not verify your server membership.", ephemeral: true }).catch(() => {});
+      const voice = actor.voice.channel;
+      if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
+      if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as AeroX to control playback.", ephemeral: true }).catch(() => {});
+      const settings = this.getSettings(player.guildId);
+      if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
+        return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
+      }
+      const action = interaction.customId.split(":").at(-1);
+      try {
+        if (action === "toggle") fresh.paused ? await fresh.resume() : await fresh.pause();
+        else if (action === "skip") await fresh.skip();
+        else if (action === "previous") {
+          const previous = this.previousTracks.get(player.guildId);
+          if (!previous) return interaction.reply({ content: "There is no previous track in this session.", ephemeral: true }).catch(() => {});
+          fresh.queue.tracks.unshift(previous);
+          if (fresh.playing) await fresh.skip();
+        } else if (action === "stop") {
+          await this.lavalink.destroyPlayer(player.guildId, "track-panel-stop");
+          collector.stop("stopped");
+          return interaction.update({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle("⏹️ Playback stopped").setDescription("AeroX has stopped the player.")], components: [] });
+        } else if (action === "queue") {
+          const list = fresh.queue?.tracks || [];
+          const lines = list.slice(0, 15).map((item, index) => "**" + (index + 1) + ".** " + this.escape(item.info?.title || "Unknown track") + " · " + this.formatDuration(item.info?.duration));
+          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("📜 AeroX Queue").setDescription(lines.join("\n") || "No upcoming tracks.")], ephemeral: true });
+        } else if (action === "vol_down" || action === "vol_up") {
+          await fresh.setVolume(Math.max(0, Math.min(100, Number(fresh.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10))));
+        } else if (action === "loop") {
+          const next = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
+          await this.updateSettings(player.guildId, { loop: next });
+          if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
+        } else if (action === "shuffle") {
+          if ((fresh.queue?.tracks?.length || 0) < 2) return interaction.reply({ content: "Add at least two upcoming tracks before shuffling.", ephemeral: true }).catch(() => {});
+          await fresh.queue.shuffle();
+        }
+        const current = fresh.queue?.current || track;
+        await interaction.update({ embeds: [this.trackEmbed(fresh, current)], components: this.trackControls(fresh) });
+      } catch (error) {
+        logger.warn("Music", "Track panel action failed:", error);
+        await interaction.reply({ content: "That control failed. Please try again.", ephemeral: true }).catch(() => {});
+      }
     });
+    collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
   }
 
   async sendText(player, content) {
