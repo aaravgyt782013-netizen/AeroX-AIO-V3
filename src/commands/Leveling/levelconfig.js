@@ -1,5 +1,5 @@
 import { Command } from "#structures/classes/Command";
-import { EmbedBuilder } from "discord.js";
+import { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { leveling } from "#managers/LevelingManager";
 import { db } from "#database/DatabaseManager";
 
@@ -62,10 +62,10 @@ class LevelConfigCommand extends Command {
       }
       const settings = leveling.getSettings(message.guild.id);
       const channel = settings.announcement_channel_id ? `<#${settings.announcement_channel_id}>` : "Current message channel";
-      const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("⚙️ LightCore Leveling Settings")
-        .setDescription([
+      const panel = new ContainerBuilder().setAccentColor(0x5865f2)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent("## ❄️ LIGHTCORE • LEVELING SETTINGS"))
+        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent([
           `**Status:** ${settings.enabled ? "Enabled" : "Disabled"}`,
           `**XP per message:** ${settings.min_xp}–${settings.max_xp}`,
           `**XP cooldown:** ${Number(settings.cooldown_ms) / 1000}s`,
