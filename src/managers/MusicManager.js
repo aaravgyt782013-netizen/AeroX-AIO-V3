@@ -178,7 +178,8 @@ export class MusicManager {
         new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− Volume").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ Volume").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Loop: " + this.getSettings(player.guildId).loop).setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Open Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
       )
     ];
   }
@@ -262,6 +263,26 @@ export class MusicManager {
         return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
       }
       const action = interaction.customId.split(":").at(-1);
+      if (action === "dashboard") {
+        try {
+          const { openMusicPanel } = await import("../commands/Music/panel.js");
+          return await openMusicPanel({
+            client: this.client,
+            message: {
+              guild: interaction.guild,
+              member: actor,
+              reply: options => interaction.reply({
+                ...options,
+                flags: (options.flags || 0) | MessageFlags.Ephemeral,
+                fetchReply: true
+              })
+            }
+          });
+        } catch (error) {
+          logger.warn("Music", "Could not open the full music dashboard from the player panel:", error);
+          return interaction.reply({ content: "Could not open the dashboard. Try `.musicpanel` in this server.", ephemeral: true }).catch(() => {});
+        }
+      }
       try {
         if (action === "toggle") fresh.paused ? await fresh.resume() : await fresh.pause();
         else if (action === "skip") await fresh.skip();
