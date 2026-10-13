@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, SectionBuilder, ThumbnailBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { config } from "#config/config";
 import { openMusicPanel } from "./panel.js";
 
@@ -45,11 +45,17 @@ function nowPlayingEmbed(player, track) {
   const info = track?.info || {};
   const url = trackUrl(track);
   const progress = info.isStream ? "🔴 **LIVE**" : "`" + duration(player.position || 0) + " / " + duration(info.duration) + "`";
-  return new ContainerBuilder().setAccentColor(COLORS.info)
+  const artwork = info.artworkUrl || info.thumbnail || info.image || null;
+  const playerSection = new SectionBuilder()
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# 🎧 LIGHTCORE • NOW PLAYING\n" +
+      "# ✦ LIGHTCORE • NOW PLAYING\n-# MUSIC FOR YOUR COMMUNITY\n" +
       (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + "\n\n" + progress
-    ))
+    ));
+  if (/^https?:\\/\\//i.test(String(artwork || ""))) {
+    playerSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Album artwork for " + trackTitle(track)));
+  }
+  return new ContainerBuilder().setAccentColor(COLORS.info)
+    .addSectionComponents(playerSection)
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent([
       "🎤 **Artist:** " + safeText(info.author || "Unknown", 100),
