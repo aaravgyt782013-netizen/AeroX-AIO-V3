@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { config } from "#config/config";
 import { openMusicPanel } from "./panel.js";
 
@@ -38,16 +38,22 @@ function playerControls(player, settings) {
 function nowPlayingEmbed(player, track) {
   const info = track?.info || {};
   const url = trackUrl(track);
-  return new EmbedBuilder().setColor(COLORS.info).setAuthor({ name: "🎧 Now Playing" })
-    .setDescription(url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**")
-    .addFields(
-      { name: "Artist", value: safeText(info.author || "Unknown", 100), inline: true },
-      { name: "Duration", value: info.isStream ? "LIVE" : duration(info.duration), inline: true },
-      { name: "Position", value: info.isStream ? "LIVE" : duration(player.position || 0), inline: true },
-      { name: "Requested by", value: safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100), inline: true },
-      { name: "Queue", value: String(player.queue?.tracks?.length || 0) + " upcoming", inline: true },
-      { name: "Volume", value: String(player.volume ?? 70) + "%", inline: true }
-    ).setThumbnail(info.artworkUrl || "https://cdn.discordapp.com/embed/avatars/0.png").setFooter({ text: "LightCore Music • Interactive controls" }).setTimestamp();
+  const progress = info.isStream ? "🔴 **LIVE**" : "`" + duration(player.position || 0) + " / " + duration(info.duration) + "`";
+  return new ContainerBuilder().setAccentColor(COLORS.info)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# 🎧 LIGHTCORE • NOW PLAYING\\n" +
+      (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + "\\n\\n" + progress
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+      "🎤 **Artist:** " + safeText(info.author || "Unknown", 100),
+      "⏱️ **Duration:** " + (info.isStream ? "LIVE" : duration(info.duration)),
+      "🙋 **Requested by:** " + safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100),
+      "📜 **Queue:** " + String(player.queue?.tracks?.length || 0) + " upcoming",
+      "🔊 **Volume:** " + String(player.volume ?? 70) + "%"
+    ].join("\\n")))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Interactive controls"));
 }
 function voiceCheck(message, player, member = message.member) {
   const voice = member?.voice?.channel;
@@ -76,7 +82,9 @@ async function sendSearchPicker(message, tracks, query, player, manager, setting
       .setStyle(index === 0 ? ButtonStyle.Primary : ButtonStyle.Secondary)
   ));
   const lines = shown.map((track, index) => "**" + (index + 1) + ".** " + trackTitle(track) + " · " + duration(track.info?.duration));
-  const sent = await message.reply({ embeds: [embed("Search results for “" + safeText(query, 80) + "”", lines.join("\n"))], components: [row] });
+  const searchContainer = new ContainerBuilder().setAccentColor(COLORS.info)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🔎 LIGHTCORE • SEARCH RESULTS\\n## " + safeText(query, 80) + "\\n\\n" + lines.join("\\n") + "\\n\\n-# Choose a result below to add it to the queue."));
+  const sent = await message.reply({ components: [searchContainer, row], flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector({ time: 45000 });
   collector.on("collect", async interaction => {
     if (interaction.user.id !== message.author.id) return interaction.reply({ content: "Only the person who started this search can select a result.", ephemeral: true });
@@ -91,13 +99,13 @@ async function sendSearchPicker(message, tracks, query, player, manager, setting
       if ((freshPlayer.queue?.tracks?.length || 0) >= settings.maxQueue) return interaction.reply({ content: "The queue is full (" + settings.maxQueue + " tracks).", ephemeral: true });
       await freshPlayer.queue.add(selected);
       if (!freshPlayer.playing && !freshPlayer.paused) await freshPlayer.play();
-      await interaction.update({ embeds: [embed("✅ Added to queue", "[" + trackTitle(selected) + "](" + (trackUrl(selected) || "https://discord.com") + ") · " + duration(selected.info?.duration), COLORS.success)], components: [] });
+      await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.success).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ✅ ADDED TO QUEUE\\n[" + trackTitle(selected) + "](" + (trackUrl(selected) || "https://discord.com") + ") · " + duration(selected.info?.duration)))] });
       collector.stop("selected");
     } catch (error) {
       await interaction.reply({ content: "Could not add this track: " + safeText(error.message, 180), ephemeral: true }).catch(() => {});
     }
   });
-  collector.on("end", (_, reason) => { if (reason !== "selected") sent.edit({ components: [] }).catch(() => {}); });
+  collector.on("end", (_, reason) => { if (reason !== "selected") sent.edit({ components: [searchContainer] }).catch(() => {}); });
 }
 
 export default {
@@ -219,7 +227,7 @@ export default {
 
     if (sub === "nowplaying" || sub === "np") {
       if (!player?.queue?.current) return fail("Nothing is playing right now. Use .play <song> to start.");
-      const sent = await message.reply({ embeds: [nowPlayingEmbed(player, player.queue.current)], components: playerControls(player, settings) });
+      const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings)], flags: MessageFlags.IsComponentsV2 });
       const collector = sent.createMessageComponentCollector({ time: 10 * 60_000 });
       collector.on("collect", async interaction => {
         const fresh = manager.getPlayer(guildId);
@@ -242,7 +250,7 @@ export default {
             case "stop":
               await manager.lavalink.destroyPlayer(guildId, "control-stop");
               collector.stop("stopped");
-              await interaction.update({ embeds: [embed("⏹️ Playback stopped", "The player has stopped and the bot has left the voice channel.", COLORS.warning)], components: [] }); return;
+              await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\\nThe player has stopped and LightCore has left the voice channel."))] }); return;
             case "queue": {
               const list = fresh.queue.tracks || [];
               return interaction.reply({ embeds: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], ephemeral: true });
@@ -261,12 +269,12 @@ export default {
           }
           const updated = manager.getSettings(guildId);
           const currentTrack = fresh.queue?.current;
-          await interaction.update({ embeds: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : embed("🎧 LightCore Music", "The current track has ended.")], components: currentTrack ? playerControls(fresh, updated) : [] });
+          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated) : [])] });
         } catch (error) {
           if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
         }
       });
-      collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
+      collector.on("end", () => sent.edit({ components: [nowPlayingEmbed(manager.getPlayer(guildId) || player, manager.getPlayer(guildId)?.queue?.current || player.queue.current)] }).catch(() => {}));
       return;
     }
 
