@@ -36,7 +36,7 @@ export async function restoreNeonSnapshots() {
 }
 
 export function registerNeonSnapshot(key, database, filePath) {
-  states.set(key, { key, database, filePath, dirty: false, running: null });
+  states.set(key, { key, database, filePath, dirty: false, running: null, failed: false });
 }
 
 export function scheduleNeonSnapshot(key) {
@@ -44,14 +44,19 @@ export function scheduleNeonSnapshot(key) {
   if (!state) return;
   state.dirty = true;
   if (!state.running) {
-    state.running = drain(state).finally(() => {
-      state.running = null;
-      if (state.dirty) scheduleNeonSnapshot(key);
-    });
-    state.running.catch((error) => logger.error("[Neon]", `Snapshot persistence failed for ${key}`, error));
+    state.failed = false;
+    state.running = drain(state)
+      .catch((error) => {
+        state.dirty = true;
+        state.failed = true;
+        logger.error("[Neon]", `Snapshot persistence failed for ${key}`, error);
+      })
+      .finally(() => {
+        state.running = null;
+        if (state.dirty && !state.failed) scheduleNeonSnapshot(key);
+      });
   }
 }
-
 async function saveOne(state) {
   await ensureTable();
   const client = await neonPool.connect();
@@ -83,12 +88,26 @@ async function drain(state) {
 }
 
 export async function flushNeonSnapshots() {
-  await Promise.all([...states.values()].map(async (state) => {
+  for (const state of states.values()) {
     if (state.running) await state.running;
-    else if (state.dirty) {
-      state.running = drain(state).finally(() => { state.running = null; });
+    if (state.dirty) {
+      // Retry a failed write once during graceful shutdown.
+      state.failed = false;
+      state.running = drain(state)
+        .catch((error) => {
+          state.dirty = true;
+          state.failed = true;
+          logger.error("[Neon]", `Final snapshot flush failed for ${state.key}`, error);
+        })
+        .finally(() => { state.running = null; });
       await state.running;
     }
-  }));
-  if ([...states.values()].some((state) => state.dirty || state.running)) await flushNeonSnapshots();
+  }
+  const failed = [...states.values()].filter((state) => state.failed);
+  if (failed.length) {
+    throw new Error(`Unable to persist Neon snapshot(s): ${failed.map((state) => state.key).join(", ")}`);
+  }
+  if ([...states.values()].some((state) => state.dirty || state.running)) {
+    await flushNeonSnapshots();
+  }
 }
