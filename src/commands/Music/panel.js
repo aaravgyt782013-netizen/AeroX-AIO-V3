@@ -82,10 +82,13 @@ function buildPanel(client, guild, category) {
   const player = manager.getPlayer(guild.id);
   const current = player?.queue?.current;
   const fields = [
-    { name: "Now playing", value: current ? (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : titleOf(current)) : "Nothing is playing", inline: false },
-    { name: "Player status", value: !player ? "Idle" : player.paused ? "Paused" : player.playing ? "Playing" : "Connected", inline: true },
-    { name: "Volume", value: String(player?.volume ?? settings.defaultVolume) + "%", inline: true },
-    { name: "Queue", value: String(player?.queue?.tracks?.length || 0) + " upcoming", inline: true }
+    { name: "🎵 Now playing", value: current ? (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : titleOf(current)) : "*Nothing is playing right now*", inline: false },
+    { name: "🎤 Artist", value: clean(current?.info?.author || "—"), inline: true },
+    { name: "📡 Player", value: !player ? "Idle" : player.paused ? "Paused" : player.playing ? "Playing" : "Connected", inline: true },
+    { name: "🔊 Volume", value: String(player?.volume ?? settings.defaultVolume) + "%", inline: true },
+    { name: "📜 Up next", value: String(player?.queue?.tracks?.length || 0) + " track(s)", inline: true },
+    { name: "🔁 Repeat", value: settings.loop, inline: true },
+    { name: "✨ Autoplay", value: settings.autoplay ? "Enabled" : "Disabled", inline: true }
   ];
   let details = "";
   if (category === "playback") details = [
@@ -111,15 +114,17 @@ function buildPanel(client, guild, category) {
   else details = [
     "**Now-playing announcements:** " + (settings.announceNowPlaying ? "Enabled" : "Disabled"),
     "",
-    "When enabled, AeroX announces tracks in the text channel where playback was requested."
+    "When enabled, LightCore announces tracks in the text channel where playback was requested."
   ].join("\n");
 
   const panel = new EmbedBuilder().setColor(COLORS.primary)
-    .setAuthor({ name: "AeroX • Music Control Center", iconURL: client.user.displayAvatarURL() })
-    .setDescription("Manage playback and server defaults from one dashboard.\n\n" + details)
+    .setAuthor({ name: "LIGHTCORE • MUSIC CONTROL CENTER", iconURL: client.user.displayAvatarURL() })
+    .setTitle("🎛️ " + guild.name + " Music Settings")
+    .setDescription("Your server’s music command center. Tune playback, queue behavior, DJ access and announcements below.\n\n" + details)
     .addFields(fields)
-    .setFooter({ text: "AeroX Music • Settings are saved to Neon per server" })
+    .setFooter({ text: "LightCore Music • Settings sync across redeploys" })
     .setTimestamp();
+  if (current?.info?.artworkUrl && /^https?:\/\//i.test(current.info.artworkUrl)) panel.setThumbnail(current.info.artworkUrl);
   const rows = [categoryMenu(category)];
   const menu = settingMenu(category, settings);
   if (menu) rows.push(menu);
@@ -140,7 +145,7 @@ async function showQueue(interaction, player) {
   const tracks = player?.queue?.tracks || [];
   const lines = tracks.slice(0, 15).map((track, index) => "**" + (index + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration));
   const current = player?.queue?.current;
-  const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle("📜 AeroX Queue")
+  const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle("📜 LightCore Queue")
     .setDescription((current ? "**Now playing:** " + titleOf(current) + "\n\n" : "") + (lines.join("\n") || "No upcoming tracks.") + (tracks.length > 15 ? "\n\n…and " + (tracks.length - 15) + " more tracks." : ""))
     .setFooter({ text: tracks.length + " upcoming track(s)" });
   return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -168,7 +173,7 @@ export async function openMusicPanel({ client, message }) {
     const isPlayback = !isSettings;
     if (isPlayback && action !== "autoplay") {
       if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
-      if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as AeroX to control playback.", ephemeral: true }).catch(() => {});
+      if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
       if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
         return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
       }
