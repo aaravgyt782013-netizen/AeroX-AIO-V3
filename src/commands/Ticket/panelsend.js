@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, MediaGalleryBuilder, MediaGalleryItemBuilder } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { buildTicketEmbed } from "#utils/TicketEmbed";
@@ -6,6 +6,29 @@ import { buildTicketEmbed } from "#utils/TicketEmbed";
 function buttonStyle(name) {
   return { primary: ButtonStyle.Primary, secondary: ButtonStyle.Secondary, success: ButtonStyle.Success, danger: ButtonStyle.Danger }[name] || ButtonStyle.Primary;
 }
+function renderPanelV2(style, guildName) {
+  const embed = buildTicketEmbed(style, { server: guildName });
+  const data = embed.toJSON();
+  const title = data.title || "🎫 Support Tickets";
+  const description = data.description || "Choose a category below to open a ticket.";
+  const container = new ContainerBuilder().setAccentColor(data.color || 0x5865F2)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# 🎫 LIGHTCORE • SUPPORT CENTER\\n## " + title + "\\n" + description
+    ));
+  if (data.image?.url && /^https?:\\/\\//i.test(data.image.url)) {
+    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+      .addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(data.image.url)));
+  }
+  if (data.footer?.text) {
+    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# " + data.footer.text));
+  } else {
+    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore • Ticket System"));
+  }
+  return container;
+}
+
 function renderComponents(panel) {
   const rows = [];
   const cats = panel.categories || [];
@@ -67,7 +90,7 @@ export default {
     if (!target?.isTextBased()) return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("cross") + " Invalid Channel", description: "Choose a text channel.", color: 0xED4245 })] });
 
     const style = panel.panelStyle || { title: panel.panelTitle, description: panel.panelDescription, color: panel.panelColor };
-    const sent = await target.send({ embeds: [buildTicketEmbed(style, { server: message.guild.name })], components: renderComponents(panel) });
+    const sent = await target.send({ components: [renderPanelV2(style, message.guild.name), ...renderComponents(panel)], flags: MessageFlags.IsComponentsV2 });
     db.updateTicketPanel(message.guild.id, panelId, { panel_channel_id: target.id, panel_message_id: sent.id });
     return message.reply({ embeds: [buildTicketEmbed({ title: emoji.get("check") + " Panel Sent", description: "Panel #" + panelId + " was published in " + target + ".", color: 0x57F287, timestamp: true })] });
   }
