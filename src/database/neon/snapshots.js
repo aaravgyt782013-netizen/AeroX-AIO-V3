@@ -10,8 +10,10 @@ let schemaPromise;
 
 function ensureTable() {
   if (!schemaPromise) {
-    schemaPromise = neonQuery("CREATE TABLE IF NOT EXISTS aerox_sqlite_snapshots (database_key TEXT PRIMARY KEY, data BYTEA NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
-      .catch((error) => { schemaPromise = null; throw error; });
+    schemaPromise = (async () => {
+      await neonQuery("CREATE TABLE IF NOT EXISTS aerox_sqlite_snapshots (database_key TEXT PRIMARY KEY, data BYTEA NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      await neonQuery("CREATE TABLE IF NOT EXISTS aerox_json_snapshots (snapshot_key TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    })().catch((error) => { schemaPromise = null; throw error; });
   }
   return schemaPromise;
 }
@@ -123,13 +125,13 @@ export async function flushNeonSnapshots() {
   }
 }
 export async function loadNeonJsonSnapshot(key, fallback = null) {
-  await neonQuery("CREATE TABLE IF NOT EXISTS aerox_json_snapshots (snapshot_key TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await ensureTable();
   const { rows } = await neonQuery("SELECT data FROM aerox_json_snapshots WHERE snapshot_key = $1", [key]);
   return rows.length ? rows[0].data : fallback;
 }
 
 export async function saveNeonJsonSnapshot(key, value) {
-  await neonQuery("CREATE TABLE IF NOT EXISTS aerox_json_snapshots (snapshot_key TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await ensureTable();
   await neonQuery(
     "INSERT INTO aerox_json_snapshots (snapshot_key, data, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (snapshot_key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at",
     [key, JSON.stringify(value)]
