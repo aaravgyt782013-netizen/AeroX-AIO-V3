@@ -21,6 +21,7 @@ export class MusicManager {
     this.client = client;
     this.settings = {};
     this.initialized = false;
+    this.previousTracks = new Map();
     this.nodesConfig = [...(config.music.nodes || []), ...(config.music.node || [])];
     this.lavalink = this.nodesConfig.length ? new LavalinkManager({
       nodes: this.nodesConfig,
@@ -57,12 +58,7 @@ export class MusicManager {
       this.announce(player, track).catch(error => logger.warn("Music", "Now-playing announcement failed:", error));
     });
     this.lavalink.on("trackEnd", (player, track) => {
-      if (track) {
-        try {
-          player.set("previousTrack", track);
-          player.set("lastPlayedTrack", track);
-        } catch {}
-      }
+      if (track) this.previousTracks.set(player.guildId, track);
     });
     this.lavalink.on("trackError", (player, track, payload) => {
       logger.error("Music", "Track failed in guild " + player.guildId + ": " + (track?.info?.title || "unknown"), payload);
