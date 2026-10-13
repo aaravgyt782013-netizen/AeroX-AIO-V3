@@ -75,7 +75,7 @@ export class MusicManager {
       logger.success("MusicNode", "Connected to Lavalink node: " + node.id);
       try {
         // Preserve active Lavalink players across brief WebSocket interruptions.
-        node.updateSession(true, 300_000);
+        void Promise.resolve(node.updateSession(true, 300_000)).catch(error => logger.warn("MusicNode", "Session resuming could not be enabled for " + node.id + ":", error));
       } catch (error) {
         logger.warn("MusicNode", "Could not enable session resuming for " + node.id + ":", error);
       }
@@ -253,7 +253,7 @@ export class MusicManager {
         await interaction.reply({ content: "That control failed. Please try again.", ephemeral: true }).catch(() => {});
       }
     });
-    collector.on("end", () => sent.edit({ components: [this.trackContainer(this.getPlayer(player.guildId) || player, this.getPlayer(player.guildId)?.queue?.current || track)] }).catch(() => {}));
+    collector.on("end", (_collected, reason) => { if (reason === "stopped") return; sent.edit({ components: [this.trackContainer(this.getPlayer(player.guildId) || player, this.getPlayer(player.guildId)?.queue?.current || track)] }).catch(() => {}); });
   }
 
   async sendText(player, content) {
