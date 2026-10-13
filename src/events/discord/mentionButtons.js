@@ -205,7 +205,7 @@ async function buildDevsPage(interaction, client) {
 
 async function buildLinksPage(interaction, client) {
   const guildIconUrl = interaction.guild.iconURL({ dynamic: true, size: 256 });
-  const supportServerUrl = config.links?.supportServer || "https://discord.gg/lightcore";
+  const supportServerUrl = config.links?.supportServer || "https://discord.gg/aerox";
   
   let serverIconUrl = config.assets?.defaultThumbnail;
   try {
