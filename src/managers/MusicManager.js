@@ -274,7 +274,7 @@ export class MusicManager {
           await this.lavalink.destroyPlayer(guildId, "track-panel-stop");
           collector.stop("stopped");
           this.trackPanels.delete(guildId);
-          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nLightCore has stopped playback."))], flags: MessageFlags.IsComponentsV2 });
+          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nLightCore has stopped playback."))] });
         } else if (action === "queue") {
           const list = fresh.queue?.tracks || [];
           const lines = list.slice(0, 15).map((item, index) => "**" + (index + 1) + ".** " + this.escape(item.info?.title || "Unknown track") + " · " + this.formatDuration(item.info?.duration));
