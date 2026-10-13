@@ -36,26 +36,38 @@ export async function restoreNeonSnapshots() {
 }
 
 export function registerNeonSnapshot(key, database, filePath) {
-  states.set(key, { key, database, filePath, dirty: false, running: null, failed: false });
+  states.set(key, { key, database, filePath, dirty: false, running: null, timer: null, failed: false });
 }
 
 export function scheduleNeonSnapshot(key) {
   const state = states.get(key);
   if (!state) return;
   state.dirty = true;
-  if (!state.running) {
-    state.failed = false;
-    state.running = drain(state)
-      .catch((error) => {
-        state.dirty = true;
-        state.failed = true;
-        logger.error("[Neon]", `Snapshot persistence failed for ${key}`, error);
-      })
-      .finally(() => {
-        state.running = null;
-        if (state.dirty && !state.failed) scheduleNeonSnapshot(key);
-      });
+  state.failed = false;
+  if (!state.running && !state.timer) {
+    // Coalesce bursts of synchronous writes into one snapshot instead of
+    // uploading the entire SQLite file for every individual query.
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      startDrain(state);
+    }, 300);
+    state.timer.unref?.();
   }
+}
+
+function startDrain(state) {
+  if (state.running) return state.running;
+  state.running = drain(state)
+    .catch((error) => {
+      state.dirty = true;
+      state.failed = true;
+      logger.error("[Neon]", `Snapshot persistence failed for ${state.key}`, error);
+    })
+    .finally(() => {
+      state.running = null;
+      if (state.dirty && !state.failed) scheduleNeonSnapshot(state.key);
+    });
+  return state.running;
 }
 async function saveOne(state) {
   await ensureTable();
@@ -81,37 +93,35 @@ async function saveOne(state) {
 }
 
 async function drain(state) {
-  while (state.dirty) {
-    state.dirty = false;
-    await saveOne(state);
-  }
+  if (!state.dirty) return;
+  state.dirty = false;
+  await saveOne(state);
 }
 
 export async function flushNeonSnapshots() {
   for (const state of states.values()) {
-    if (state.running) await state.running;
-    if (state.dirty) {
-      // Retry a failed write once during graceful shutdown.
-      state.failed = false;
-      state.running = drain(state)
-        .catch((error) => {
-          state.dirty = true;
-          state.failed = true;
-          logger.error("[Neon]", `Final snapshot flush failed for ${state.key}`, error);
-        })
-        .finally(() => { state.running = null; });
-      await state.running;
+    let attempts = 0;
+    while (state.timer || state.running || state.dirty) {
+      if (state.timer) {
+        clearTimeout(state.timer);
+        state.timer = null;
+      }
+      if (state.running) {
+        await state.running;
+      } else if (state.dirty) {
+        state.failed = false;
+        await startDrain(state);
+      }
+      attempts += 1;
+      if (state.failed) {
+        if (attempts >= 2) throw new Error(`Unable to persist Neon snapshot for ${state.key}`);
+        state.failed = false;
+        state.dirty = true;
+      }
+      if (attempts > 20) throw new Error(`Snapshot flush did not settle for ${state.key}`);
     }
   }
-  const failed = [...states.values()].filter((state) => state.failed);
-  if (failed.length) {
-    throw new Error(`Unable to persist Neon snapshot(s): ${failed.map((state) => state.key).join(", ")}`);
-  }
-  if ([...states.values()].some((state) => state.dirty || state.running)) {
-    await flushNeonSnapshots();
-  }
 }
-
 export async function loadNeonJsonSnapshot(key, fallback = null) {
   await neonQuery("CREATE TABLE IF NOT EXISTS aerox_json_snapshots (snapshot_key TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   const { rows } = await neonQuery("SELECT data FROM aerox_json_snapshots WHERE snapshot_key = $1", [key]);
