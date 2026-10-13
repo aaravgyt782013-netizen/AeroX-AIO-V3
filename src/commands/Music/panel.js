@@ -49,12 +49,12 @@ function settingMenu(category, settings) {
     { label: "Now-playing announcements: " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Toggle track announcement messages", emoji: "📣" }
   ];
   if (!options.length) return null;
-  const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+  const menu = new StringSelectMenuBuilder()
     .setCustomId("aerox_panel:setting")
     .setPlaceholder("Select a setting to edit")
-    .setMinValues(1).setMaxValues(1));
-  for (const option of options) row.components[0].addOptions(option);
-  return row;
+    .setMinValues(1).setMaxValues(1)
+    .addOptions(options);
+  return new ActionRowBuilder().addComponents(menu);
 }
 
 function controls(player, settings) {
