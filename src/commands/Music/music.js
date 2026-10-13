@@ -43,8 +43,8 @@ function nowPlayingEmbed(player, track) {
   const progress = info.isStream ? "🔴 **LIVE**" : "`" + duration(player.position || 0) + " / " + duration(info.duration) + "`";
   return new ContainerBuilder().setAccentColor(COLORS.info)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# 🎧 LIGHTCORE • NOW PLAYING\\n" +
-      (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + "\\n\\n" + progress
+      "# 🎧 LIGHTCORE • NOW PLAYING\n" +
+      (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + "\n\n" + progress
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent([
@@ -53,7 +53,7 @@ function nowPlayingEmbed(player, track) {
       "🙋 **Requested by:** " + safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100),
       "📜 **Queue:** " + String(player.queue?.tracks?.length || 0) + " upcoming",
       "🔊 **Volume:** " + String(player.volume ?? 70) + "%"
-    ].join("\\n")))
+    ].join("\n")))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Interactive controls"));
 }
@@ -85,7 +85,7 @@ async function sendSearchPicker(message, tracks, query, player, manager, setting
   ));
   const lines = shown.map((track, index) => "**" + (index + 1) + ".** " + trackTitle(track) + " · " + duration(track.info?.duration));
   const searchContainer = new ContainerBuilder().setAccentColor(COLORS.info)
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🔎 LIGHTCORE • SEARCH RESULTS\\n## " + safeText(query, 80) + "\\n\\n" + lines.join("\\n") + "\\n\\n-# Choose a result below to add it to the queue."));
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🔎 LIGHTCORE • SEARCH RESULTS\n## " + safeText(query, 80) + "\n\n" + lines.join("\n") + "\n\n-# Choose a result below to add it to the queue."));
   const sent = await message.reply({ components: [searchContainer, row], flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector({ time: 45000 });
   collector.on("collect", async interaction => {
@@ -101,7 +101,7 @@ async function sendSearchPicker(message, tracks, query, player, manager, setting
       if ((freshPlayer.queue?.tracks?.length || 0) >= settings.maxQueue) return interaction.reply({ content: "The queue is full (" + settings.maxQueue + " tracks).", ephemeral: true });
       await freshPlayer.queue.add(selected);
       if (!freshPlayer.playing && !freshPlayer.paused) await freshPlayer.play();
-      await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.success).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ✅ ADDED TO QUEUE\\n[" + trackTitle(selected) + "](" + (trackUrl(selected) || "https://discord.com") + ") · " + duration(selected.info?.duration)))] });
+      await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.success).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ✅ ADDED TO QUEUE\n[" + trackTitle(selected) + "](" + (trackUrl(selected) || "https://discord.com") + ") · " + duration(selected.info?.duration)))] });
       collector.stop("selected");
     } catch (error) {
       await interaction.reply({ content: "Could not add this track: " + safeText(error.message, 180), ephemeral: true }).catch(() => {});
@@ -252,7 +252,7 @@ export default {
             case "stop":
               await manager.lavalink.destroyPlayer(guildId, "control-stop");
               collector.stop("stopped");
-              await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\\nThe player has stopped and LightCore has left the voice channel."))] }); return;
+              await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nThe player has stopped and LightCore has left the voice channel."))] }); return;
             case "queue": {
               const list = fresh.queue.tracks || [];
               return interaction.reply({ components: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
@@ -271,7 +271,7 @@ export default {
           }
           const updated = manager.getSettings(guildId);
           const currentTrack = fresh.queue?.current;
-          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated) : [])] });
+          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated) : [])] });
         } catch (error) {
           if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
         }
