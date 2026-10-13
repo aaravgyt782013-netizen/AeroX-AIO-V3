@@ -107,7 +107,7 @@ class SupportCommand extends Command {
                         new ButtonBuilder()
                                 .setLabel('Support Server')
                                 .setStyle(ButtonStyle.Link)
-                                .setURL(config.links?.supportServer || "https://discord.gg/lightcore")
+                                .setURL(config.links?.supportServer || "https://discord.gg/aerox")
                                 .setEmoji(emoji.get("add"))
                 );
 
