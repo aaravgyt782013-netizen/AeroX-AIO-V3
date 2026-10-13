@@ -19,7 +19,7 @@ export default {
           clientId +
           "&scope=bot%20applications.commands&permissions=8"
         : null;
-      const support = config.links?.supportServer || "https://discord.gg/aerox";
+      const support = config.links?.supportServer || "https://discord.gg/lightcore";
 
       const targetIds = [];
       if (saved?.owner_id && saved.owner_id !== "unknown") targetIds.push(saved.owner_id);
