@@ -11,6 +11,8 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   RoleSelectMenuBuilder,
+  ChannelSelectMenuBuilder,
+  ChannelType,
   StringSelectMenuBuilder
 } from "discord.js";
 
@@ -53,7 +55,7 @@ function settingMenu(category, settings) {
     { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with similar music when the queue ends", emoji: "✨" }
   ];
   if (category === "display") options = [
-    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Toggle track announcement messages", emoji: "📣" }
+    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Post a separate message for every new song", emoji: "📣" }
   ];
   if (!options.length) return null;
   return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
@@ -117,7 +119,7 @@ function buildPanel(client, guild, category) {
     display: {
       icon: "🪄", title: "Player announcements",
       description: "Control the extra track announcements posted when music changes.",
-      detail: "**Track announcements** · " + (settings.announceNowPlaying ? "Enabled" : "Disabled") + "\n\n-# The live player panel remains available independently of this preference."
+      detail: "**Track announcements** · " + (settings.announceNowPlaying ? "Enabled" : "Disabled") + "\n**Announcement channel** · " + (settings.announcementChannelId ? "<#" + settings.announcementChannelId + ">" : "Use song request channel") + "\n\n-# Every song announcement includes an Open Music Control Panel button."
     }
   }[category] || { icon: "🎧", title: "Music settings", description: "Customise your server's music experience.", detail: "" };
 
@@ -154,6 +156,18 @@ function buildPanel(client, guild, category) {
   const rows = [categoryMenu(category)];
   const menu = settingMenu(category, settings);
   if (menu) rows.push(menu);
+  if (category === "display") {
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:announce_channel")
+      .setPlaceholder("📣  Choose the song announcement channel")
+      .setChannelTypes(ChannelType.GuildText)
+      .setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
+      .setCustomId("aerox_panel:clear_announce_channel")
+      .setLabel("Use song request channel")
+      .setEmoji("↩️")
+      .setStyle(ButtonStyle.Secondary)));
+  }
   if (category === "access") {
     rows.push(new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
       .setCustomId("aerox_panel:djrole")
@@ -196,7 +210,7 @@ export async function openMusicPanel({ client, message }) {
     let player = manager.getPlayer(message.guild.id);
     const settings = manager.getSettings(message.guild.id);
     const action = interaction.customId.split(":").at(-1);
-    const isSettings = ["category", "setting", "djrole", "clear_dj", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
+    const isSettings = ["category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
     if (isSettings && !actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
@@ -239,7 +253,7 @@ export async function openMusicPanel({ client, message }) {
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("aerox_panel:loop_setting").setPlaceholder("Choose the default repeat mode").addOptions(choices.map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, default: mode === settings.loop }))));
           return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
         }
-        if (key === "autoplay" || key === "announceNowPlaying") patch[key] = value !== "on";
+        if (key === "autoplay" || key === "announceNowPlaying") patch[key] = value === "on";
         if (Object.keys(patch).length) await manager.updateSettings(message.guild.id, patch);
       } else if (action === "volume_setting") {
         await manager.updateSettings(message.guild.id, { defaultVolume: Number(interaction.values[0]) });
@@ -255,6 +269,12 @@ export async function openMusicPanel({ client, message }) {
       } else if (action === "clear_dj") {
         await manager.updateSettings(message.guild.id, { djRoleId: null });
         category = "access";
+      } else if (action === "announce_channel") {
+        await manager.updateSettings(message.guild.id, { announcementChannelId: interaction.values[0] });
+        category = "display";
+      } else if (action === "clear_announce_channel") {
+        await manager.updateSettings(message.guild.id, { announcementChannelId: null });
+        category = "display";
       } else {
         if (!player && action !== "autoplay") return interaction.reply({ content: "No active player. Start music with .play first.", ephemeral: true }).catch(() => {});
         if (action === "toggle") player.paused ? await player.resume() : await player.pause();
@@ -342,7 +362,8 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       intro: "Decide how LightCore announces new tracks in the request channel.",
       summary: [
         "**Track announcements**  ·  " + (settings.announceNowPlaying ? "🟢 Enabled" : "⚪ Disabled"),
-        "**Live player panel**  ·  Always available"
+        "**Announcement channel**  ·  " + (settings.announcementChannelId ? "<#" + settings.announcementChannelId + ">" : "Song request channel"),
+        "**Song message button**  ·  Open Music Control Panel"
       ].join("\n")
     }
   };
@@ -381,6 +402,18 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
   } else {
     const menu = settingMenu(category, settings);
     if (menu) rows.push(menu);
+  }
+  if (category === "display") {
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:announce_channel")
+      .setPlaceholder("📣  Choose the song announcement channel")
+      .setChannelTypes(ChannelType.GuildText)
+      .setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
+      .setCustomId("aerox_panel:clear_announce_channel")
+      .setLabel("Use song request channel")
+      .setEmoji("↩️")
+      .setStyle(ButtonStyle.Secondary)));
   }
   if (category === "access") {
     rows.push(new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
@@ -421,7 +454,7 @@ export async function openMusicSettingsPanel({ client, message }) {
         else if (key === "defaultSource") selection = "source";
         else if (key === "loop") selection = "loop";
         else {
-          await client.music.updateSettings(message.guild.id, { [key]: value !== "on" });
+          await client.music.updateSettings(message.guild.id, { [key]: value === "on" });
           selection = null;
         }
       } else if (action === "volume_setting") {
@@ -443,6 +476,14 @@ export async function openMusicSettingsPanel({ client, message }) {
       } else if (action === "clear_dj") {
         await client.music.updateSettings(message.guild.id, { djRoleId: null });
         category = "access";
+        selection = null;
+      } else if (action === "announce_channel") {
+        await client.music.updateSettings(message.guild.id, { announcementChannelId: interaction.values[0] });
+        category = "display";
+        selection = null;
+      } else if (action === "clear_announce_channel") {
+        await client.music.updateSettings(message.guild.id, { announcementChannelId: null });
+        category = "display";
         selection = null;
       }
       await interaction.update(buildServerSettingsPanel(client, message.guild, category, selection));
