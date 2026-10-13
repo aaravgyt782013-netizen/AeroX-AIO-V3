@@ -311,33 +311,33 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
       "",
       "These defaults apply to music sessions in this server."
-    ].join("\\n"),
+    ].join("\n"),
     queue: [
       "**Maximum queue:** " + settings.maxQueue + " tracks",
       "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
       "",
       "Queue limits are enforced when new tracks are requested."
-    ].join("\\n"),
+    ].join("\n"),
     access: [
       "**DJ role:** " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not configured"),
       "**Administrator override:** Manage Server",
       "",
       "When a DJ role is set, playback controls require that role or Manage Server."
-    ].join("\\n"),
+    ].join("\n"),
     display: [
       "**Now-playing announcements:** " + (settings.announceNowPlaying ? "Enabled" : "Disabled"),
       "",
       "Choose whether LightCore posts a Now Playing panel for each track."
-    ].join("\\n")
+    ].join("\n")
   }[category] || "";
   const container = new ContainerBuilder().setAccentColor(COLORS.primary)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ⚙️ LIGHTCORE • SERVER MUSIC SETTINGS\\n## " + clean(guild.name) +
-      "\\nConfigure your server’s music defaults. Changes are saved automatically in Neon."
+      "# ⚙️ LIGHTCORE • SERVER MUSIC SETTINGS\n## " + clean(guild.name) +
+      "\nConfigure your server’s music defaults. Changes are saved automatically in Neon."
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "### 🧭 " + category[0].toUpperCase() + category.slice(1) + " Configuration\\n" + details
+      "### 🧭 " + category[0].toUpperCase() + category.slice(1) + " Configuration\n" + details
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Server settings persist across redeploys"));
