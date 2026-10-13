@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from "discord.js";
+import { PermissionFlagsBits, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, MediaGalleryBuilder, MediaGalleryItemBuilder, SectionBuilder, ThumbnailBuilder } from "discord.js";
 import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { buildTicketEmbed } from "#utils/TicketEmbed";
@@ -152,7 +152,23 @@ export default {
         for (let i = 0; i < buttons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
         if (categories.length > 25) rows.push(new ActionRowBuilder().setComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_1").setLabel("Next").setStyle(ButtonStyle.Secondary)));
       }
-      const sent = await target.send({ embeds: [panelEmbed], components: rows.slice(0, 5) });
+      const panelData = panelEmbed.toJSON();
+      const panelText = "# 🎫 LIGHTCORE • SUPPORT CENTER\\n## " + (panelData.title || "Support Tickets") + "\\n" + (panelData.description || "Choose a category below to open a ticket.");
+      const panelContainer = new ContainerBuilder().setAccentColor(panelData.color || 0x5865F2);
+      if (panelData.thumbnail?.url) {
+        panelContainer.addSectionComponents(new SectionBuilder()
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(panelText))
+          .setThumbnailAccessory(new ThumbnailBuilder().setURL(panelData.thumbnail.url)));
+      } else {
+        panelContainer.addTextDisplayComponents(new TextDisplayBuilder().setContent(panelText));
+      }
+      if (panelData.image?.url && /^https?:\\/\\//i.test(panelData.image.url)) {
+        panelContainer.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+          .addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(panelData.image.url)));
+      }
+      panelContainer.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# " + (panelData.footer?.text || "LightCore • Ticket System")));
+      const sent = await target.send({ components: [panelContainer, ...rows.slice(0, 5)], flags: MessageFlags.IsComponentsV2 });
       db.updateTicketPanel(message.guild.id, panelId, { panel_channel_id: target.id, panel_message_id: sent.id });
 
       return message.channel.send({ embeds: [buildTicketEmbed({
