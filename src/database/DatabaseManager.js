@@ -6,6 +6,7 @@ import { Ticket } from "#db/Ticket";
 import { Invites } from "#db/Invites";
 import { Automation } from "#db/Automation";
 import { logger } from "#utils/logger";
+import { flushNeonSnapshots } from "#database/neon/snapshots";
 
 export class DatabaseManager {
   constructor() {
@@ -28,8 +29,9 @@ export class DatabaseManager {
     }
   }
 
-  closeAll() {
+  async closeAll() {
     try {
+      await flushNeonSnapshots();
       this.guild.close();
       this.user.close();
       this.premium.close();
