@@ -24,6 +24,9 @@ export class MusicManager {
     this.settings = {};
     this.initialized = false;
     this.previousTracks = new Map();
+    // Keep one live player panel per guild; update it as tracks change instead of
+    // spamming a new panel for every song or letting controls expire mid-session.
+    this.trackPanels = new Map();
     this.nodesConfig = [...(config.music.nodes || []), ...(config.music.node || [])];
     this.lavalink = this.nodesConfig.length ? new LavalinkManager({
       nodes: this.nodesConfig,
@@ -213,13 +216,40 @@ export class MusicManager {
   }
 
   async announce(player, track) {
-    if (!this.getSettings(player.guildId).announceNowPlaying) return;
+    // The interactive player is separate from optional textual announcements:
+    // always provide a usable player panel when playback starts.
+    const guildId = player.guildId;
+    const existing = this.trackPanels.get(guildId);
+    const currentPlayer = this.getPlayer(guildId) || player;
+    const currentTrack = currentPlayer.queue?.current || track;
+    const components = [this.trackContainer(currentPlayer, currentTrack), ...this.trackControls(currentPlayer)];
+
+    if (existing?.message && !existing.message.deleted) {
+      try {
+        await existing.message.edit({ components, flags: MessageFlags.IsComponentsV2 });
+        return;
+      } catch (error) {
+        logger.warn("Music", "Could not refresh the existing player panel; sending a replacement:", error);
+        existing.collector?.stop("panel-refresh-failed");
+        this.trackPanels.delete(guildId);
+      }
+    }
+
     const channel = player.textChannelId ? this.client.channels.cache.get(player.textChannelId) : null;
-    if (!channel?.isTextBased()) return;
-    const sent = await channel.send({ components: [this.trackContainer(player, track), ...this.trackControls(player)], flags: MessageFlags.IsComponentsV2 });
-    const collector = sent.createMessageComponentCollector({ time: Math.max(60_000, Number(track?.info?.duration || 0) || 10 * 60_000) });
+    if (!channel?.isTextBased()) {
+      logger.warn("Music", "Cannot post player panel: playback text channel is unavailable for guild " + guildId);
+      return;
+    }
+
+    const sent = await channel.send({ components, flags: MessageFlags.IsComponentsV2 });
+    const collector = sent.createMessageComponentCollector();
+    this.trackPanels.set(guildId, { message: sent, collector, channelId: channel.id });
+
     collector.on("collect", async interaction => {
-      const fresh = this.getPlayer(player.guildId);
+      if (!interaction.customId.startsWith("aerox_track:")) {
+        return interaction.reply({ content: "This is not a LightCore music control.", ephemeral: true }).catch(() => {});
+      }
+      const fresh = this.getPlayer(guildId);
       if (!fresh) return interaction.reply({ content: "The music session has ended. Start a new track to use its controls.", ephemeral: true }).catch(() => {});
       const guild = interaction.guild;
       const actor = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
@@ -227,7 +257,7 @@ export class MusicManager {
       const voice = actor.voice.channel;
       if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
       if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
-      const settings = this.getSettings(player.guildId);
+      const settings = this.getSettings(guildId);
       if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
         return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
       }
@@ -236,14 +266,15 @@ export class MusicManager {
         if (action === "toggle") fresh.paused ? await fresh.resume() : await fresh.pause();
         else if (action === "skip") await fresh.skip();
         else if (action === "previous") {
-          const previous = this.previousTracks.get(player.guildId);
+          const previous = this.previousTracks.get(guildId);
           if (!previous) return interaction.reply({ content: "There is no previous track in this session.", ephemeral: true }).catch(() => {});
           fresh.queue.tracks.unshift(previous);
           if (fresh.playing) await fresh.skip();
         } else if (action === "stop") {
-          await this.lavalink.destroyPlayer(player.guildId, "track-panel-stop");
+          await this.lavalink.destroyPlayer(guildId, "track-panel-stop");
           collector.stop("stopped");
-          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nLightCore has stopped playback."))] });
+          this.trackPanels.delete(guildId);
+          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nLightCore has stopped playback."))], flags: MessageFlags.IsComponentsV2 });
         } else if (action === "queue") {
           const list = fresh.queue?.tracks || [];
           const lines = list.slice(0, 15).map((item, index) => "**" + (index + 1) + ".** " + this.escape(item.info?.title || "Unknown track") + " · " + this.formatDuration(item.info?.duration));
@@ -252,20 +283,26 @@ export class MusicManager {
           await fresh.setVolume(Math.max(0, Math.min(100, Number(fresh.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10))));
         } else if (action === "loop") {
           const next = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
-          await this.updateSettings(player.guildId, { loop: next });
+          await this.updateSettings(guildId, { loop: next });
           if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
         } else if (action === "shuffle") {
           if ((fresh.queue?.tracks?.length || 0) < 2) return interaction.reply({ content: "Add at least two upcoming tracks before shuffling.", ephemeral: true }).catch(() => {});
           await fresh.queue.shuffle();
         }
-        const current = fresh.queue?.current || track;
-        await interaction.update({ components: [this.trackContainer(fresh, current), ...this.trackControls(fresh)] });
+        const latest = this.getPlayer(guildId) || fresh;
+        await interaction.update({ components: [this.trackContainer(latest, latest.queue?.current || currentTrack), ...this.trackControls(latest)], flags: MessageFlags.IsComponentsV2 });
       } catch (error) {
         logger.warn("Music", "Track panel action failed:", error);
-        await interaction.reply({ content: "That control failed. Please try again.", ephemeral: true }).catch(() => {});
+        const response = { content: "That control failed: " + this.escape(error?.message || "unknown error"), ephemeral: true };
+        if (interaction.deferred || interaction.replied) await interaction.followUp(response).catch(() => {});
+        else await interaction.reply(response).catch(() => {});
       }
     });
-    collector.on("end", (_collected, reason) => { if (reason === "stopped") return; sent.edit({ components: [this.trackContainer(this.getPlayer(player.guildId) || player, this.getPlayer(player.guildId)?.queue?.current || track)] }).catch(() => {}); });
+
+    collector.on("end", () => {
+      const tracked = this.trackPanels.get(guildId);
+      if (tracked?.message?.id === sent.id) this.trackPanels.delete(guildId);
+    });
   }
 
   async sendText(player, content) {
