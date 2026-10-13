@@ -66,7 +66,7 @@ export default {
       const color = await optional("4 • Embed Color", "Enter a hex color such as #5865F2.", "#5865F2");
       const image = await optional("5 • Panel Image", "Enter an image URL.", "");
       const thumbnail = await optional("6 • Panel Thumbnail", "Enter a thumbnail URL.", "");
-      const footer = await optional("7 • Footer Text", "Enter footer text.", "AeroX Ticket System");
+      const footer = await optional("7 • Footer Text", "Enter footer text.", "LightCore • Ticket System");
       const footerIcon = await optional("8 • Footer Icon", "Enter a footer icon URL.", "");
       const authorName = await optional("9 • Author Name", "Enter an author name.", "");
       const authorIcon = await optional("10 • Author Icon", "Enter an author icon URL.", "");
