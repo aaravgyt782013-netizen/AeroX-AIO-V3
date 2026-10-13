@@ -79,7 +79,7 @@ class TeamInfoCommand extends Command {
 
                 const content = `**Meet our development team!**\n\n` +
                         `**${emoji.get('check')} Lead Developer:** Shinchan\n` +
-                        `**${emoji.get('folder')} Bot Name:** AeroX\n` +
+                        `**${emoji.get('folder')} Bot Name:** LightCore\n` +
                         `**${emoji.get('add')} Specialization:** Multipurpose Bot\n` +
                         `**${emoji.get('reset')} Status:** Under Development\n\n` +
                         `*We're constantly working hard to improve your experience!*`;
@@ -94,7 +94,7 @@ class TeamInfoCommand extends Command {
                         new ButtonBuilder()
                                 .setLabel('Support')
                                 .setStyle(ButtonStyle.Link)
-                                .setURL('https://discord.gg/aerox')
+                                .setURL('https://discord.gg/lightcore')
                 );
 
                 container.addActionRowComponents(buttonRow);
