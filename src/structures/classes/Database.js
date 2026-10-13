@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '#utils/logger';
+import { registerNeonSnapshot, scheduleNeonSnapshot } from '#database/neon/snapshots';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,8 @@ export class Database {
 
 			this.db.pragma('journal_mode   =WAL');
 			this.db.pragma('synchronous   =NORMAL');
+			this.snapshotKey = path.basename(this.path);
+			registerNeonSnapshot(this.snapshotKey, this.db, this.path);
 		} catch (error) {
 			logger.error(
 				'Database',
@@ -35,7 +38,9 @@ export class Database {
 
 	exec(sql, params = []) {
 		try {
-			return this.db.prepare(sql).run(params);
+			const result = this.db.prepare(sql).run(params);
+			scheduleNeonSnapshot(this.snapshotKey);
+			return result;
 		} catch (error) {
 			logger.error('Database', `Failed to execute SQL: ${sql}`, error);
 			throw error;
@@ -62,7 +67,20 @@ export class Database {
 
 	prepare(sql) {
 		try {
-			return this.db.prepare(sql);
+			const statement = this.db.prepare(sql);
+			return new Proxy(statement, {
+				get: (target, property) => {
+					if (property === 'run') {
+						return (...args) => {
+							const result = target.run(...args);
+							scheduleNeonSnapshot(this.snapshotKey);
+							return result;
+						};
+					}
+					const value = Reflect.get(target, property, target);
+					return typeof value === 'function' ? value.bind(target) : value;
+				},
+			});
 		} catch (error) {
 			logger.error(
 				'Database',
