@@ -1,158 +1,314 @@
-import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { config } from "#config/config";
 
-const fmt = ms => {
-  if (!ms || !Number.isFinite(Number(ms))) return "LIVE";
-  const sec = Math.floor(Number(ms) / 1000);
-  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+const COLORS = { info: 0x5865F2, success: 0x57F287, warning: 0xFEE75C, error: 0xED4245 };
+const safeText = (value, max = 180) => String(value ?? "Unknown").replace(/[@\\*_~]/g, "").replace(/[\r\n]/g, " ").slice(0, max);
+const duration = ms => {
+  if (!Number.isFinite(Number(ms)) || Number(ms) < 0) return "LIVE";
+  const seconds = Math.floor(Number(ms) / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0") : minutes + ":" + String(seconds % 60).padStart(2, "0");
 };
-const clean = s => String(s || "").replace(/[@\\*_~`]/g, "").slice(0, 180);
+const trackTitle = track => safeText(track?.info?.title || "Unknown track");
+const trackUrl = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
+
+function embed(title, description, color = COLORS.info) {
+  return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description)
+    .setFooter({ text: "AeroX Music • Use .music help for all commands" }).setTimestamp();
+}
+function playerControls(player, settings) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(player.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aerox_music:vol_down").setLabel("Volume −").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:vol_up").setLabel("Volume +").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:loop").setLabel("Loop: " + (settings.loop || "off")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+function nowPlayingEmbed(player, track) {
+  const info = track?.info || {};
+  const url = trackUrl(track);
+  return new EmbedBuilder().setColor(COLORS.info).setAuthor({ name: "🎧 Now Playing" })
+    .setDescription(url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**")
+    .addFields(
+      { name: "Artist", value: safeText(info.author || "Unknown", 100), inline: true },
+      { name: "Duration", value: info.isStream ? "LIVE" : duration(info.duration), inline: true },
+      { name: "Position", value: info.isStream ? "LIVE" : duration(player.position || 0), inline: true },
+      { name: "Requested by", value: safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100), inline: true },
+      { name: "Queue", value: String(player.queue?.tracks?.length || 0) + " upcoming", inline: true },
+      { name: "Volume", value: String(player.volume ?? 70) + "%", inline: true }
+    ).setThumbnail(info.artworkUrl || "https://cdn.discordapp.com/embed/avatars/0.png").setFooter({ text: "AeroX Music • Interactive controls" }).setTimestamp();
+}
+function voiceCheck(message, player, member = message.member) {
+  const voice = member?.voice?.channel;
+  if (!voice) return "Join a voice channel first.";
+  if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return "Join the same voice channel as the bot to control music.";
+  const perms = voice.permissionsFor(message.guild.members.me);
+  if (!perms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return "I need Connect and Speak permissions in your voice channel.";
+  return null;
+}
+function djCheck(message, settings, member = message.member) {
+  if (!settings.djRoleId || member.roles.cache.has(settings.djRoleId) || member.permissions.has(PermissionFlagsBits.ManageGuild)) return null;
+  return "You need the configured DJ role <@&" + settings.djRoleId + "> to control playback.";
+}
+async function addTracks(player, tracks, maxQueue) {
+  const available = Math.max(0, maxQueue - (player.queue?.tracks?.length || 0));
+  const accepted = tracks.slice(0, available);
+  for (const track of accepted) await player.queue.add(track);
+  if (accepted.length && !player.playing && !player.paused) await player.play();
+  return { accepted: accepted.length, rejected: tracks.length - accepted.length };
+}
+async function sendSearchPicker(message, tracks, query, player, manager, settings) {
+  const shown = tracks.slice(0, 5);
+  const row = new ActionRowBuilder().addComponents(shown.map((track, index) =>
+    new ButtonBuilder().setCustomId("aerox_search:" + index)
+      .setLabel((index + 1) + ". " + safeText(track.info?.title, 70))
+      .setStyle(index === 0 ? ButtonStyle.Primary : ButtonStyle.Secondary)
+  ));
+  const lines = shown.map((track, index) => "**" + (index + 1) + ".** " + trackTitle(track) + " · " + duration(track.info?.duration));
+  const sent = await message.reply({ embeds: [embed("Search results for “" + safeText(query, 80) + "”", lines.join("\n"))], components: [row] });
+  const collector = sent.createMessageComponentCollector({ time: 45000 });
+  collector.on("collect", async interaction => {
+    if (interaction.user.id !== message.author.id) return interaction.reply({ content: "Only the person who started this search can select a result.", ephemeral: true });
+    const voiceError = voiceCheck(message, manager.getPlayer(message.guild.id));
+    if (voiceError) return interaction.reply({ content: voiceError, ephemeral: true });
+    const freshPlayer = manager.getPlayer(message.guild.id) || player;
+    const accessError = djCheck(message, manager.getSettings(message.guild.id));
+    if (accessError) return interaction.reply({ content: accessError, ephemeral: true });
+    const selected = shown[Number(interaction.customId.split(":")[1])];
+    if (!selected) return interaction.reply({ content: "That search result is no longer available.", ephemeral: true });
+    try {
+      if ((freshPlayer.queue?.tracks?.length || 0) >= settings.maxQueue) return interaction.reply({ content: "The queue is full (" + settings.maxQueue + " tracks).", ephemeral: true });
+      await freshPlayer.queue.add(selected);
+      if (!freshPlayer.playing && !freshPlayer.paused) await freshPlayer.play();
+      await interaction.update({ embeds: [embed("✅ Added to queue", "[" + trackTitle(selected) + "](" + (trackUrl(selected) || "https://discord.com") + ") · " + duration(selected.info?.duration), COLORS.success)], components: [] });
+      collector.stop("selected");
+    } catch (error) {
+      await interaction.reply({ content: "Could not add this track: " + safeText(error.message, 180), ephemeral: true }).catch(() => {});
+    }
+  });
+  collector.on("end", (_, reason) => { if (reason !== "selected") sent.edit({ components: [] }).catch(() => {}); });
+}
 
 export default {
   name: "music",
   aliases: ["m", "player"],
-  description: "Advanced music player: play, queue, controls, and per-server settings.",
-  usage: "music <play|pause|resume|skip|stop|queue|nowplaying|volume|shuffle|loop|config|help>",
+  description: "Full music player with search, queue, interactive controls, and per-server settings.",
+  usage: "music <play|search|pause|resume|skip|back|stop|queue|nowplaying|volume|shuffle|remove|clear|seek|loop|autoplay|config|help>",
   category: "Music",
   cooldown: 2,
   userPermissions: [],
-  permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+  permissions: [],
 
   async execute({ client, message, args }) {
+    if (!message.guild || !message.member) return;
     const manager = client.music;
     const guildId = message.guild.id;
-    const sub = (args.shift() || "help").toLowerCase();
+    const sub = String(args.shift() || "help").toLowerCase();
     const settings = manager.getSettings(guildId);
-    const player = manager.getPlayer(guildId);
-    const memberVoice = message.member.voice.channel;
-    const requireVoice = () => {
-      if (!memberVoice) throw new Error("Join a voice channel first, then use the music command.");
-      if (player?.voiceChannelId && player.voiceChannelId !== memberVoice.id) throw new Error("Join my current voice channel to control playback.");
-    };
-    const reply = (description, title = "LightCore Music", color = 0x5865F2) => message.reply({ embeds: [new EmbedBuilder().setColor(color).setTitle(title).setDescription(description).setFooter({ text: "LightCore • Music for your server" })] });
+    let player = manager.getPlayer(guildId);
+    const reply = (description, title = "AeroX Music", color = COLORS.info) => message.reply({ embeds: [embed(title, description, color)] });
+    const fail = text => reply(text, "Music action unavailable", COLORS.error);
 
-    if (!config.music.enabled) return reply("Music is currently disabled by the bot owner.", "Music Disabled", 0xED4245);
-    if (!manager.lavalink?.useable) return reply("The music engine has no connected Lavalink node. The bot can stay online, but playback needs a reachable Lavalink v4 node. Configure the Lavalink environment variables in Render.", "Music Node Unavailable", 0xED4245);
+    if (!config.music.enabled) return fail("Music is disabled by the bot owner.");
+    if (!manager.lavalink || !manager.lavalink.useable) return fail("The music engine has no usable Lavalink node. Check the Render Lavalink host, port, password, TLS setting, and node logs; playback cannot work without a reachable node.");
 
-    try {
-      if (sub === "help") return reply([
-        "**Playback**",
-        "`.music play <song or URL>` · `.music pause` · `.music resume`",
-        "`.music skip` · `.music stop` · `.music queue` · `.music nowplaying`",
-        "**Queue & sound**",
-        "`.music volume <0-100>` · `.music shuffle` · `.music loop <off|queue>`",
-        "**Server setup**",
-        "`.music config` · `.music config volume <1-100>`",
-        "`.music config maxqueue <10-500>` · `.music config djrole <role ID|off>`",
-        "`.music config announce <on|off>` · `.music config autoplay <on|off>`",
-        "`.music config source <ytmsearch|ytsearch|scsearch>`",
-        "",
-        "Requires the bot to have **Connect** and **Speak** permissions. Search support depends on the configured Lavalink node and its plugins."
-      ].join("\n"), "🎛️ Music Controls");
-      if (sub === "config") {
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return reply("Only members with **Manage Server** can change music settings.", "Permission required", 0xED4245);
-        const key = (args.shift() || "").toLowerCase();
-        const value = args.join(" ").trim();
-        if (!key) return reply([
-          `**Default volume:** ${settings.defaultVolume}%`,
-          `**Queue limit:** ${settings.maxQueue}`,
-          `**DJ role:** ${settings.djRoleId ? `<@&${settings.djRoleId}>` : "Not set (anyone in the same voice channel)"}`,
-          `**Now-playing announcements:** ${settings.announceNowPlaying ? "On" : "Off"}`,
-          `**Search source:** ${settings.defaultSource}`,
-          `**Autoplay:** ${settings.autoplay ? "On" : "Off"}`,
-          `**Loop:** ${settings.loop}`,
-          "",
-          "Set: `.music config volume 75`, `maxqueue 150`, `djrole ROLE_ID`, `announce off`, `autoplay on`, or `source ytmsearch`."
-        ].join("\n"), "⚙️ Server Music Settings");
-        let patch = {};
-        if (key === "volume") {
-          const n = Number(value); if (!Number.isInteger(n) || n < 1 || n > 100) return reply("Volume must be a whole number from 1 to 100.", "Invalid setting", 0xED4245);
-          patch.defaultVolume = n;
-        } else if (key === "maxqueue") {
-          const n = Number(value); if (!Number.isInteger(n) || n < 10 || n > 500) return reply("Queue limit must be a whole number from 10 to 500.", "Invalid setting", 0xED4245);
-          patch.maxQueue = n;
-        } else if (key === "djrole") {
-          if (value.toLowerCase() === "off") patch.djRoleId = null;
-          else if (message.guild.roles.cache.has(value.replace(/[<@&>]/g, ""))) patch.djRoleId = value.replace(/[<@&>]/g, "");
-          else return reply("Provide a valid role mention/ID, or use `off`.", "Invalid role", 0xED4245);
-        } else if (key === "announce") {
-          if (!["on", "off"].includes(value.toLowerCase())) return reply("Use `on` or `off`.", "Invalid setting", 0xED4245);
-          patch.announceNowPlaying = value.toLowerCase() === "on";
-        } else if (key === "autoplay") {
-          if (!["on", "off"].includes(value.toLowerCase())) return reply("Use `on` or `off`.", "Invalid setting", 0xED4245);
-          patch.autoplay = value.toLowerCase() === "on";
-        } else if (key === "source") {
-          if (!["ytmsearch", "ytsearch", "scsearch"].includes(value.toLowerCase())) return reply("Supported source aliases: `ytmsearch`, `ytsearch`, `scsearch`.", "Invalid source", 0xED4245);
-          patch.defaultSource = value.toLowerCase();
-        } else return reply("Unknown setting. Use `.music config` to see supported options.", "Invalid setting", 0xED4245);
-        const updated = await manager.updateSettings(guildId, patch);
-        if (key === "volume" && player) await player.setVolume(updated.defaultVolume);
-        return reply(`Saved **${key}**. The setting is now ${key === "djrole" ? (updated.djRoleId ? `<@&${updated.djRoleId}>` : "off") : key === "announce" ? (updated.announceNowPlaying ? "on" : "off") : key === "source" ? updated.defaultSource : key === "volume" ? updated.defaultVolume + "%" : key === "autoplay" ? (updated.autoplay ? "on" : "off") : updated.maxQueue}.`, "✅ Music settings saved", 0x57F287);
-      }
+    if (sub === "help") return reply([
+      "**Playback**", ".play <song or URL> · .search <query> · .pause · .resume · .skip · .back · .stop",
+      "**Queue**", ".queue [page] · .nowplaying · .shuffle · .remove <position> · .clear",
+      "**Sound**", ".volume <0-100> · .seek <seconds> · .loop <off|track|queue> · .autoplay <on|off>",
+      "**Server configuration**", ".music config · .music config volume <1-100> · .music config maxqueue <10-500>",
+      ".music config djrole <role ID|off> · .music config announce <on|off> · .music config source <ytmsearch|ytsearch|scsearch>",
+      "", "Requires a reachable Lavalink v4 node with a compatible source plugin. Server settings are saved to Neon."
+    ].join("\n"), "🎛️ AeroX Music Help");
 
-      if (["pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "shuffle", "loop"].includes(sub)) {
-        requireVoice();
-        if (!player) return reply("Nothing is playing yet. Start a track with `.music play <song>`.", "No active player", 0xED4245);
-        if (settings.djRoleId && !message.member.roles.cache.has(settings.djRoleId) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return reply(`You need the configured DJ role <@&${settings.djRoleId}> to control playback.`, "DJ role required", 0xED4245);
-        if (sub === "pause") { if (player.paused) return reply("Playback is already paused."); await player.pause(); return reply("⏸️ Playback paused."); }
-        if (sub === "resume") { if (!player.paused) return reply("Playback is not paused."); await player.resume(); return reply("▶️ Playback resumed."); }
-        if (sub === "skip") { if (!player.queue.current) return reply("There is no current track.", "Nothing to skip", 0xED4245); await player.skip(); return reply("⏭️ Skipped the current track."); }
-        if (sub === "stop") { await manager.lavalink.destroyPlayer(guildId, "user-stop"); return reply("⏹️ Playback stopped and I left the voice channel."); }
-        if (sub === "volume") {
-          const n = Number(args[0]); if (!Number.isInteger(n) || n < 0 || n > 100) return reply("Use `.music volume <0-100>`.", "Invalid volume", 0xED4245);
-          await player.setVolume(n); return reply(`🔊 Volume set to **${n}%**.`);
-        }
-        if (sub === "shuffle") { const tracks = player.queue.tracks; if (!tracks || tracks.length < 2) return reply("Add at least two queued tracks before shuffling."); await player.queue.shuffle(); return reply("🔀 Shuffled the upcoming queue."); }
-        if (sub === "loop") {
-          const mode = (args[0] || "").toLowerCase();
-          if (!["off", "queue"].includes(mode)) return reply("Use `.music loop off` or `.music loop queue`.", "Invalid loop mode", 0xED4245);
-          await manager.updateSettings(guildId, { loop: mode });
-          if (typeof player.setRepeatMode === "function") await player.setRepeatMode(mode === "queue" ? "queue" : "off");
-          return reply(`🔁 Loop mode set to **${mode}**.`);
-        }
-        if (sub === "nowplaying") {
-          const track = player.queue.current; if (!track) return reply("Nothing is playing right now.");
-          const info = track.info || {};
-          return message.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("🎧 Now Playing").setDescription(`[${clean(info.title)}](${info.uri || "https://discord.com"})`).addFields({ name: "Artist", value: clean(info.author || "Unknown"), inline: true }, { name: "Duration", value: info.isStream ? "LIVE" : fmt(info.duration), inline: true }, { name: "Position", value: fmt(player.position || 0), inline: true })] });
-        }
-        if (sub === "queue") {
-          const tracks = player.queue.tracks || [];
-          const current = player.queue.current;
-          const lines = tracks.slice(0, 10).map((track, i) => `${i + 1}. **${clean(track.info?.title)}** · ${fmt(track.info?.duration)}`);
-          return reply(`**Now:** ${current ? clean(current.info?.title) : "Nothing"}\n\n${lines.join("\n") || "No upcoming tracks."}${tracks.length > 10 ? `\n…and ${tracks.length - 10} more.` : ""}\n\n**Upcoming:** ${tracks.length} track(s)`, "📜 Queue");
-        }
-      }
-
-      if (sub === "play" || sub === "p") {
-        const query = args.join(" ").trim();
-        if (!query) return reply("Tell me what to play: `.music play <song name or URL>`.", "Missing search", 0xED4245);
-        if (!memberVoice) return reply("Join a voice channel before requesting music.", "Voice channel required", 0xED4245);
-        const botMember = message.guild.members.me;
-        const permissions = memberVoice.permissionsFor(botMember);
-        if (!permissions?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return reply("I need **Connect** and **Speak** permissions in your voice channel.", "Missing permissions", 0xED4245);
-        let active = player;
-        if (active && active.voiceChannelId !== memberVoice.id) return reply("I'm already playing in another voice channel in this server.", "Already in another channel", 0xED4245);
-        active ||= manager.lavalink.createPlayer({ guildId, voiceChannelId: memberVoice.id, textChannelId: message.channel.id, selfDeaf: true, volume: settings.defaultVolume });
-        if (!active.connected) await active.connect();
-        const source = /^https?:\/\//i.test(query) ? undefined : settings.defaultSource;
-        const result = await active.search({ query, ...(source ? { source } : {}) }, message.author);
-        if (!result?.tracks?.length) return reply("No playable results came back. Try another search, check the URL, or verify that the Lavalink node has a supported source plugin.", "No results", 0xED4245);
-        if (result.loadType === "playlist") {
-          const tracks = result.tracks.slice(0, Math.max(0, settings.maxQueue - active.queue.tracks.length));
-          if (!tracks.length) return reply(`The queue is full (${settings.maxQueue} tracks).`, "Queue limit reached", 0xED4245);
-          for (const track of tracks) await active.queue.add(track);
-          if (!active.playing && !active.paused) await active.play();
-          return reply(`📚 Added **${tracks.length}** tracks from **${clean(result.playlistInfo?.name || "playlist")}**.`, "Playlist queued", 0x57F287);
-        }
-        const track = result.tracks[0];
-        if ((active.queue.tracks?.length || 0) >= settings.maxQueue) return reply(`The queue is full (${settings.maxQueue} tracks). Remove or play queued tracks before adding more.`, "Queue limit reached", 0xED4245);
-        await active.queue.add(track);
-        if (!active.playing && !active.paused) await active.play();
-        return reply(`🎶 Added [**${clean(track.info?.title)}**](${track.info?.uri || "https://discord.com"}) · ${fmt(track.info?.duration)}\nRequested by ${message.author}`, "Added to queue", 0x57F287);
-      }
-      return reply("Unknown subcommand. Use `.music help` to see playback controls and server configuration.", "Unknown command", 0xED4245);
-    } catch (error) {
-      return reply(`The music action failed: ${String(error?.message || error).slice(0, 250)}`, "Music error", 0xED4245);
+    if (sub === "config") {
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("Only members with Manage Server can change server music settings.");
+      const key = String(args.shift() || "").toLowerCase();
+      const value = args.join(" ").trim();
+      if (!key) return reply([
+        "**Default volume:** " + settings.defaultVolume + "%",
+        "**Queue limit:** " + settings.maxQueue,
+        "**DJ role:** " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not set"),
+        "**Now-playing announcements:** " + (settings.announceNowPlaying ? "On" : "Off"),
+        "**Search source:** " + settings.defaultSource,
+        "**Autoplay:** " + (settings.autoplay ? "On" : "Off"),
+        "**Loop:** " + settings.loop, "",
+        "Examples: .music config volume 75, maxqueue 150, djrole ROLE_ID, announce off, autoplay on, source ytmsearch."
+      ].join("\n"), "⚙️ Server Music Settings");
+      const patch = {};
+      if (key === "volume") {
+        const n = Number(value); if (!Number.isInteger(n) || n < 1 || n > 100) return fail("Volume must be a whole number from 1 to 100.");
+        patch.defaultVolume = n;
+      } else if (key === "maxqueue") {
+        const n = Number(value); if (!Number.isInteger(n) || n < 10 || n > 500) return fail("Queue limit must be a whole number from 10 to 500.");
+        patch.maxQueue = n;
+      } else if (key === "djrole") {
+        const id = value.replace(/[<@&>]/g, "");
+        if (value.toLowerCase() === "off") patch.djRoleId = null;
+        else if (message.guild.roles.cache.has(id)) patch.djRoleId = id;
+        else return fail("Provide a valid role mention/ID or off.");
+      } else if (key === "announce" || key === "autoplay") {
+        if (!["on", "off"].includes(value.toLowerCase())) return fail("Use on or off.");
+        patch[key === "announce" ? "announceNowPlaying" : "autoplay"] = value.toLowerCase() === "on";
+      } else if (key === "source") {
+        if (!["ytmsearch", "ytsearch", "scsearch"].includes(value.toLowerCase())) return fail("Supported sources: ytmsearch, ytsearch, scsearch.");
+        patch.defaultSource = value.toLowerCase();
+      } else return fail("Unknown setting. Use .music config to see supported settings.");
+      const updated = await manager.updateSettings(guildId, patch);
+      if (key === "volume" && player) await player.setVolume(updated.defaultVolume);
+      return reply("Saved " + key + " for this server. Music settings are persisted in Neon.", "✅ Settings saved", COLORS.success);
     }
-  },
+
+    if (["play", "p", "search"].includes(sub)) {
+      const query = args.join(" ").trim();
+      if (!query) return fail("Tell me what to play: .play <song or URL>.");
+      const voice = message.member.voice.channel;
+      if (!voice) return fail("Join a voice channel before requesting music.");
+      const voicePerms = voice.permissionsFor(message.guild.members.me);
+      if (!voicePerms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return fail("I need Connect and Speak permissions in your voice channel.");
+      if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return fail("I'm already playing in another voice channel in this server.");
+      try {
+        if (!player) player = manager.lavalink.createPlayer({ guildId, voiceChannelId: voice.id, textChannelId: message.channel.id, selfDeaf: true, volume: settings.defaultVolume });
+        if (!player.connected) await player.connect();
+        if (typeof player.setRepeatMode === "function") await player.setRepeatMode(settings.loop || "off");
+        const isUrl = /^https?:\/\//i.test(query);
+        const result = await player.search({ query, ...(isUrl ? {} : { source: settings.defaultSource }) }, message.author);
+        const tracks = result?.tracks || [];
+        if (!tracks.length) return fail("No playable results. Try another search or URL, and verify the Lavalink source plugin.");
+        if (sub === "search") return sendSearchPicker(message, tracks, query, player, manager, settings);
+        if (result.loadType === "playlist") {
+          const added = await addTracks(player, tracks, settings.maxQueue);
+          if (!added.accepted) return fail("The queue is full (" + settings.maxQueue + " tracks).");
+          return reply("📚 Added " + added.accepted + " track(s) from **" + safeText(result.playlistInfo?.name || "playlist") + "**." + (added.rejected ? "\nSkipped " + added.rejected + " track(s) because the queue limit was reached." : ""), "Playlist queued", COLORS.success);
+        }
+        const track = tracks[0];
+        if ((player.queue?.tracks?.length || 0) >= settings.maxQueue) return fail("The queue is full (" + settings.maxQueue + " tracks).");
+        await player.queue.add(track);
+        if (!player.playing && !player.paused) await player.play();
+        const url = trackUrl(track);
+        return reply("🎶 Added " + (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + " · " + duration(track.info?.duration) + "\nRequested by " + message.author + ".", "Added to queue", COLORS.success);
+      } catch (error) { return fail("Playback request failed: " + safeText(error?.message || error, 220)); }
+    }
+
+    if (sub === "nowplaying" || sub === "np") {
+      if (!player?.queue?.current) return fail("Nothing is playing right now. Use .play <song> to start.");
+      const sent = await message.reply({ embeds: [nowPlayingEmbed(player, player.queue.current)], components: playerControls(player, settings) });
+      const collector = sent.createMessageComponentCollector({ time: 10 * 60_000 });
+      collector.on("collect", async interaction => {
+        const fresh = manager.getPlayer(guildId);
+        if (!fresh) return interaction.reply({ content: "The player has ended. Start another track to continue.", ephemeral: true });
+        const actor = message.guild.members.cache.get(interaction.user.id) || await message.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!actor) return interaction.reply({ content: "I could not verify your server membership. Try again.", ephemeral: true });
+        const voiceError = voiceCheck(message, fresh, actor);
+        if (voiceError) return interaction.reply({ content: voiceError, ephemeral: true });
+        const accessError = djCheck(message, manager.getSettings(guildId), actor);
+        if (accessError) return interaction.reply({ content: accessError, ephemeral: true });
+        try {
+          switch (interaction.customId.split(":").at(-1)) {
+            case "toggle": if (fresh.paused) await fresh.resume(); else await fresh.pause(); break;
+            case "skip": if (!fresh.queue.current) throw new Error("No current track."); await fresh.skip(); break;
+            case "previous": {
+              const previous = manager.previousTracks.get(guildId);
+              if (!previous) throw new Error("No previous track is available in this player session.");
+              fresh.queue.tracks.unshift(previous); if (fresh.playing) await fresh.skip(); break;
+            }
+            case "stop":
+              await manager.lavalink.destroyPlayer(guildId, "control-stop");
+              collector.stop("stopped");
+              await interaction.update({ embeds: [embed("⏹️ Playback stopped", "The player has stopped and the bot has left the voice channel.", COLORS.warning)], components: [] }); return;
+            case "queue": {
+              const list = fresh.queue.tracks || [];
+              return interaction.reply({ embeds: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], ephemeral: true });
+            }
+            case "vol_down": await fresh.setVolume(Math.max(0, Number(fresh.volume ?? 70) - 10)); break;
+            case "vol_up": await fresh.setVolume(Math.min(100, Number(fresh.volume ?? 70) + 10)); break;
+            case "loop": {
+              const current = manager.getSettings(guildId);
+              const next = current.loop === "off" ? "track" : current.loop === "track" ? "queue" : "off";
+              await manager.updateSettings(guildId, { loop: next });
+              if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
+              break;
+            }
+            case "shuffle": await fresh.queue.shuffle(); break;
+            default: return interaction.reply({ content: "Unknown player control.", ephemeral: true });
+          }
+          const updated = manager.getSettings(guildId);
+          const currentTrack = fresh.queue?.current;
+          await interaction.update({ embeds: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : embed("🎧 AeroX Music", "The current track has ended.")], components: currentTrack ? playerControls(fresh, updated) : [] });
+        } catch (error) {
+          if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
+        }
+      });
+      collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
+      return;
+    }
+
+    if (["pause", "resume", "skip", "back", "stop", "queue", "volume", "shuffle", "remove", "clear", "seek", "loop", "autoplay"].includes(sub)) {
+      const voiceError = voiceCheck(message, player);
+      if (voiceError) return fail(voiceError);
+      if (!player) return fail("There is no active player. Start one with .play <song>.");
+      const accessError = djCheck(message, settings);
+      if (accessError) return fail(accessError);
+      try {
+        if (sub === "pause") { if (player.paused) return reply("Playback is already paused."); await player.pause(); return reply("⏸️ Paused."); }
+        if (sub === "resume") { if (!player.paused) return reply("Playback is not paused."); await player.resume(); return reply("▶️ Resumed."); }
+        if (sub === "skip") { if (!player.queue.current) return fail("There is no current track."); await player.skip(); return reply("⏭️ Skipped the current track.", "Skipped", COLORS.success); }
+        if (sub === "back") {
+          const previous = manager.previousTracks.get(guildId);
+          if (!previous) return fail("There is no previous track stored in this player session.");
+          player.queue.tracks.unshift(previous); await player.skip(); return reply("⏮️ Returned to the previous track.");
+        }
+        if (sub === "stop") { await manager.lavalink.destroyPlayer(guildId, "user-stop"); return reply("⏹️ Playback stopped and I left the voice channel.", "Stopped", COLORS.success); }
+        if (sub === "volume") {
+          const n = Number(args[0]); if (!Number.isInteger(n) || n < 0 || n > 100) return fail("Use .volume <0-100>.");
+          await player.setVolume(n); return reply("🔊 Volume set to **" + n + "%**.", "Volume updated", COLORS.success);
+        }
+        if (sub === "shuffle") { if ((player.queue.tracks || []).length < 2) return fail("Add at least two tracks before shuffling."); await player.queue.shuffle(); return reply("🔀 Shuffled the upcoming queue.", "Queue shuffled", COLORS.success); }
+        if (sub === "queue") {
+          const tracks = player.queue.tracks || []; const current = player.queue.current;
+          const page = Math.max(1, Number.parseInt(args[0] || "1", 10) || 1); const pageSize = 10; const pages = Math.max(1, Math.ceil(tracks.length / pageSize));
+          const start = (Math.min(page, pages) - 1) * pageSize;
+          const lines = tracks.slice(start, start + pageSize).map((track, i) => "**" + (start + i + 1) + ".** " + trackTitle(track) + " · " + duration(track.info?.duration));
+          return reply("**Now playing:** " + (current ? trackTitle(current) : "Nothing") + "\n" + (current ? "**Duration:** " + duration(current.info?.duration) + "\n\n" : "\n") + (lines.join("\n") || "No upcoming tracks.") + "\n\n**Queue:** " + tracks.length + " upcoming · page " + Math.min(page, pages) + "/" + pages, "📜 Music Queue");
+        }
+        if (sub === "remove") {
+          const n = Number(args[0]); const tracks = player.queue.tracks || [];
+          if (!Number.isInteger(n) || n < 1 || n > tracks.length) return fail("Provide a queue position from 1 to " + tracks.length + ".");
+          const removed = tracks[n - 1]; tracks.splice(n - 1, 1);
+          return reply("Removed **" + trackTitle(removed) + "** from the queue.", "Track removed", COLORS.success);
+        }
+        if (sub === "clear") { const tracks = player.queue.tracks || []; const count = tracks.length; tracks.splice(0, tracks.length); return reply("Cleared " + count + " upcoming track(s). The current track will finish.", "Queue cleared", COLORS.success); }
+        if (sub === "seek") {
+          const seconds = Number(args[0]); const track = player.queue.current;
+          if (!track || track.info?.isStream || !Number.isFinite(seconds) || seconds < 0 || seconds * 1000 >= Number(track.info?.duration || 0)) return fail("Use .seek <seconds> within the current track's duration. Live streams cannot be seeked.");
+          if (typeof player.seek !== "function") return fail("Seeking is not supported by the connected Lavalink player.");
+          await player.seek(Math.floor(seconds * 1000)); return reply("⏩ Seeked to " + duration(seconds * 1000) + ".", "Seek complete", COLORS.success);
+        }
+        if (sub === "loop") {
+          const mode = String(args[0] || "").toLowerCase();
+          if (!["off", "track", "queue"].includes(mode)) return fail("Use .loop off, .loop track, or .loop queue.");
+          await manager.updateSettings(guildId, { loop: mode });
+          if (typeof player.setRepeatMode === "function") await player.setRepeatMode(mode);
+          return reply("🔁 Loop mode set to **" + mode + "**.", "Loop updated", COLORS.success);
+        }
+        if (sub === "autoplay") {
+          const value = String(args[0] || "").toLowerCase();
+          if (!["on", "off"].includes(value)) return fail("Use .autoplay on or .autoplay off.");
+          await manager.updateSettings(guildId, { autoplay: value === "on" });
+          return reply("Autoplay is now **" + value + "** for this server.", "Autoplay updated", COLORS.success);
+        }
+      } catch (error) { return fail("That action failed: " + safeText(error?.message || error, 220)); }
+    }
+    return fail("Unknown music command. Use .music help to see available controls.");
+  }
 };

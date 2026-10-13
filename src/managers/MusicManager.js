@@ -3,92 +3,136 @@ import fs from "fs-extra";
 import path from "node:path";
 import { config } from "#config/config";
 import { logger } from "#utils/logger";
-import { loadNeonJsonSnapshot, saveNeonJsonSnapshot } from "#database/neon/snapshots";
+import { loadNeonJsonSnapshot } from "#database/neon/snapshots";
+import { neonQuery } from "#database/neon/connection";
 
 const SETTINGS_FILE = path.resolve("database/data/music-settings.json");
-const DEFAULTS = { defaultVolume: config.music.defaultVolume, maxQueue: config.music.maxQueue, djRoleId: null, announceNowPlaying: true, defaultSource: "ytmsearch", autoplay: false, loop: "off" };
+const DEFAULTS = {
+  defaultVolume: config.music.defaultVolume,
+  maxQueue: config.music.maxQueue,
+  djRoleId: null,
+  announceNowPlaying: true,
+  defaultSource: "ytmsearch",
+  autoplay: false,
+  loop: "off"
+};
 
 export class MusicManager {
   constructor(client) {
     this.client = client;
     this.settings = {};
-    const nodes = [...config.music.nodes, ...config.music.node];
-    this.lavalink = nodes.length ? new LavalinkManager({
-      nodes,
+    this.initialized = false;
+    this.previousTracks = new Map();
+    this.nodesConfig = [...(config.music.nodes || []), ...(config.music.node || [])];
+    this.lavalink = this.nodesConfig.length ? new LavalinkManager({
+      nodes: this.nodesConfig,
       sendToShard: (guildId, payload) => {
         const guild = this.client.guilds.cache.get(guildId);
         if (guild) guild.shard.send(payload);
       },
       autoSkip: true,
-      client: { id: config.clientId, username: "LightCore" },
+      client: { id: config.clientId, username: "AeroX" },
       playerOptions: {
         defaultSearchPlatform: "ytmsearch",
         onDisconnect: { autoReconnect: true, destroyPlayer: false },
         onEmptyQueue: {
-          destroyAfterMs: 60_000,
+          destroyAfterMs: 60000,
           autoPlayFunction: async (player, lastPlayedTrack) => {
-            if (!this.getSettings(player.guildId).autoplay || !lastPlayedTrack?.info?.title) return;
+            const settings = this.getSettings(player.guildId);
+            if (!settings.autoplay || !lastPlayedTrack?.info?.title) return;
             const info = lastPlayedTrack.info;
-            const query = info.author ? `${info.author} - ${info.title}` : info.title;
-            const result = await player.search({ query, source: this.getSettings(player.guildId).defaultSource }, lastPlayedTrack.requester || "LightCore");
+            const query = info.author ? info.author + " - " + info.title : info.title;
+            const result = await player.search({ query, source: settings.defaultSource }, lastPlayedTrack.requester || "AeroX");
             const next = result?.tracks?.find(track => track.info?.identifier !== info.identifier);
             if (next) await player.queue.add(next);
-          },
-        },
-      },
+          }
+        }
+      }
     }) : null;
-    if (!this.lavalink) return;
-    this.lavalink.on("trackStart", (player, track) => this.announce(player, track).catch(error => logger.warn("Music", "Now-playing announcement failed:", error)));
+
+    if (!this.lavalink) {
+      logger.warn("Music", "No Lavalink node configured. Set LAVALINK_HOST/PORT/PASSWORD or LAVALINK_NODES.");
+      return;
+    }
+
+    this.lavalink.on("trackStart", (player, track) => {
+      this.announce(player, track).catch(error => logger.warn("Music", "Now-playing announcement failed:", error));
+    });
+    this.lavalink.on("trackEnd", (player, track) => {
+      if (track) this.previousTracks.set(player.guildId, track);
+    });
     this.lavalink.on("trackError", (player, track, payload) => {
-      logger.error("Music", `Track failed in guild ${player.guildId}: ${track?.info?.title || "unknown"}`, payload);
-      this.sendText(player, `⚠️ I couldn't play **${track?.info?.title || "that track"}**. Try another search or check the music node.`).catch(() => {});
+      logger.error("Music", "Track failed in guild " + player.guildId + ": " + (track?.info?.title || "unknown"), payload);
+      this.sendText(player, "⚠️ I couldn't play **" + this.escape(track?.info?.title || "that track") + "**. Try another result or check the Lavalink node and its source plugins.")
+        .catch(() => {});
     });
     this.lavalink.on("queueEnd", player => {
-      this.sendText(player, "✨ The queue has finished. I'll leave the voice channel in 60 seconds if no more tracks are added.").catch(() => {});
+      this.sendText(player, "✨ The queue has finished. I'll leave the voice channel in 60 seconds if no more tracks are added.")
+        .catch(() => {});
     });
-    this.lavalink.nodeManager.on("connect", node => logger.success("MusicNode", `Connected to Lavalink node: ${node.id}`));
-    this.lavalink.nodeManager.on("disconnect", (node, reason) => logger.warn("MusicNode", `Node ${node.id} disconnected: ${reason?.reason || reason || "unknown"}`));
-    this.lavalink.nodeManager.on("error", (node, error) => logger.error("MusicNode", `Node ${node?.id || "unknown"} error:`, error));
+    this.lavalink.nodeManager.on("connect", node => logger.success("MusicNode", "Connected to Lavalink node: " + node.id));
+    this.lavalink.nodeManager.on("disconnect", (node, reason) => logger.warn("MusicNode", "Node " + node.id + " disconnected: " + (reason?.reason || reason || "unknown")));
+    this.lavalink.nodeManager.on("error", (node, error) => logger.error("MusicNode", "Node " + (node?.id || "unknown") + " error:", error));
   }
 
   async init() {
     await fs.ensureDir(path.dirname(SETTINGS_FILE));
     let localSettings = {};
     try { localSettings = await fs.readJson(SETTINGS_FILE); } catch {}
+    await neonQuery("CREATE TABLE IF NOT EXISTS aerox_music_settings (guild_id TEXT PRIMARY KEY, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     const storedSettings = await loadNeonJsonSnapshot("music-settings", null);
-    this.settings = storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)
+    const legacySettings = storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)
       ? storedSettings
       : localSettings;
-    if (!storedSettings) await saveNeonJsonSnapshot("music-settings", this.settings);
+    // One-time compatibility import: existing per-guild settings are copied without
+    // overwriting rows already migrated by another shard or deployment.
+    for (const [guildId, guildSettings] of Object.entries(legacySettings || {})) {
+      if (!guildId || !guildSettings || typeof guildSettings !== "object" || Array.isArray(guildSettings)) continue;
+      await neonQuery(
+        "INSERT INTO aerox_music_settings (guild_id, settings) VALUES ($1, $2::jsonb) ON CONFLICT (guild_id) DO NOTHING",
+        [guildId, JSON.stringify(guildSettings)]
+      );
+    }
+    const result = await neonQuery("SELECT guild_id, settings FROM aerox_music_settings");
+    this.settings = Object.fromEntries(result.rows.map(row => [row.guild_id, row.settings]));
     await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
+
     if (!config.music.enabled) {
       logger.warn("Music", "Music is disabled by MUSIC_ENABLED=false.");
       return;
     }
     if (!this.lavalink) {
-      logger.warn("Music", "No Lavalink node configured. Set LAVALINK_HOST/PORT/PASSWORD or LAVALINK_NODES in Render environment variables.");
+      logger.warn("Music", "Music cannot start: no Lavalink node is configured.");
       return;
     }
+
     await this.lavalink.init({ id: this.client.user.id, username: this.client.user.username });
-    logger.success("Music", `Music manager initialized with ${config.music.nodes.length + config.music.node.length} configured Lavalink node(s).`);
+    this.initialized = true;
+    logger.success("Music", "Music manager initialized with " + this.nodesConfig.length + " configured Lavalink node(s).");
   }
 
   sendRawData(data) {
     if (!config.music.enabled || !this.lavalink) return;
-    try { void this.lavalink.sendRawData(data); } catch (error) { logger.warn("Music", "Failed to forward Discord voice packet:", error); }
+    try { void this.lavalink.sendRawData(data); }
+    catch (error) { logger.warn("Music", "Failed to forward Discord voice packet:", error); }
   }
 
-  getPlayer(guildId) { return this.lavalink?.getPlayer(guildId); }
-  getSettings(guildId) { return { ...DEFAULTS, ...(this.settings[guildId] || {}) }; }
+  getPlayer(guildId) { return this.lavalink?.getPlayer(guildId) || null; }
+
+  getSettings(guildId) {
+    return { ...DEFAULTS, ...(this.settings[guildId] || {}) };
+  }
 
   async updateSettings(guildId, patch) {
-    const nextSettings = {
-      ...this.settings,
-      [guildId]: { ...this.getSettings(guildId), ...patch },
-    };
-    // Commit to Neon first; the local JSON file is only a convenience mirror.
-    await saveNeonJsonSnapshot("music-settings", nextSettings);
-    this.settings = nextSettings;
+    if (!guildId) throw new Error("A guild ID is required to save music settings.");
+    // Merge only the changed keys in PostgreSQL so concurrent shards cannot
+    // overwrite unrelated settings for this or other guilds.
+    const result = await neonQuery(
+      "INSERT INTO aerox_music_settings (guild_id, settings, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (guild_id) DO UPDATE SET settings = aerox_music_settings.settings || EXCLUDED.settings, updated_at = NOW() RETURNING settings",
+      [guildId, JSON.stringify(patch)]
+    );
+    this.settings = { ...this.settings, [guildId]: result.rows[0]?.settings || { ...this.getSettings(guildId), ...patch } };
+    await fs.ensureDir(path.dirname(SETTINGS_FILE));
     await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
     return this.getSettings(guildId);
   }
@@ -99,18 +143,21 @@ export class MusicManager {
     if (!channel?.isTextBased()) return;
     const info = track?.info || {};
     const duration = info.isStream ? "LIVE" : this.formatDuration(info.duration);
-    await channel.send({ embeds: [{
-      color: 0x5865F2,
-      title: "🎧 Now Playing",
-      description: `[${this.escape(info.title || "Unknown track")}](${info.uri || "https://discord.com"})`,
-      fields: [
-        { name: "Artist", value: this.escape(info.author || "Unknown"), inline: true },
-        { name: "Duration", value: duration, inline: true },
-        { name: "Requested by", value: track.requester?.username || track.requester?.tag || "A listener", inline: true },
-      ],
-      footer: { text: "LightCore Music • Use .music help for controls" },
-      thumbnail: info.artworkUrl ? { url: info.artworkUrl } : undefined,
-    }] });
+    const url = /^https?:\/\//i.test(info.uri || "") ? info.uri : "https://discord.com";
+    await channel.send({
+      embeds: [{
+        color: 0x5865F2,
+        title: "🎧 Now Playing",
+        description: "[" + this.escape(info.title || "Unknown track") + "](" + url + ")",
+        fields: [
+          { name: "Artist", value: this.escape(info.author || "Unknown"), inline: true },
+          { name: "Duration", value: duration, inline: true },
+          { name: "Requested by", value: this.escape(track.requester?.username || track.requester?.tag || "A listener"), inline: true }
+        ],
+        footer: { text: "AeroX Music • Use .nowplaying for interactive controls" },
+        thumbnail: info.artworkUrl ? { url: info.artworkUrl } : undefined
+      }]
+    });
   }
 
   async sendText(player, content) {
@@ -120,9 +167,13 @@ export class MusicManager {
 
   formatDuration(ms = 0) {
     const total = Math.max(0, Math.floor(Number(ms || 0) / 1000));
-    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    return hours ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") : minutes + ":" + String(seconds).padStart(2, "0");
   }
 
-  escape(value = "") { return String(value).replace(/[\\*_~`|]/g, "\\$&").slice(0, 180); }
+  escape(value = "") {
+    return String(value).replace(/[\\*_~]/g, "").replace(/[\r\n]/g, " ").slice(0, 180);
+  }
 }
-
