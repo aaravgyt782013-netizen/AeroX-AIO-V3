@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, PermissionFlagsBits } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, SectionBuilder, ThumbnailBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, PermissionFlagsBits } from "discord.js";
 import { LavalinkManager } from "lavalink-client";
 import fs from "fs-extra";
 import path from "node:path";
@@ -200,11 +200,17 @@ export class MusicManager {
         ? progressBar + "\n`" + this.formatDuration(position) + " / " + this.formatDuration(total) + "`"
         : "Duration unavailable";
     const title = this.escape(info.title || "Unknown track");
-    const container = new ContainerBuilder().setAccentColor(0x5865F2)
+    const artwork = info.artworkUrl || info.thumbnail || info.image || null;
+    const playerSection = new SectionBuilder()
       .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-        "# 🎧 LIGHTCORE • NOW PLAYING\n" +
+        "# ✦ LIGHTCORE • NOW PLAYING\n-# MUSIC FOR YOUR COMMUNITY\n" +
         (url ? "[" + title + "](" + url + ")" : "**" + title + "**") + "\n\n" + progress
-      ))
+      ));
+    if (/^https?:\\/\\//i.test(String(artwork || ""))) {
+      playerSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Album artwork for " + title));
+    }
+    const container = new ContainerBuilder().setAccentColor(0x5865F2)
+      .addSectionComponents(playerSection)
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(new TextDisplayBuilder().setContent([
         "🎤 **Artist:** " + this.escape(info.author || "Unknown artist"),
