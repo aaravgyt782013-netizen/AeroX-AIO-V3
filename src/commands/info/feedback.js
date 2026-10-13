@@ -130,13 +130,13 @@ class FeedbackCommand extends Command {
                 );
 
                 const content = `**Thank you for your feedback!**\n\n` +
-                        `Your feedback has been successfully sent to our development team. We appreciate you taking the time to help us improve AeroX!\n\n` +
+                        `Your feedback has been successfully sent to our development team. We appreciate you taking the time to help us improve LightCore!\n\n` +
                         `**${emoji.get('info')} What happens next:**\n` +
                         `├─ Our team will review your feedback\n` +
                         `├─ We'll consider it for future updates\n` +
                         `├─ Important issues get priority attention\n` +
                         `└─ You may receive a follow-up if needed\n\n` +
-                        `*Thank you for helping us make AeroX better!*`;
+                        `*Thank you for helping us make LightCore better!*`;
 
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
@@ -169,7 +169,7 @@ class FeedbackCommand extends Command {
                         `├─ Features you love or dislike\n` +
                         `├─ Performance observations\n` +
                         `└─ General suggestions for improvement\n\n` +
-                        `*Your feedback helps us make AeroX better for everyone!*`;
+                        `*Your feedback helps us make LightCore better for everyone!*`;
 
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
 
