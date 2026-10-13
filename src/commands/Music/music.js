@@ -34,6 +34,10 @@ function playerControls(player, settings) {
       new ButtonBuilder().setCustomId("aerox_music:vol_up").setLabel("Volume +").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("aerox_music:loop").setLabel("Loop: " + (settings.loop || "off")).setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("aerox_music:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aerox_music:autoplay").setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
     )
   ];
 }
@@ -230,18 +234,37 @@ export default {
     if (sub === "nowplaying" || sub === "np") {
       if (!player?.queue?.current) return fail("Nothing is playing right now. Use .play <song> to start.");
       const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings)], flags: MessageFlags.IsComponentsV2 });
-      const collector = sent.createMessageComponentCollector({ time: 10 * 60_000 });
+      const collector = sent.createMessageComponentCollector();
       collector.on("collect", async interaction => {
         const fresh = manager.getPlayer(guildId);
         if (!fresh) return interaction.reply({ content: "The player has ended. Start another track to continue.", ephemeral: true });
         const actor = message.guild.members.cache.get(interaction.user.id) || await message.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!actor) return interaction.reply({ content: "I could not verify your server membership. Try again.", ephemeral: true });
+        const action = interaction.customId.split(":").at(-1);
+        if (action === "dashboard") {
+          try {
+            return await openMusicPanel({
+              client,
+              message: {
+                guild: interaction.guild,
+                member: actor,
+                reply: options => interaction.reply({
+                  ...options,
+                  flags: (options.flags || 0) | MessageFlags.Ephemeral,
+                  fetchReply: true
+                })
+              }
+            });
+          } catch {
+            return interaction.reply({ content: "Could not open the dashboard. Try .musicpanel in this server.", ephemeral: true }).catch(() => {});
+          }
+        }
         const voiceError = voiceCheck(message, fresh, actor);
         if (voiceError) return interaction.reply({ content: voiceError, ephemeral: true });
         const accessError = djCheck(message, manager.getSettings(guildId), actor);
         if (accessError) return interaction.reply({ content: accessError, ephemeral: true });
         try {
-          switch (interaction.customId.split(":").at(-1)) {
+          switch (action) {
             case "toggle": if (fresh.paused) await fresh.resume(); else await fresh.pause(); break;
             case "skip": if (!fresh.queue.current) throw new Error("No current track."); await fresh.skip(); break;
             case "previous": {
@@ -267,6 +290,11 @@ export default {
               break;
             }
             case "shuffle": await fresh.queue.shuffle(); break;
+            case "autoplay": {
+              const currentSettings = manager.getSettings(guildId);
+              await manager.updateSettings(guildId, { autoplay: !currentSettings.autoplay });
+              break;
+            }
             default: return interaction.reply({ content: "Unknown player control.", ephemeral: true });
           }
           const updated = manager.getSettings(guildId);
@@ -276,7 +304,7 @@ export default {
           if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
         }
       });
-      collector.on("end", (_collected, reason) => { if (reason === "stopped") return; sent.edit({ components: [nowPlayingEmbed(manager.getPlayer(guildId) || player, manager.getPlayer(guildId)?.queue?.current || player.queue.current)] }).catch(() => {}); });
+      // Keep the interactive now-playing controls active until playback is stopped or the message is deleted.
       return;
     }
 
