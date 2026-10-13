@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import path from "node:path";
 import { config } from "#config/config";
 import { logger } from "#utils/logger";
+import { loadNeonJsonSnapshot, saveNeonJsonSnapshot } from "#database/neon/snapshots";
 
 const SETTINGS_FILE = path.resolve("database/data/music-settings.json");
 const DEFAULTS = { defaultVolume: config.music.defaultVolume, maxQueue: config.music.maxQueue, djRoleId: null, announceNowPlaying: true, defaultSource: "ytmsearch", autoplay: false, loop: "off" };
@@ -52,7 +53,14 @@ export class MusicManager {
 
   async init() {
     await fs.ensureDir(path.dirname(SETTINGS_FILE));
-    try { this.settings = await fs.readJson(SETTINGS_FILE); } catch { this.settings = {}; }
+    let localSettings = {};
+    try { localSettings = await fs.readJson(SETTINGS_FILE); } catch {}
+    const storedSettings = await loadNeonJsonSnapshot("music-settings", null);
+    this.settings = storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)
+      ? storedSettings
+      : localSettings;
+    if (!storedSettings) await saveNeonJsonSnapshot("music-settings", this.settings);
+    await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
     if (!config.music.enabled) {
       logger.warn("Music", "Music is disabled by MUSIC_ENABLED=false.");
       return;
@@ -74,7 +82,13 @@ export class MusicManager {
   getSettings(guildId) { return { ...DEFAULTS, ...(this.settings[guildId] || {}) }; }
 
   async updateSettings(guildId, patch) {
-    this.settings[guildId] = { ...this.getSettings(guildId), ...patch };
+    const nextSettings = {
+      ...this.settings,
+      [guildId]: { ...this.getSettings(guildId), ...patch },
+    };
+    // Commit to Neon first; the local JSON file is only a convenience mirror.
+    await saveNeonJsonSnapshot("music-settings", nextSettings);
+    this.settings = nextSettings;
     await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
     return this.getSettings(guildId);
   }
