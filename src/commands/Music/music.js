@@ -107,7 +107,7 @@ export default {
   category: "Music",
   cooldown: 2,
   userPermissions: [],
-  permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+  permissions: [],
 
   async execute({ client, message, args }) {
     if (!message.guild || !message.member) return;
