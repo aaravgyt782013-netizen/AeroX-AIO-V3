@@ -178,8 +178,11 @@ export class MusicManager {
         new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− Volume").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ Volume").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Loop: " + this.getSettings(player.guildId).loop).setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Open Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("aerox_track:autoplay").setLabel("Autoplay: " + (this.getSettings(player.guildId).autoplay ? "On" : "Off")).setStyle(this.getSettings(player.guildId).autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Open Music Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
       )
     ];
   }
@@ -255,14 +258,16 @@ export class MusicManager {
       const guild = interaction.guild;
       const actor = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
       if (!actor) return interaction.reply({ content: "I could not verify your server membership.", ephemeral: true }).catch(() => {});
-      const voice = actor.voice.channel;
-      if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
-      if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
-      const settings = this.getSettings(guildId);
-      if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
-        return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
-      }
       const action = interaction.customId.split(":").at(-1);
+      const settings = this.getSettings(guildId);
+      if (action !== "dashboard") {
+        const voice = actor.voice.channel;
+        if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
+        if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
+        if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
+          return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
+        }
+      }
       if (action === "dashboard") {
         try {
           const { openMusicPanel } = await import("../commands/Music/panel.js");
@@ -306,6 +311,8 @@ export class MusicManager {
           const next = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
           await this.updateSettings(guildId, { loop: next });
           if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
+        } else if (action === "autoplay") {
+          await this.updateSettings(guildId, { autoplay: !settings.autoplay });
         } else if (action === "shuffle") {
           if ((fresh.queue?.tracks?.length || 0) < 2) return interaction.reply({ content: "Add at least two upcoming tracks before shuffling.", ephemeral: true }).catch(() => {});
           await fresh.queue.shuffle();
