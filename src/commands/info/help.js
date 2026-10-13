@@ -494,8 +494,9 @@ class HelpCommand extends Command {
             ? `<:${category}:` + emojiValue.id + ">"
             : emojiValue;
 
-        content += `> ${emojiString} \`»\` **[${this._capitalize(category)}](${config.links.supportServer})**\n`;
+        content += `> ${emojiString} \`»\` **${this._capitalize(category)}**\n`;
       });
+      content += `\n> Need help? [Join the LightCore support server](${config.links.supportServer})\n`;
 
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(content),
