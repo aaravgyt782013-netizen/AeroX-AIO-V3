@@ -64,8 +64,20 @@ export class MusicManager {
     });
     this.lavalink.on("trackError", (player, track, payload) => {
       logger.error("Music", "Track failed in guild " + player.guildId + ": " + (track?.info?.title || "unknown"), payload);
-      this.sendText(player, "⚠️ I couldn't play **" + this.escape(track?.info?.title || "that track") + "**. Try another result or check the Lavalink node and its source plugins.")
+      this.sendText(player, "⚠️ **LightCore couldn't play that track.** Trying the next queued track automatically when available.")
         .catch(() => {});
+      // A failed source/track should not strand the queue. Skip only if this failed
+      // track is still current, so a late error cannot skip a healthy next track.
+      setTimeout(async () => {
+        try {
+          const active = this.getPlayer(player.guildId);
+          const current = active?.queue?.current;
+          const sameTrack = current && (current.encoded === track?.encoded || current.info?.identifier === track?.info?.identifier);
+          if (active && sameTrack && (active.queue?.tracks?.length || 0) > 0) await active.skip();
+        } catch (error) {
+          logger.warn("Music", "Automatic recovery skip failed:", error);
+        }
+      }, 1200);
     });
     this.lavalink.on("queueEnd", player => {
       this.sendText(player, "✨ The queue has finished. I'll leave the voice channel in 60 seconds if no more tracks are added.")
@@ -194,7 +206,7 @@ export class MusicManager {
         "🔊 **Volume:** " + String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%",
         "📜 **Queue:** " + String(player?.queue?.tracks?.length || 0) + " upcoming",
         "🔁 **Repeat:** " + this.getSettings(player.guildId).loop
-      ].join("\\n")))
+      ].join("\n")))
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Use the buttons below to control playback"));
     return container;
