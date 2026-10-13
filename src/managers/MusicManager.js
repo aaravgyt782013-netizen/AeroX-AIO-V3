@@ -3,7 +3,8 @@ import fs from "fs-extra";
 import path from "node:path";
 import { config } from "#config/config";
 import { logger } from "#utils/logger";
-import { loadNeonJsonSnapshot, saveNeonJsonSnapshot } from "#database/neon/snapshots";
+import { loadNeonJsonSnapshot } from "#database/neon/snapshots";
+import { neonQuery } from "#database/neon/connection";
 
 const SETTINGS_FILE = path.resolve("database/data/music-settings.json");
 const DEFAULTS = {
@@ -78,11 +79,22 @@ export class MusicManager {
     await fs.ensureDir(path.dirname(SETTINGS_FILE));
     let localSettings = {};
     try { localSettings = await fs.readJson(SETTINGS_FILE); } catch {}
+    await neonQuery("CREATE TABLE IF NOT EXISTS aerox_music_settings (guild_id TEXT PRIMARY KEY, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     const storedSettings = await loadNeonJsonSnapshot("music-settings", null);
-    this.settings = storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)
+    const legacySettings = storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)
       ? storedSettings
       : localSettings;
-    if (!storedSettings) await saveNeonJsonSnapshot("music-settings", this.settings);
+    // One-time compatibility import: existing per-guild settings are copied without
+    // overwriting rows already migrated by another shard or deployment.
+    for (const [guildId, guildSettings] of Object.entries(legacySettings || {})) {
+      if (!guildId || !guildSettings || typeof guildSettings !== "object" || Array.isArray(guildSettings)) continue;
+      await neonQuery(
+        "INSERT INTO aerox_music_settings (guild_id, settings) VALUES ($1, $2::jsonb) ON CONFLICT (guild_id) DO NOTHING",
+        [guildId, JSON.stringify(guildSettings)]
+      );
+    }
+    const result = await neonQuery("SELECT guild_id, settings FROM aerox_music_settings");
+    this.settings = Object.fromEntries(result.rows.map(row => [row.guild_id, row.settings]));
     await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
 
     if (!config.music.enabled) {
@@ -113,13 +125,13 @@ export class MusicManager {
 
   async updateSettings(guildId, patch) {
     if (!guildId) throw new Error("A guild ID is required to save music settings.");
-    const nextSettings = {
-      ...this.settings,
-      [guildId]: { ...this.getSettings(guildId), ...patch }
-    };
-    // Neon is authoritative. Do not update memory/local mirror if the durable write fails.
-    await saveNeonJsonSnapshot("music-settings", nextSettings);
-    this.settings = nextSettings;
+    // Merge only the changed keys in PostgreSQL so concurrent shards cannot
+    // overwrite unrelated settings for this or other guilds.
+    const result = await neonQuery(
+      "INSERT INTO aerox_music_settings (guild_id, settings, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (guild_id) DO UPDATE SET settings = aerox_music_settings.settings || EXCLUDED.settings, updated_at = NOW() RETURNING settings",
+      [guildId, JSON.stringify(patch)]
+    );
+    this.settings = { ...this.settings, [guildId]: result.rows[0]?.settings || { ...this.getSettings(guildId), ...patch } };
     await fs.ensureDir(path.dirname(SETTINGS_FILE));
     await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
     return this.getSettings(guildId);
