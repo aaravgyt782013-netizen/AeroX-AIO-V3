@@ -94,7 +94,7 @@ class TeamInfoCommand extends Command {
                         new ButtonBuilder()
                                 .setLabel('Support')
                                 .setStyle(ButtonStyle.Link)
-                                .setURL('https://discord.gg/lightcore')
+                                .setURL('https://discord.gg/aerox')
                 );
 
                 container.addActionRowComponents(buttonRow);
