@@ -15,7 +15,13 @@ export const config = {
     defaultVolume: Math.min(100, Math.max(1, Number.parseInt(process.env.MUSIC_DEFAULT_VOLUME || "70", 10) || 70)),
     maxQueue: Math.min(500, Math.max(10, Number.parseInt(process.env.MUSIC_MAX_QUEUE || "100", 10) || 100)),
     nodes: (process.env.LAVALINK_NODES || "").split(",").map((entry, index) => {
-      const [host, port, authorization, secure, id] = entry.trim().split(":");
+      const parts = entry.trim().split(":");
+      if (parts.length < 5) return null;
+      const host = parts.shift();
+      const port = parts.shift();
+      const id = parts.pop();
+      const secure = parts.pop();
+      const authorization = parts.join(":");
       return host && port && authorization ? { id: id || `node-${index + 1}`, host, port: Number(port), authorization, secure: secure === "true" } : null;
     }).filter(Boolean),
     node: process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : [],
