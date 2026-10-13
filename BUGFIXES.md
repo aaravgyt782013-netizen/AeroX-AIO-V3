@@ -1,4 +1,4 @@
-# AeroX AIO V3 — Bug Fix Changelog
+# LightCore AIO V3 — Bug Fix Changelog
 
 This document lists every bug that was found and fixed in the source code.
 
@@ -56,7 +56,7 @@ This document lists every bug that was found and fixed in the source code.
 ### 6. `slashcmd.js` — Hardcoded support server URL
 **File:** `src/events/discord/guild/slashcmd.js`
 
-**Problem:** Error responses in slash commands had `"https://discord.gg/aerox"` hardcoded directly in the file, completely ignoring the `config.links.supportServer` value.
+**Problem:** Error responses in slash commands had `"https://discord.gg/lightcore"` hardcoded directly in the file, completely ignoring the `config.links.supportServer` value.
 
 **Fix:** Replaced all hardcoded URLs with `config.links.supportServer`.
 
