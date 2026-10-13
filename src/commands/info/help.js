@@ -465,7 +465,7 @@ class HelpCommand extends Command {
 
       container.addTextDisplayComponents(
         new TextDisplayBuilder().setContent(
-          `## ${emoji.get("aerox")} **Help Menu**`,
+          `## ${emoji.get("lightcore")} **LIGHTCORE • COMMAND CENTER**`,
         ),
       );
 
@@ -486,7 +486,7 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
-      content = `**Main Modules:**\n`;
+      content = `**LIGHTCORE • MODULES**\n`;
       categoryArray.forEach((category) => {
         const emojiValue = this._getCategoryEmoji(category);
         const emojiString =
@@ -494,7 +494,7 @@ class HelpCommand extends Command {
             ? `<:${category}:` + emojiValue.id + ">"
             : emojiValue;
 
-        content += `> ${emojiString} \`»\` **[${this._capitalize(category)}](https://discord.gg/AeroX)**\n`;
+        content += `> ${emojiString} \`»\` **[${this._capitalize(category)}](${config.links.supportServer})**\n`;
       });
 
       container.addTextDisplayComponents(
