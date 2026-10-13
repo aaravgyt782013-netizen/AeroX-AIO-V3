@@ -27,7 +27,7 @@ export default {
           await client.users.fetch(ownerId).catch(() => null)
         : null;
 
-      const support = config.links?.supportServer || "https://discord.gg/aerox";
+      const support = config.links?.supportServer || "https://discord.gg/lightcore";
       const addBot = inviteUrl(client);
       const icon = guild.iconURL({ extension: "png", size: 512 }) || null;
 
