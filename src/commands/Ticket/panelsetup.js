@@ -153,7 +153,7 @@ export default {
         if (categories.length > 25) rows.push(new ActionRowBuilder().setComponents(new ButtonBuilder().setCustomId("ticket_page_" + panelId + "_1").setLabel("Next").setStyle(ButtonStyle.Secondary)));
       }
       const panelData = panelEmbed.toJSON();
-      const panelText = "# 🎫 LIGHTCORE • SUPPORT CENTER\\n## " + (panelData.title || "Support Tickets") + "\\n" + (panelData.description || "Choose a category below to open a ticket.");
+      const panelText = "# 🎫 LIGHTCORE • SUPPORT CENTER\n## " + (panelData.title || "Support Tickets") + "\n" + (panelData.description || "Choose a category below to open a ticket.");
       const panelContainer = new ContainerBuilder().setAccentColor(panelData.color || 0x5865F2);
       if (panelData.thumbnail?.url) {
         panelContainer.addSectionComponents(new SectionBuilder()
