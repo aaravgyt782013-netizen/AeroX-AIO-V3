@@ -220,7 +220,7 @@ export async function openMusicPanel({ client, message }) {
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
             .setCustomId("aerox_panel:queue_setting").setPlaceholder("Choose the maximum queue size")
             .addOptions(choices.map(n => ({ label: n + " tracks", value: String(n), default: n === settings.maxQueue }))));
-          return interaction.update({ ...buildPanel(client, message.guild, category), components: [categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
         }
         if (key === "defaultSource") {
           const choices = [{ label: "YouTube Music", value: "ytmsearch" }, { label: "YouTube", value: "ytsearch" }, { label: "SoundCloud", value: "scsearch" }];
@@ -282,7 +282,7 @@ export async function openMusicPanel({ client, message }) {
       else await interaction.reply({ content: "That panel action failed: " + text, ephemeral: true }).catch(() => {});
     }
   });
-  collector.on("end", () => sent.edit({ components: [buildServerSettingsPanel(client, message.guild, category, selection).components[0]] }).catch(() => {}));
+  collector.on("end", () => sent.edit({ components: [buildPanel(client, message.guild, category).components[0]] }).catch(() => {}));
   return sent;
 }
 
@@ -428,6 +428,6 @@ export async function openMusicSettingsPanel({ client, message }) {
       else await interaction.reply({ content: "Could not save that setting: " + detail, ephemeral: true }).catch(() => {});
     }
   });
-  collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
+  collector.on("end", () => sent.edit({ components: [buildServerSettingsPanel(client, message.guild, category, selection).components[0]] }).catch(() => {}));
   return sent;
 }
