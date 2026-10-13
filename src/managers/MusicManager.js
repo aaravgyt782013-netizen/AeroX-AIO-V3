@@ -226,7 +226,7 @@ export class MusicManager {
 
     if (existing?.message && !existing.message.deleted) {
       try {
-        await existing.message.edit({ components, flags: MessageFlags.IsComponentsV2 });
+        await existing.message.edit({ components });
         return;
       } catch (error) {
         logger.warn("Music", "Could not refresh the existing player panel; sending a replacement:", error);
@@ -290,7 +290,7 @@ export class MusicManager {
           await fresh.queue.shuffle();
         }
         const latest = this.getPlayer(guildId) || fresh;
-        await interaction.update({ components: [this.trackContainer(latest, latest.queue?.current || currentTrack), ...this.trackControls(latest)], flags: MessageFlags.IsComponentsV2 });
+        await interaction.update({ components: [this.trackContainer(latest, latest.queue?.current || currentTrack), ...this.trackControls(latest)] });
       } catch (error) {
         logger.warn("Music", "Track panel action failed:", error);
         const response = { content: "That control failed: " + this.escape(error?.message || "unknown error"), ephemeral: true };
