@@ -4,7 +4,6 @@ import {
   ContainerBuilder,
   TextDisplayBuilder,
   MessageFlags,
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -18,9 +17,11 @@ import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/Autom
 const DEFAULT_MESSAGE = "Welcome {user} to **{server}**! You are member **#{membercount}**.";
 
 function replyBox(content) {
-  return {
-    embeds: [new EmbedBuilder().setTitle("👋 Welcome Setup").setDescription(content).setColor(0x5865F2).setTimestamp()],
-  };
+  const panel = new ContainerBuilder().setAccentColor(0x5865F2)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("## 👋 LIGHTCORE • WELCOME SETUP\n\n" + String(content || "").slice(0, 3500)))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# ✨ LightCore • Server tools"));
+  return { components: [panel], flags: MessageFlags.IsComponentsV2 };
 }
 
 function resolveChannel(message, raw) {
@@ -163,7 +164,7 @@ class WelcomeCommand extends Command {
         if (!dm?.message) return message.reply(replyBox(emoji.get("cross") + " Configure DM welcome first."));
         const rendered = renderAutomationMessage(dm.message, { member: message.member, guild: message.guild });
         await message.author.send({
-          embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("👋 Welcome DM Preview").setDescription(rendered).setFooter({ text: "LightCore • Preview" })],
+          components: [new ContainerBuilder().setAccentColor(0x5865F2).addTextDisplayComponents(new TextDisplayBuilder().setContent("## 👋 LIGHTCORE • WELCOME DM PREVIEW\n\n" + String(rendered || "").slice(0, 3500)))], flags: MessageFlags.IsComponentsV2,
         }).catch(() => null);
         return message.reply(replyBox(emoji.get("check") + " DM preview sent to your DMs."));
       }
@@ -186,7 +187,7 @@ class WelcomeCommand extends Command {
         await channel.send({ content: rendered, allowedMentions: { parse: ["users", "roles"] } });
       } else {
         await channel.send({
-          embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("👋 Welcome Preview").setDescription(rendered).setThumbnail(message.member.user.displayAvatarURL({ size: 256 }))],
+          components: [new ContainerBuilder().setAccentColor(0x5865F2).addTextDisplayComponents(new TextDisplayBuilder().setContent("## 👋 LIGHTCORE • WELCOME PREVIEW\n\n" + String(rendered || "").slice(0, 3500)))], flags: MessageFlags.IsComponentsV2,
           allowedMentions: { parse: ["users", "roles"] },
         });
       }
