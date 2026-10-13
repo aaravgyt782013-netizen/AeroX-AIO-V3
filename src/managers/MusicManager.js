@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, PermissionFlagsBits } from "discord.js";
 import { LavalinkManager } from "lavalink-client";
 import fs from "fs-extra";
 import path from "node:path";
@@ -156,7 +156,7 @@ export class MusicManager {
     ];
   }
 
-  trackEmbed(player, track) {
+  trackContainer(player, track) {
     const info = track?.info || {};
     const url = /^https?:\/\//i.test(String(info.uri || "")) ? info.uri : null;
     const total = Math.max(0, Number(info.duration || 0));
@@ -169,28 +169,30 @@ export class MusicManager {
         ? progressBar + "\n`" + this.formatDuration(position) + " / " + this.formatDuration(total) + "`"
         : "Duration unavailable";
     const title = this.escape(info.title || "Unknown track");
-    const embed = new EmbedBuilder().setColor(0x5865F2)
-      .setAuthor({ name: "🎧 LIGHTCORE • NOW PLAYING", iconURL: this.client.user.displayAvatarURL() })
-      .setDescription((url ? "[" + title + "](" + url + ")" : "**" + title + "**") + "\n\n" + progress)
-      .addFields(
-        { name: "🎤 Artist", value: this.escape(info.author || "Unknown artist"), inline: true },
-        { name: "⏱️ Duration", value: info.isStream ? "LIVE" : this.formatDuration(total), inline: true },
-        { name: "🙋 Requested by", value: this.escape(track?.requester?.username || track?.requester?.tag || "A listener"), inline: true },
-        { name: "🔊 Volume", value: String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%", inline: true },
-        { name: "📜 Queue", value: String(player?.queue?.tracks?.length || 0) + " upcoming", inline: true },
-        { name: "🔁 Repeat", value: this.getSettings(player.guildId).loop, inline: true }
-      )
-      .setFooter({ text: "LightCore Music • Use the controls below to manage playback" })
-      .setTimestamp();
-    if (info.artworkUrl && /^https?:\/\//i.test(info.artworkUrl)) embed.setThumbnail(info.artworkUrl);
-    return embed;
+    const container = new ContainerBuilder().setAccentColor(0x5865F2)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        "# 🎧 LIGHTCORE • NOW PLAYING\n" +
+        (url ? "[" + title + "](" + url + ")" : "**" + title + "**") + "\n\n" + progress
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent([
+        "🎤 **Artist:** " + this.escape(info.author || "Unknown artist"),
+        "⏱️ **Duration:** " + (info.isStream ? "LIVE" : this.formatDuration(total)),
+        "🙋 **Requested by:** " + this.escape(track?.requester?.username || track?.requester?.tag || "A listener"),
+        "🔊 **Volume:** " + String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%",
+        "📜 **Queue:** " + String(player?.queue?.tracks?.length || 0) + " upcoming",
+        "🔁 **Repeat:** " + this.getSettings(player.guildId).loop
+      ].join("\\n")))
+      .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Use the buttons below to control playback"));
+    return container;
   }
 
   async announce(player, track) {
     if (!this.getSettings(player.guildId).announceNowPlaying) return;
     const channel = player.textChannelId ? this.client.channels.cache.get(player.textChannelId) : null;
     if (!channel?.isTextBased()) return;
-    const sent = await channel.send({ embeds: [this.trackEmbed(player, track)], components: this.trackControls(player) });
+    const sent = await channel.send({ components: [this.trackContainer(player, track), ...this.trackControls(player)], flags: MessageFlags.IsComponentsV2 });
     const collector = sent.createMessageComponentCollector({ time: Math.max(60_000, Number(track?.info?.duration || 0) || 10 * 60_000) });
     collector.on("collect", async interaction => {
       const fresh = this.getPlayer(player.guildId);
@@ -217,7 +219,7 @@ export class MusicManager {
         } else if (action === "stop") {
           await this.lavalink.destroyPlayer(player.guildId, "track-panel-stop");
           collector.stop("stopped");
-          return interaction.update({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle("⏹️ Playback stopped").setDescription("LightCore has stopped playback.")], components: [] });
+          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\\nLightCore has stopped playback."))] });
         } else if (action === "queue") {
           const list = fresh.queue?.tracks || [];
           const lines = list.slice(0, 15).map((item, index) => "**" + (index + 1) + ".** " + this.escape(item.info?.title || "Unknown track") + " · " + this.formatDuration(item.info?.duration));
@@ -233,13 +235,13 @@ export class MusicManager {
           await fresh.queue.shuffle();
         }
         const current = fresh.queue?.current || track;
-        await interaction.update({ embeds: [this.trackEmbed(fresh, current)], components: this.trackControls(fresh) });
+        await interaction.update({ components: [this.trackContainer(fresh, current), ...this.trackControls(fresh)] });
       } catch (error) {
         logger.warn("Music", "Track panel action failed:", error);
         await interaction.reply({ content: "That control failed. Please try again.", ephemeral: true }).catch(() => {});
       }
     });
-    collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
+    collector.on("end", () => sent.edit({ components: [this.trackContainer(this.getPlayer(player.guildId) || player, this.getPlayer(player.guildId)?.queue?.current || track)] }).catch(() => {}));
   }
 
   async sendText(player, content) {
