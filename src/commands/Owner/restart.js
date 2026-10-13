@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import emoji from "#config/emoji";
 import { config } from "#config/config";
+import { flushNeonSnapshots } from "#database/neon/snapshots";
 
 class RestartCommand extends Command {
   constructor() {
@@ -55,8 +56,14 @@ class RestartCommand extends Command {
         flags: MessageFlags.IsComponentsV2,
       });
 
-      setTimeout(() => {
-        process.exit(0);
+      setTimeout(async () => {
+        try {
+          await flushNeonSnapshots();
+          process.exit(0);
+        } catch (error) {
+          client.logger?.error("RestartCommand", "Neon persistence flush failed; restart cancelled to avoid losing recent data.", error);
+          await message.channel.send("⚠️ Restart cancelled because the database backup could not be confirmed. Check the bot logs and Neon connection.");
+        }
       }, 2000);
     } catch (error) {
       client.logger?.error("RestartCommand", `Error: ${error.message}`, error);

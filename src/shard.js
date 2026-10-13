@@ -2,6 +2,7 @@ import { ClusterManager, HeartbeatManager } from 'discord-hybrid-sharding';
 
 import { config } from '#config/config';
 import { logger } from '#utils/logger';
+import { restoreNeonSnapshots } from '#database/neon/snapshots';
 import './healthcheck.js';
 
 // FIX: totalShards and shardsPerCluster now read from config (which reads from env vars)
@@ -45,16 +46,24 @@ manager.on('debug', msg => {
   }
 });
 
-const shutdown = () => {
-  logger.info('ClusterManager', ' ==> Shutting down all clusters...');
+const shutdown = async () => {
+  logger.info('ClusterManager', ' ==> Flushing persistent data and shutting down all clusters...');
+  try {
+    await manager.broadcastEval(async client => {
+      if (typeof client.cleanup === 'function') await client.cleanup();
+      return true;
+    });
+  } catch (error) {
+    logger.error('ClusterManager', ' ==> Graceful cluster shutdown failed:', error);
+  }
   process.exit(0);
 };
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-manager
-  .spawn({ timeout: -1 })
+restoreNeonSnapshots()
+  .then(() => manager.spawn({ timeout: -1 }))
   .then(() =>
     logger.success('ClusterManager', ' ==> All clusters are loaded and bot is ready! 🚀'),
   )
