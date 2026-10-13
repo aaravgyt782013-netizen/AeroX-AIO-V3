@@ -1,7 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import emoji from "#config/emoji";
 
-const DEFAULTS = { color: 0x5865F2, title: "Support Tickets", description: "Choose a category below to open a ticket.", footer: "AeroX Ticket System" };
+const DEFAULTS = { color: 0x5865F2, title: "Support Tickets", description: "Choose a category below to open a ticket.", footer: "LightCore • Ticket System" };
 export function parseColor(value, fallback = DEFAULTS.color) {
   if (typeof value === "number" && Number.isInteger(value)) return value;
   const raw = String(value ?? "").trim().replace(/^#/, "");
