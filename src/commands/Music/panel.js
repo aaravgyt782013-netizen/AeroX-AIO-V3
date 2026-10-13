@@ -225,12 +225,12 @@ export async function openMusicPanel({ client, message }) {
         if (key === "defaultSource") {
           const choices = [{ label: "YouTube Music", value: "ytmsearch" }, { label: "YouTube", value: "ytsearch" }, { label: "SoundCloud", value: "scsearch" }];
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("aerox_panel:source_setting").setPlaceholder("Choose the default search source").addOptions(choices.map(option => ({ ...option, default: option.value === settings.defaultSource }))));
-          return interaction.update({ ...buildPanel(client, message.guild, category), components: [categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
         }
         if (key === "loop") {
           const choices = ["off", "track", "queue"];
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("aerox_panel:loop_setting").setPlaceholder("Choose the default repeat mode").addOptions(choices.map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, default: mode === settings.loop }))));
-          return interaction.update({ ...buildPanel(client, message.guild, category), components: [categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
         }
         if (key === "autoplay" || key === "announceNowPlaying") patch[key] = value !== "on";
         if (Object.keys(patch).length) await manager.updateSettings(message.guild.id, patch);
