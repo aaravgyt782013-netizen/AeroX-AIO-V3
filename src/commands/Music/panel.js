@@ -270,3 +270,129 @@ export default {
     return openMusicPanel({ client, message });
   }
 };
+
+
+function buildServerSettingsPanel(client, guild, category, selection = null) {
+  const settings = client.music.getSettings(guild.id);
+  const details = {
+    playback: [
+      "**Default volume:** " + settings.defaultVolume + "%",
+      "**Search source:** " + settings.defaultSource,
+      "**Default repeat:** " + settings.loop,
+      "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
+      "",
+      "These defaults apply to music sessions in this server."
+    ].join("\\n"),
+    queue: [
+      "**Maximum queue:** " + settings.maxQueue + " tracks",
+      "**Autoplay:** " + (settings.autoplay ? "Enabled" : "Disabled"),
+      "",
+      "Queue limits are enforced when new tracks are requested."
+    ].join("\\n"),
+    access: [
+      "**DJ role:** " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not configured"),
+      "**Administrator override:** Manage Server",
+      "",
+      "When a DJ role is set, playback controls require that role or Manage Server."
+    ].join("\\n"),
+    display: [
+      "**Now-playing announcements:** " + (settings.announceNowPlaying ? "Enabled" : "Disabled"),
+      "",
+      "Choose whether AeroX posts a Now Playing embed for each track."
+    ].join("\\n")
+  }[category] || "";
+  const embed = new EmbedBuilder().setColor(COLORS.primary)
+    .setAuthor({ name: "AeroX • Server Music Settings", iconURL: client.user.displayAvatarURL() })
+    .setDescription("Configure music for **" + clean(guild.name) + "** using the menus below. Changes are saved automatically.\\n\\n" + details)
+    .setFooter({ text: "AeroX Music • Settings are saved per server in Neon" })
+    .setTimestamp();
+  const rows = [categoryMenu(category)];
+  if (selection) {
+    const options = selection === "volume"
+      ? [10, 25, 50, 70, 80, 100].map(n => ({ label: n + "%", value: String(n), default: n === settings.defaultVolume }))
+      : selection === "queue"
+        ? [25, 50, 100, 250, 500].map(n => ({ label: n + " tracks", value: String(n), default: n === settings.maxQueue }))
+        : selection === "source"
+          ? [{ label: "YouTube Music", value: "ytmsearch" }, { label: "YouTube", value: "ytsearch" }, { label: "SoundCloud", value: "scsearch" }].map(o => ({ ...o, default: o.value === settings.defaultSource }))
+          : ["off", "track", "queue"].map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, default: mode === settings.loop }));
+    const customId = selection === "volume" ? "aerox_panel:volume_setting" : selection === "queue" ? "aerox_panel:queue_setting" : selection === "source" ? "aerox_panel:source_setting" : "aerox_panel:loop_setting";
+    rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(customId)
+      .setPlaceholder(selection === "volume" ? "Choose default volume" : selection === "queue" ? "Choose queue limit" : selection === "source" ? "Choose search source" : "Choose default repeat mode")
+      .addOptions(options)));
+  } else {
+    const menu = settingMenu(category, settings);
+    if (menu) rows.push(menu);
+  }
+  if (category === "access") {
+    rows.push(new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
+      .setCustomId("aerox_panel:djrole").setPlaceholder("Select the server DJ role")
+      .setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
+      .setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ role restriction")
+      .setEmoji("🔓").setStyle(ButtonStyle.Secondary)));
+  }
+  return { embeds: [embed], components: rows };
+}
+
+export async function openMusicSettingsPanel({ client, message }) {
+  if (!message.guild || !message.member) return;
+  if (!client.music) return message.reply("The music manager is not ready yet.");
+  if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return message.reply("You need the **Manage Server** permission to configure server music settings.");
+  }
+  let category = "playback";
+  let selection = null;
+  const sent = await message.reply(buildServerSettingsPanel(client, message.guild, category));
+  const collector = sent.createMessageComponentCollector({ time: 15 * 60_000 });
+  collector.on("collect", async interaction => {
+    if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This settings panel belongs to another server.", ephemeral: true }).catch(() => {});
+    const actor = await message.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!actor?.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      return interaction.reply({ content: "Only members with **Manage Server** can change these settings.", ephemeral: true }).catch(() => {});
+    }
+    const action = interaction.customId.split(":").at(-1);
+    try {
+      if (action === "category") {
+        category = interaction.values[0];
+        selection = null;
+      } else if (action === "setting") {
+        const [key, value] = interaction.values[0].split(":");
+        if (key === "defaultVolume") selection = "volume";
+        else if (key === "maxQueue") selection = "queue";
+        else if (key === "defaultSource") selection = "source";
+        else if (key === "loop") selection = "loop";
+        else {
+          await client.music.updateSettings(message.guild.id, { [key]: value !== "on" });
+          selection = null;
+        }
+      } else if (action === "volume_setting") {
+        await client.music.updateSettings(message.guild.id, { defaultVolume: Number(interaction.values[0]) });
+        selection = null;
+      } else if (action === "queue_setting") {
+        await client.music.updateSettings(message.guild.id, { maxQueue: Number(interaction.values[0]) });
+        selection = null;
+      } else if (action === "source_setting") {
+        await client.music.updateSettings(message.guild.id, { defaultSource: interaction.values[0] });
+        selection = null;
+      } else if (action === "loop_setting") {
+        await client.music.updateSettings(message.guild.id, { loop: interaction.values[0] });
+        selection = null;
+      } else if (action === "djrole") {
+        await client.music.updateSettings(message.guild.id, { djRoleId: interaction.values[0] });
+        category = "access";
+        selection = null;
+      } else if (action === "clear_dj") {
+        await client.music.updateSettings(message.guild.id, { djRoleId: null });
+        category = "access";
+        selection = null;
+      }
+      await interaction.update(buildServerSettingsPanel(client, message.guild, category, selection));
+    } catch (error) {
+      const detail = clean(error?.message || error);
+      if (interaction.deferred || interaction.replied) await interaction.followUp({ content: "Could not save that setting: " + detail, ephemeral: true }).catch(() => {});
+      else await interaction.reply({ content: "Could not save that setting: " + detail, ephemeral: true }).catch(() => {});
+    }
+  });
+  collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
+  return sent;
+}
