@@ -46,7 +46,7 @@ class PremiumProfileCommand extends Command {
   constructor() {
     super({
       name: "premiumprofile",
-      description: "Customize AeroX's Premium profile for this server",
+      description: "Customize LightCore's Premium profile for this server",
       usage: "premiumprofile <view|name|avatar|banner|color|reset> [value]",
       aliases: ["pprofile", "serverprofile"],
       category: "Premium",
@@ -71,7 +71,7 @@ class PremiumProfileCommand extends Command {
     const profile = db.getGuildProfile(message.guild.id) || {};
 
     if (action === "view") {
-      const name = profile.profile_name || message.guild.name + " • AeroX";
+      const name = profile.profile_name || message.guild.name + " • LightCore";
       const color = profile.color || "#5865F2";
       const container = new ContainerBuilder()
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
