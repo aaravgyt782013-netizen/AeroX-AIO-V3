@@ -282,7 +282,7 @@ export async function openMusicPanel({ client, message }) {
       else await interaction.reply({ content: "That panel action failed: " + text, ephemeral: true }).catch(() => {});
     }
   });
-  collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
+  collector.on("end", () => sent.edit({ components: [buildServerSettingsPanel(client, message.guild, category, selection).components[0]] }).catch(() => {}));
   return sent;
 }
 
@@ -330,11 +330,17 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       "Choose whether LightCore posts a Now Playing panel for each track."
     ].join("\\n")
   }[category] || "";
-  const embed = new EmbedBuilder().setColor(COLORS.primary)
-    .setAuthor({ name: "AeroX • Server Music Settings", iconURL: client.user.displayAvatarURL() })
-    .setDescription("Configure music for **" + clean(guild.name) + "** using the menus below. Changes are saved automatically.\\n\\n" + details)
-    .setFooter({ text: "AeroX Music • Settings are saved per server in Neon" })
-    .setTimestamp();
+  const container = new ContainerBuilder().setAccentColor(COLORS.primary)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# ⚙️ LIGHTCORE • SERVER MUSIC SETTINGS\\n## " + clean(guild.name) +
+      "\\nConfigure your server’s music defaults. Changes are saved automatically in Neon."
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "### 🧭 " + category[0].toUpperCase() + category.slice(1) + " Configuration\\n" + details
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Server settings persist across redeploys"));
   const rows = [categoryMenu(category)];
   if (selection) {
     const options = selection === "volume"
@@ -360,7 +366,7 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       .setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ role restriction")
       .setEmoji("🔓").setStyle(ButtonStyle.Secondary)));
   }
-  return { embeds: [embed], components: rows };
+  return { components: [container, ...rows] };
 }
 
 export async function openMusicSettingsPanel({ client, message }) {
@@ -371,7 +377,7 @@ export async function openMusicSettingsPanel({ client, message }) {
   }
   let category = "playback";
   let selection = null;
-  const sent = await message.reply(buildServerSettingsPanel(client, message.guild, category));
+  const sent = await message.reply({ ...buildServerSettingsPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector({ time: 15 * 60_000 });
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This settings panel belongs to another server.", ephemeral: true }).catch(() => {});
