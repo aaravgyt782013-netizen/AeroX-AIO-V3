@@ -13,6 +13,7 @@ const DEFAULTS = {
   maxQueue: config.music.maxQueue,
   djRoleId: null,
   announceNowPlaying: true,
+  announcementChannelId: null,
   defaultSource: "ytmsearch",
   autoplay: false,
   loop: "off"
@@ -226,12 +227,62 @@ export class MusicManager {
   }
 
   async announce(player, track) {
-    // The interactive player is separate from optional textual announcements:
-    // always provide a usable player panel when playback starts.
     const guildId = player.guildId;
+    const settings = this.getSettings(guildId);
     const existing = this.trackPanels.get(guildId);
     const currentPlayer = this.getPlayer(guildId) || player;
     const currentTrack = currentPlayer.queue?.current || track;
+
+    // Send one announcement per track, with a button that opens the live control panel.
+    if (settings.announceNowPlaying) {
+      const channelId = settings.announcementChannelId || player.textChannelId;
+      const announcementChannel = channelId ? this.client.channels.cache.get(channelId) : null;
+      if (announcementChannel?.isTextBased()) {
+        try {
+          const announcementRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId("aerox_announcement:dashboard")
+              .setLabel("Open Music Control Panel")
+              .setEmoji("🎛️")
+              .setStyle(ButtonStyle.Primary)
+          );
+          const announcement = await announcementChannel.send({
+            components: [this.trackContainer(currentPlayer, track), announcementRow],
+            flags: MessageFlags.IsComponentsV2
+          });
+          const announcementCollector = announcement.createMessageComponentCollector();
+          announcementCollector.on("collect", async interaction => {
+            if (interaction.customId !== "aerox_announcement:dashboard") return;
+            const guild = interaction.guild;
+            const actor = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+            if (!actor) return interaction.reply({ content: "I could not verify your server membership.", ephemeral: true }).catch(() => {});
+            try {
+              const { openMusicPanel } = await import("../commands/Music/panel.js");
+              return await openMusicPanel({
+                client: this.client,
+                message: {
+                  guild,
+                  member: actor,
+                  reply: options => interaction.reply({
+                    ...options,
+                    flags: (options.flags || 0) | MessageFlags.Ephemeral,
+                    fetchReply: true
+                  })
+                }
+              });
+            } catch (error) {
+              logger.warn("Music", "Could not open dashboard from a song announcement:", error);
+              return interaction.reply({ content: "Could not open the music dashboard. Try `.musicpanel`.", ephemeral: true }).catch(() => {});
+            }
+          });
+        } catch (error) {
+          logger.warn("Music", "Could not post song announcement in channel " + channelId + ":", error);
+        }
+      } else {
+        logger.warn("Music", "Song announcement channel is unavailable for guild " + guildId + ".");
+      }
+    }
+
     const components = [this.trackContainer(currentPlayer, currentTrack), ...this.trackControls(currentPlayer)];
 
     if (existing?.message && !existing.message.deleted) {
