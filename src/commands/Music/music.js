@@ -46,7 +46,7 @@ function nowPlayingEmbed(player, track) {
       { name: "Requested by", value: safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100), inline: true },
       { name: "Queue", value: String(player.queue?.tracks?.length || 0) + " upcoming", inline: true },
       { name: "Volume", value: String(player.volume ?? 70) + "%", inline: true }
-    ).setThumbnail(info.artworkUrl || null).setFooter({ text: "AeroX Music • Interactive controls" }).setTimestamp();
+    ).setThumbnail(info.artworkUrl || "https://cdn.discordapp.com/embed/avatars/0.png").setFooter({ text: "AeroX Music • Interactive controls" }).setTimestamp();
 }
 function voiceCheck(message, player, member = message.member) {
   const voice = member?.voice?.channel;
