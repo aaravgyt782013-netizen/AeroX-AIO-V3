@@ -3,6 +3,8 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  SectionBuilder,
+  ThumbnailBuilder,
   TextDisplayBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
@@ -22,6 +24,7 @@ const duration = ms => {
   return hours ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0") : minutes + ":" + String(seconds % 60).padStart(2, "0");
 };
 const titleOf = track => clean(track?.info?.title || "Unknown track");
+const artworkOf = track => { const value = track?.info?.artworkUrl || track?.info?.thumbnail || track?.info?.image; return /^https?:\\/\\//i.test(String(value || "")) ? value : null; };
 const trackLink = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
 
 function categoryMenu(category) {
@@ -118,18 +121,20 @@ function buildPanel(client, guild, category) {
     }
   }[category] || { icon: "🎧", title: "Music settings", description: "Customise your server's music experience.", detail: "" };
 
+  const guildIcon = typeof guild.iconURL === "function" ? guild.iconURL({ extension: "png", size: 256 }) : null;
+  const songSection = new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "### " + (player?.paused ? "⏸️ PAUSED" : current ? "🎶 NOW PLAYING" : "💤 READY WHEN YOU ARE") + "\n" +
+      songTitle + "\n-# " + artist + "\n\n" + progressBar + "\n`" +
+      (current ? duration(position) : "0:00") + " / " + (current ? duration(trackDuration) : "0:00") + "`"
+    ));
+  if (artworkOf(current)) songSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artworkOf(current)).setDescription("Album artwork for " + titleOf(current)));
   const hero = new ContainerBuilder().setAccentColor(current ? COLORS.success : COLORS.primary)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# 🎧  LIGHTCORE MUSIC\n-# YOUR COMMUNITY. YOUR SOUND.\n## " + clean(guild.name) + "\nA music experience built for your server — live playback, quick controls and settings in one place."
+      "# ✦ LIGHTCORE MUSIC\n-# YOUR SERVER. YOUR SOUND.\n## " + clean(guild.name) + "\nA visual music player for your community."
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "### " + (player?.paused ? "⏸️ PAUSED" : current ? "🎶 NOW PLAYING" : "💤 PLAYER STANDBY") + "\n" +
-      songTitle + "\n" +
-      "-# " + artist + "\n\n" +
-      progressBar + "\n" +
-      "`" + (current ? duration(position) : "0:00") + " / " + (current ? duration(trackDuration) : "0:00") + "`"
-    ))
+    .addSectionComponents(songSection)
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
       "### 📡 SESSION OVERVIEW\n" +
@@ -342,11 +347,15 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
     }
   };
   const section = sections[category] || sections.playback;
-  const container = new ContainerBuilder().setAccentColor(COLORS.primary)
+  const settingsHeader = new SectionBuilder()
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ⚙️  LIGHTCORE SETTINGS\n-# SERVER CONFIGURATION\n## " + clean(guild.name) +
-      "\nManage your server's music defaults from one clean dashboard. Every change saves automatically."
-    ))
+      "# ✦ LIGHTCORE SETTINGS\n-# SERVER CONTROL CENTER\n## " + clean(guild.name) +
+      "\nTune playback, queue behavior, access and player announcements. Changes save automatically."
+    ));
+  const serverIcon = typeof guild.iconURL === "function" ? guild.iconURL({ extension: "png", size: 256 }) : null;
+  if (serverIcon) settingsHeader.setThumbnailAccessory(new ThumbnailBuilder().setURL(serverIcon).setDescription(clean(guild.name) + " server icon"));
+  const container = new ContainerBuilder().setAccentColor(COLORS.primary)
+    .addSectionComponents(settingsHeader)
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
       "### " + section.icon + "  " + section.title + "\n" + section.intro + "\n\n" + section.summary
