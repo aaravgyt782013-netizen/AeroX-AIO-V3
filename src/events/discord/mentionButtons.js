@@ -65,7 +65,7 @@ async function buildHomePage(interaction, client) {
   const currentPrefix = guildPrefixes[0] || "!";
   const guildIconUrl = interaction.guild.iconURL({ dynamic: true, size: 256 });
   
-  const homeContent = `> *Hey <@${interaction.user.id}>, I'm* __**AeroX**__ ${emoji.get("status")}\n` +
+  const homeContent = `> *Hey <@${interaction.user.id}>, I'm* __**LightCore**__ ${emoji.get("status")}\n` +
     `> *A **multipurpose** bot made to manage your server safely and smoothly with **moderation, music, ticket and more...** ${emoji.get("info")}*\n\n` +
     `*Type \`${currentPrefix}help\` to know more about my commands and more...*\n\n` +
     `**Server Prefix:** \`${currentPrefix}\``;
@@ -190,7 +190,7 @@ async function buildDevsPage(interaction, client) {
     .addSectionComponents(
       new SectionBuilder()
         .addTextDisplayComponents(
-          new TextDisplayBuilder().setContent("*The creator behind AeroX*")
+          new TextDisplayBuilder().setContent("*The creator behind LightCore*")
         )
         .setThumbnailAccessory(
           new ThumbnailBuilder().setURL(ownerAvatarUrl)
@@ -205,7 +205,7 @@ async function buildDevsPage(interaction, client) {
 
 async function buildLinksPage(interaction, client) {
   const guildIconUrl = interaction.guild.iconURL({ dynamic: true, size: 256 });
-  const supportServerUrl = config.links?.supportServer || "https://discord.gg/aerox";
+  const supportServerUrl = config.links?.supportServer || "https://discord.gg/lightcore";
   
   let serverIconUrl = config.assets?.defaultThumbnail;
   try {
