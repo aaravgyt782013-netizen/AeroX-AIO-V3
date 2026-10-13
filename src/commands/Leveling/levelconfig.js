@@ -83,8 +83,9 @@ class LevelConfigCommand extends Command {
           "`levelconfig message reset` — restore the default level-up message",
           "`levelconfig enabled on/off` — toggle leveling",
         ].join("\n"))
-        .setFooter({ text: "Manage Server permission required." });
-      return message.reply({ embeds: [embed] });
+        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🛡️ Manage Server permission required."));
+      return message.reply({ components: [panel], flags: MessageFlags.IsComponentsV2 });
     } catch (error) {
       message.client.logger?.error("LevelConfig", error);
       return message.reply("Could not update leveling settings. Check the XP range and try again.");
