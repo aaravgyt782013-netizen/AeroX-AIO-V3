@@ -243,11 +243,11 @@ export class MusicManager {
         } else if (action === "stop") {
           await this.lavalink.destroyPlayer(player.guildId, "track-panel-stop");
           collector.stop("stopped");
-          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\\nLightCore has stopped playback."))] });
+          return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nLightCore has stopped playback."))] });
         } else if (action === "queue") {
           const list = fresh.queue?.tracks || [];
           const lines = list.slice(0, 15).map((item, index) => "**" + (index + 1) + ".** " + this.escape(item.info?.title || "Unknown track") + " · " + this.formatDuration(item.info?.duration));
-          return interaction.reply({ components: [new ContainerBuilder().setAccentColor(0x5865F2).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 📜 LIGHTCORE • QUEUE\\n" + (lines.join("\\n") || "*No upcoming tracks.*")))], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+          return interaction.reply({ components: [new ContainerBuilder().setAccentColor(0x5865F2).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 📜 LIGHTCORE • QUEUE\n" + (lines.join("\n") || "*No upcoming tracks.*")))], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
         } else if (action === "vol_down" || action === "vol_up") {
           await fresh.setVolume(Math.max(0, Math.min(100, Number(fresh.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10))));
         } else if (action === "loop") {
