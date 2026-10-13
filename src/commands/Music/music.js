@@ -125,13 +125,27 @@ export default {
     if (!manager.lavalink || !manager.lavalink.useable) return fail("The music engine has no usable Lavalink node. Check the Render Lavalink host, port, password, TLS setting, and node logs; playback cannot work without a reachable node.");
 
     if (sub === "help") return reply([
-      "**Playback**", ".play <song or URL> · .search <query> · .pause · .resume · .skip · .back · .stop",
-      "**Queue**", ".queue [page] · .nowplaying · .shuffle · .remove <position> · .clear",
-      "**Sound**", ".volume <0-100> · .seek <seconds> · .loop <off|track|queue> · .autoplay <on|off>",
-      "**Control panel**", ".music panel or .musicpanel — interactive player and server settings dashboard",
-      "**Server configuration**", ".music config · .music config volume <1-100> · .music config maxqueue <10-500>",
-      ".music config djrole <role ID|off> · .music config announce <on|off> · .music config source <ytmsearch|ytsearch|scsearch>",
-      "", "Requires a reachable Lavalink v4 node with a compatible source plugin. Server settings are saved to Neon."
+      "**🎧 Playback**",
+      "`.play <song or URL>` · `.search <query>` · `.pause` · `.resume` · `.skip` · `.back` · `.stop`",
+      "`.nowplaying` — show the current track and interactive track controls",
+      "",
+      "**📜 Queue**",
+      "`.queue [page]` · `.shuffle` · `.remove <position>` · `.clear`",
+      "",
+      "**🔊 Sound & playback modes**",
+      "`.volume <0-100>` · `.seek <seconds>` · `.loop <off|track|queue>` · `.autoplay <on|off>`",
+      "",
+      "**🎛️ Interactive controls**",
+      "`.music panel` / `.musicpanel` — player dashboard with previous, pause/resume, skip, stop, queue, volume, loop and shuffle controls",
+      "",
+      "**⚙️ Server settings** *(Manage Server required)*",
+      "`.musicsetting` — dedicated interactive settings panel",
+      "`.music config` — view settings",
+      "`.music config volume <1-100>` · `.music config maxqueue <10-500>`",
+      "`.music config djrole <role ID|off>` · `.music config announce <on|off>`",
+      "`.music config autoplay <on|off>` · `.music config source <ytmsearch|ytsearch|scsearch>`",
+      "",
+      "Settings are stored per server in Neon. Playback requires a reachable Lavalink v4 node and compatible source plugin."
     ].join("\n"), "🎛️ AeroX Music Help");
 
     if (sub === "config") {
