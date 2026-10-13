@@ -24,7 +24,7 @@ const duration = ms => {
   return hours ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0") : minutes + ":" + String(seconds % 60).padStart(2, "0");
 };
 const titleOf = track => clean(track?.info?.title || "Unknown track");
-const artworkOf = track => { const value = track?.info?.artworkUrl || track?.info?.thumbnail || track?.info?.image; return /^https?:\\/\\//i.test(String(value || "")) ? value : null; };
+const artworkOf = track => { const value = track?.info?.artworkUrl || track?.info?.thumbnail || track?.info?.image; return /^https?:\/\//i.test(String(value || "")) ? value : null; };
 const trackLink = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
 
 function categoryMenu(category) {
