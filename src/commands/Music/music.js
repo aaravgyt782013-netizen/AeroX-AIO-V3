@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { config } from "#config/config";
 import { openMusicPanel } from "./panel.js";
 
@@ -15,8 +15,10 @@ const trackTitle = track => safeText(track?.info?.title || "Unknown track");
 const trackUrl = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
 
 function embed(title, description, color = COLORS.info) {
-  return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description)
-    .setFooter({ text: "LightCore Music • Use .music help for all commands" }).setTimestamp();
+  return new ContainerBuilder().setAccentColor(color)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("# ❄️ LIGHTCORE • " + safeText(title, 90) + "\n" + String(description || "No details provided.").slice(0, 3500)))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🎧 LightCore Music • Use .music help for commands"));
 }
 function playerControls(player, settings) {
   return [
@@ -125,7 +127,7 @@ export default {
     const sub = String(args.shift() || "help").toLowerCase();
     const settings = manager.getSettings(guildId);
     let player = manager.getPlayer(guildId);
-    const reply = (description, title = "LightCore Music", color = COLORS.info) => message.reply({ embeds: [embed(title, description, color)] });
+    const reply = (description, title = "LightCore Music", color = COLORS.info) => message.reply({ components: [embed(title, description, color)], flags: MessageFlags.IsComponentsV2 });
     const fail = text => reply(text, "Music action unavailable", COLORS.error);
 
     if (!config.music.enabled) return fail("Music is disabled by the bot owner.");
@@ -253,7 +255,7 @@ export default {
               await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\\nThe player has stopped and LightCore has left the voice channel."))] }); return;
             case "queue": {
               const list = fresh.queue.tracks || [];
-              return interaction.reply({ embeds: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], ephemeral: true });
+              return interaction.reply({ components: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
             }
             case "vol_down": await fresh.setVolume(Math.max(0, Number(fresh.volume ?? 70) - 10)); break;
             case "vol_up": await fresh.setVolume(Math.min(100, Number(fresh.volume ?? 70) + 10)); break;
