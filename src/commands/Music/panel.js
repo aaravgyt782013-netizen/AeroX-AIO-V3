@@ -378,7 +378,7 @@ export async function openMusicSettingsPanel({ client, message }) {
   let category = "playback";
   let selection = null;
   const sent = await message.reply({ ...buildServerSettingsPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
-  const collector = sent.createMessageComponentCollector({ time: 15 * 60_000 });
+  const collector = sent.createMessageComponentCollector();
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This settings panel belongs to another server.", ephemeral: true }).catch(() => {});
     const actor = await message.guild.members.fetch(interaction.user.id).catch(() => null);
@@ -428,6 +428,6 @@ export async function openMusicSettingsPanel({ client, message }) {
       else await interaction.reply({ content: "Could not save that setting: " + detail, ephemeral: true }).catch(() => {});
     }
   });
-  collector.on("end", () => sent.edit({ components: [buildServerSettingsPanel(client, message.guild, category, selection).components[0]] }).catch(() => {}));
+  // Keep settings controls active; do not remove their components after 15 minutes.
   return sent;
 }
