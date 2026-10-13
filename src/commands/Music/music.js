@@ -218,9 +218,9 @@ export default {
             case "toggle": if (fresh.paused) await fresh.resume(); else await fresh.pause(); break;
             case "skip": if (!fresh.queue.current) throw new Error("No current track."); await fresh.skip(); break;
             case "previous": {
-              const previous = fresh.get?.("previousTrack");
+              const previous = manager.previousTracks.get(guildId);
               if (!previous) throw new Error("No previous track is available in this player session.");
-              await fresh.queue.add(previous, 0); if (fresh.playing) await fresh.skip(); break;
+              fresh.queue.tracks.unshift(previous); if (fresh.playing) await fresh.skip(); break;
             }
             case "stop":
               await manager.lavalink.destroyPlayer(guildId, "control-stop");
@@ -264,9 +264,9 @@ export default {
         if (sub === "resume") { if (!player.paused) return reply("Playback is not paused."); await player.resume(); return reply("▶️ Resumed."); }
         if (sub === "skip") { if (!player.queue.current) return fail("There is no current track."); await player.skip(); return reply("⏭️ Skipped the current track.", "Skipped", COLORS.success); }
         if (sub === "back") {
-          const previous = player.get?.("previousTrack");
+          const previous = manager.previousTracks.get(guildId);
           if (!previous) return fail("There is no previous track stored in this player session.");
-          await player.queue.add(previous, 0); await player.skip(); return reply("⏮️ Returned to the previous track.");
+          player.queue.tracks.unshift(previous); await player.skip(); return reply("⏮️ Returned to the previous track.");
         }
         if (sub === "stop") { await manager.lavalink.destroyPlayer(guildId, "user-stop"); return reply("⏹️ Playback stopped and I left the voice channel.", "Stopped", COLORS.success); }
         if (sub === "volume") {
