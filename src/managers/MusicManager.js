@@ -158,21 +158,31 @@ export class MusicManager {
 
   trackEmbed(player, track) {
     const info = track?.info || {};
-    const url = String(info.uri || "").startsWith("http://") || String(info.uri || "").startsWith("https://") ? info.uri : null;
+    const url = /^https?:\/\//i.test(String(info.uri || "")) ? info.uri : null;
+    const total = Math.max(0, Number(info.duration || 0));
+    const position = Math.min(total || Number.MAX_SAFE_INTEGER, Math.max(0, Number(player?.position || 0)));
+    const marker = total ? Math.min(13, Math.floor((position / total) * 13)) : 0;
+    const progressBar = Array.from({ length: 14 }, (_, index) => index === marker ? "🔘" : "▬").join("");
+    const progress = info.isStream
+      ? "🔴 **LIVE STREAM**"
+      : total
+        ? progressBar + "\n`" + this.formatDuration(position) + " / " + this.formatDuration(total) + "`"
+        : "Duration unavailable";
+    const title = this.escape(info.title || "Unknown track");
     const embed = new EmbedBuilder().setColor(0x5865F2)
       .setAuthor({ name: "🎧 LIGHTCORE • NOW PLAYING", iconURL: this.client.user.displayAvatarURL() })
-      .setDescription(url ? "[" + this.escape(info.title || "Unknown track") + "](" + url + ")" : "**" + this.escape(info.title || "Unknown track") + "**")
+      .setDescription((url ? "[" + title + "](" + url + ")" : "**" + title + "**") + "\n\n" + progress)
       .addFields(
-        { name: "Artist", value: this.escape(info.author || "Unknown"), inline: true },
-        { name: "Duration", value: info.isStream ? "LIVE" : this.formatDuration(info.duration), inline: true },
-        { name: "Requested by", value: this.escape(track?.requester?.username || track?.requester?.tag || "A listener"), inline: true },
-        { name: "Volume", value: String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%", inline: true },
-        { name: "Queue", value: String(player?.queue?.tracks?.length || 0) + " upcoming", inline: true },
-        { name: "Repeat", value: this.getSettings(player.guildId).loop, inline: true }
+        { name: "🎤 Artist", value: this.escape(info.author || "Unknown artist"), inline: true },
+        { name: "⏱️ Duration", value: info.isStream ? "LIVE" : this.formatDuration(total), inline: true },
+        { name: "🙋 Requested by", value: this.escape(track?.requester?.username || track?.requester?.tag || "A listener"), inline: true },
+        { name: "🔊 Volume", value: String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%", inline: true },
+        { name: "📜 Queue", value: String(player?.queue?.tracks?.length || 0) + " upcoming", inline: true },
+        { name: "🔁 Repeat", value: this.getSettings(player.guildId).loop, inline: true }
       )
-      .setFooter({ text: "LightCore Music • Interactive controls operate the live player" })
+      .setFooter({ text: "LightCore Music • Use the controls below to manage playback" })
       .setTimestamp();
-    if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
+    if (info.artworkUrl && /^https?:\/\//i.test(info.artworkUrl)) embed.setThumbnail(info.artworkUrl);
     return embed;
   }
 
