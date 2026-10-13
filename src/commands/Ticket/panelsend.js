@@ -13,7 +13,7 @@ function renderPanelV2(style, guildName) {
   const description = data.description || "Choose a category below to open a ticket.";
   const container = new ContainerBuilder().setAccentColor(data.color || 0x5865F2)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# 🎫 LIGHTCORE • SUPPORT CENTER\\n## " + title + "\\n" + description
+      "# 🎫 LIGHTCORE • SUPPORT CENTER\n## " + title + "\n" + description
     ));
   if (data.image?.url && /^https?:\/\//i.test(data.image.url)) {
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
