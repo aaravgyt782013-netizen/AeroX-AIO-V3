@@ -139,7 +139,7 @@ export const emoji = {
   "megaphone": "📢",
   "infinity": "♾️",
   "settings": "⚙️",
-  "lightcore": "<:aerox:1461688862874009682>",
+  "lightcore": "❄️",
   "aerox": "<:aerox:1461688862874009682>"
 };
 
