@@ -180,7 +180,7 @@ export async function openMusicPanel({ client, message }) {
   if (!client.music) return message.reply("The music manager is not ready yet.");
   let category = "playback";
   const sent = await message.reply({ ...buildPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
-  const collector = sent.createMessageComponentCollector({ time: 15 * 60_000 });
+  const collector = sent.createMessageComponentCollector();
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This panel belongs to another server.", ephemeral: true }).catch(() => {});
     const actor = await message.guild.members.fetch(interaction.user.id).catch(() => null);
@@ -282,7 +282,7 @@ export async function openMusicPanel({ client, message }) {
       else await interaction.reply({ content: "That panel action failed: " + text, ephemeral: true }).catch(() => {});
     }
   });
-  collector.on("end", () => sent.edit({ components: [buildPanel(client, message.guild, category).components[0]] }).catch(() => {}));
+  // Keep dashboard controls active for the lifetime of the bot process; do not strip buttons after 15 minutes.
   return sent;
 }
 
