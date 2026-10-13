@@ -9,6 +9,7 @@ export function parseColor(value, fallback = DEFAULTS.color) {
 }
 export function buildTicketEmbed(style = {}, vars = {}) {
   const e = new EmbedBuilder().setColor(parseColor(style.color));
+  if (!style.authorName) e.setAuthor({ name: "LIGHTCORE • SUPPORT CENTER" });
   const title = String(style.title ?? DEFAULTS.title).replaceAll("{server}", vars.server ?? "");
   const description = String(style.description ?? DEFAULTS.description).replaceAll("{server}", vars.server ?? "");
   if (style.panelEmoji && title && !title.startsWith(String(style.panelEmoji))) e.setTitle(String(style.panelEmoji) + " " + title.slice(0, 245));
