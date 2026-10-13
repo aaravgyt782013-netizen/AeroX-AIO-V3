@@ -160,7 +160,7 @@ export async function openMusicPanel({ client, message }) {
     let player = manager.getPlayer(message.guild.id);
     const settings = manager.getSettings(message.guild.id);
     const action = interaction.customId.split(":").at(-1);
-    const isSettings = ["category", "setting", "djrole", "clear_dj"].includes(action);
+    const isSettings = ["category", "setting", "djrole", "clear_dj", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
     if (isSettings && !actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
