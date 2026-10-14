@@ -4,7 +4,7 @@ dotenv.config();
 const parseLavalinkNodes = () => {
   const explicit = (process.env.LAVALINK_NODES || "").trim();
   if (explicit) {
-    return explicit.split(",").map((entry, index) => {
+    return explicit.split(",").slice(0, 2).map((entry, index) => {
       const parts = entry.trim().split(":");
       if (parts.length < 5) return null;
       const host = parts.shift();
@@ -39,6 +39,8 @@ const parseLavalinkNodes = () => {
   return definitions.filter(node => node.authorization && Number.isInteger(node.port) && node.port > 0);
 };
 
+const lavalinkNodes = parseLavalinkNodes();
+
 export const config = {
   token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
@@ -52,8 +54,8 @@ export const config = {
     enabled: process.env.MUSIC_ENABLED !== "false",
     defaultVolume: Math.min(100, Math.max(1, Number.parseInt(process.env.MUSIC_DEFAULT_VOLUME || "70", 10) || 70)),
     maxQueue: Math.min(500, Math.max(10, Number.parseInt(process.env.MUSIC_MAX_QUEUE || "100", 10) || 100)),
-    nodes: parseLavalinkNodes(),
-    node: process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : [],
+    nodes: lavalinkNodes,
+    node: lavalinkNodes.length ? [] : (process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : []),
   },
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/aerox" },
   status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: "CUSTOM" },
