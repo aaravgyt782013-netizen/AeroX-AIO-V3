@@ -13,6 +13,8 @@ const DEFAULTS = {
   maxQueue: config.music.maxQueue,
   djRoleId: null,
   announceNowPlaying: true,
+  showRequester: true,
+  showArtwork: true,
   announcementChannelId: null,
   requestChannelId: null,
   allowedVoiceChannelId: null,
@@ -203,7 +205,8 @@ export class MusicManager {
         ? progressBar + "\n`" + this.formatDuration(position) + " / " + this.formatDuration(total) + "`"
         : "Duration unavailable";
     const title = this.escape(info.title || "Unknown track");
-    const artwork = info.artworkUrl || info.thumbnail || info.image || null;
+    const settings = this.getSettings(player.guildId);
+    const artwork = settings.showArtwork ? (info.artworkUrl || info.thumbnail || info.image || null) : null;
     const playerSection = new SectionBuilder()
       .addTextDisplayComponents(new TextDisplayBuilder().setContent(
         "# ✦ LIGHTCORE • NOW PLAYING\n-# MUSIC FOR YOUR COMMUNITY\n" +
@@ -218,10 +221,10 @@ export class MusicManager {
       .addTextDisplayComponents(new TextDisplayBuilder().setContent([
         "🎤 **Artist:** " + this.escape(info.author || "Unknown artist"),
         "⏱️ **Duration:** " + (info.isStream ? "LIVE" : this.formatDuration(total)),
-        "🙋 **Requested by:** " + this.escape(track?.requester?.username || track?.requester?.tag || "A listener"),
-        "🔊 **Volume:** " + String(player?.volume ?? this.getSettings(player.guildId).defaultVolume) + "%",
+        ...(settings.showRequester ? ["🙋 **Requested by:** " + this.escape(track?.requester?.username || track?.requester?.tag || "A listener")] : []),
+        "🔊 **Volume:** " + String(player?.volume ?? settings.defaultVolume) + "%",
         "📜 **Queue:** " + String(player?.queue?.tracks?.length || 0) + " upcoming",
-        "🔁 **Repeat:** " + this.getSettings(player.guildId).loop
+        "🔁 **Repeat:** " + settings.loop
       ].join("\n")))
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Use the buttons below to control playback"));
