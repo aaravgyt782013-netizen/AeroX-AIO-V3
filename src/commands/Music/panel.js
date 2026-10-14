@@ -249,7 +249,7 @@ export async function openMusicPanel({ client, message }) {
   if (!message.guild || !message.member) return;
   if (!client.music) return message.reply("The music manager is not ready yet.");
   let category = "playback";
-  const sent = await message.reply({ ...buildPlayerMessage(client, message.guild), flags: MessageFlags.IsComponentsV2 });
+  const sent = await message.reply({ ...buildPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector();
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This panel belongs to another server.", ephemeral: true }).catch(() => {});
@@ -377,7 +377,7 @@ export async function openMusicPanel({ client, message }) {
           await manager.updateSettings(message.guild.id, { autoplay: !settings.autoplay });
         }
       }
-      await interaction.update(buildPlayerMessage(client, message.guild));
+      await interaction.update(buildPanel(client, message.guild, category));
     } catch (error) {
       const text = clean(error?.message || error);
       if (interaction.deferred || interaction.replied) await interaction.followUp({ content: "That panel action failed: " + text, ephemeral: true }).catch(() => {});
