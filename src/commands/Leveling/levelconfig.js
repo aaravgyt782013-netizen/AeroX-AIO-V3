@@ -82,7 +82,7 @@ class LevelConfigCommand extends Command {
           "`levelconfig message <text>` — set a custom level-up message (Guild Premium)",
           "`levelconfig message reset` — restore the default level-up message",
           "`levelconfig enabled on/off` — toggle leveling",
-        ].join("\n"))
+        ].join("\n")))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🛡️ Manage Server permission required."));
       return message.reply({ components: [panel], flags: MessageFlags.IsComponentsV2 });

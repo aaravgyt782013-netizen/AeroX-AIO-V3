@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, SectionBuilder, ThumbnailBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { config } from "#config/config";
 import { openMusicPanel } from "./panel.js";
 
@@ -13,59 +13,11 @@ const duration = ms => {
 };
 const trackTitle = track => safeText(track?.info?.title || "Unknown track");
 const trackUrl = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
-
 function embed(title, description, color = COLORS.info) {
   return new ContainerBuilder().setAccentColor(color)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("# ❄️ LIGHTCORE • " + safeText(title, 90) + "\n" + String(description || "No details provided.").slice(0, 3500)))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🎧 LightCore Music • Use .music help for commands"));
-}
-function playerControls(player, settings) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(player.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:vol_down").setLabel("Volume −").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:vol_up").setLabel("Volume +").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:loop").setLabel("Loop: " + (settings.loop || "off")).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:autoplay").setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
-    )
-  ];
-}
-function nowPlayingEmbed(player, track) {
-  const info = track?.info || {};
-  const url = trackUrl(track);
-  const progress = info.isStream ? "🔴 **LIVE**" : "`" + duration(player.position || 0) + " / " + duration(info.duration) + "`";
-  const artwork = info.artworkUrl || info.thumbnail || info.image || null;
-  const playerSection = new SectionBuilder()
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ✦ LIGHTCORE • NOW PLAYING\n-# MUSIC FOR YOUR COMMUNITY\n" +
-      (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + "\n\n" + progress
-    ));
-  if (/^https?:\/\//i.test(String(artwork || ""))) {
-    playerSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Album artwork for " + trackTitle(track)));
-  }
-  return new ContainerBuilder().setAccentColor(COLORS.info)
-    .addSectionComponents(playerSection)
-    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent([
-      "🎤 **Artist:** " + safeText(info.author || "Unknown", 100),
-      "⏱️ **Duration:** " + (info.isStream ? "LIVE" : duration(info.duration)),
-      "🙋 **Requested by:** " + safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100),
-      "📜 **Queue:** " + String(player.queue?.tracks?.length || 0) + " upcoming",
-      "🔊 **Volume:** " + String(player.volume ?? 70) + "%"
-    ].join("\n")))
-    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Interactive controls"));
 }
 function voiceCheck(message, player, member = message.member) {
   const voice = member?.voice?.channel;
@@ -87,6 +39,25 @@ async function addTracks(player, tracks, maxQueue) {
   for (const track of accepted) await player.queue.add(track);
   if (accepted.length && !player.playing && !player.paused) await player.play();
   return { accepted: accepted.length, rejected: tracks.length - accepted.length };
+}
+
+// Try the configured source first, then compatible fallbacks. This avoids making
+// playback depend on a source plugin that may not be enabled on every Lavalink node.
+async function searchWithFallback(player, query, settings, requester, isUrl) {
+  const sources = isUrl
+    ? [null]
+    : [...new Set([settings.defaultSource, "ytmsearch", "ytsearch", "scsearch"].filter(Boolean))];
+  let lastError = null;
+  for (const source of sources) {
+    try {
+      const result = await player.search({ query, ...(source ? { source } : {}) }, requester);
+      if (result?.tracks?.length) return result;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) throw lastError;
+  return { tracks: [], loadType: "empty" };
 }
 async function sendSearchPicker(message, tracks, query, player, manager, settings) {
   const shown = tracks.slice(0, 5);
@@ -227,19 +198,37 @@ export default {
         if (!player.connected) await player.connect();
         if (typeof player.setRepeatMode === "function") await player.setRepeatMode(settings.loop || "off");
         const isUrl = /^https?:\/\//i.test(query);
-        const result = await player.search({ query, ...(isUrl ? {} : { source: settings.defaultSource }) }, message.author);
+        let result = await searchWithFallback(player, query, settings, message.author, isUrl);
+        // Spotify URLs are not directly playable on every Lavalink setup. If direct
+        // resolution fails, look up the track title and search a playable source.
+        if (!result?.tracks?.length && /^https?:\/\/(open\.)?spotify\.com\/(track|album|playlist)\//i.test(query)) {
+          try {
+            const response = await fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(query), { signal: AbortSignal.timeout(5000) });
+            if (response.ok) {
+              const metadata = await response.json();
+              const spotifyTitle = String(metadata?.title || "").trim();
+              if (spotifyTitle) result = await searchWithFallback(player, spotifyTitle, settings, message.author, false);
+            }
+          } catch { /* Keep the normal no-results response if Spotify metadata is unavailable. */ }
+        }
         const tracks = result?.tracks || [];
         if (!tracks.length) return fail("No playable results. Try another search or URL, and verify the Lavalink source plugin.");
         if (sub === "search") return sendSearchPicker(message, tracks, query, player, manager, settings);
         if (result.loadType === "playlist") {
+          const hadCurrentTrack = Boolean(player.queue?.current || player.playing || player.paused);
           const added = await addTracks(player, tracks, settings.maxQueue);
           if (!added.accepted) return fail("The queue is full (" + settings.maxQueue + " tracks).");
-          return reply("📚 Added " + added.accepted + " track(s) from **" + safeText(result.playlistInfo?.name || "playlist") + "**." + (added.rejected ? "\nSkipped " + added.rejected + " track(s) because the queue limit was reached." : ""), "Playlist queued", COLORS.success);
+          // Starting playback creates/updates the single persistent player panel, so
+          // avoid sending a second success message for the first track.
+          if (!hadCurrentTrack) return;
+          return reply("📚 Added " + added.accepted + " track(s) from **" + safeText(result.playlistInfo?.name || "playlist") + "** to the queue." + (added.rejected ? "\nSkipped " + added.rejected + " track(s) because the queue limit was reached." : ""), "Playlist queued", COLORS.success);
         }
         const track = tracks[0];
         if ((player.queue?.tracks?.length || 0) >= settings.maxQueue) return fail("The queue is full (" + settings.maxQueue + " tracks).");
+        const hadCurrentTrack = Boolean(player.queue?.current || player.playing || player.paused);
         await player.queue.add(track);
         if (!player.playing && !player.paused) await player.play();
+        if (!hadCurrentTrack) return;
         const url = trackUrl(track);
         return reply("🎶 Added " + (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + " · " + duration(track.info?.duration) + "\nRequested by " + message.author + ".", "Added to queue", COLORS.success);
       } catch (error) { return fail("Playback request failed: " + safeText(error?.message || error, 220)); }
@@ -247,90 +236,28 @@ export default {
 
     if (sub === "nowplaying" || sub === "np") {
       if (!player?.queue?.current) return fail("Nothing is playing right now. Use .play <song> to start.");
-      // Always route the now-playing command to the current unified LightCore dashboard,
-      // instead of creating a second, legacy player UI with a different control layout.
+      // Use the unified persistent player panel; do not create a second legacy controls message.
       return openMusicPanel({ client, message });
-      const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings)], flags: MessageFlags.IsComponentsV2 });
-      const collector = sent.createMessageComponentCollector();
-      collector.on("collect", async interaction => {
-        const fresh = manager.getPlayer(guildId);
-        if (!fresh) return interaction.reply({ content: "The player has ended. Start another track to continue.", ephemeral: true });
-        const actor = message.guild.members.cache.get(interaction.user.id) || await message.guild.members.fetch(interaction.user.id).catch(() => null);
-        if (!actor) return interaction.reply({ content: "I could not verify your server membership. Try again.", ephemeral: true });
-        const action = interaction.customId.split(":").at(-1);
-        if (action === "dashboard") {
-          try {
-            return await openMusicPanel({
-              client,
-              message: {
-                guild: interaction.guild,
-                member: actor,
-                reply: options => interaction.reply({
-                  ...options,
-                  flags: (options.flags || 0) | MessageFlags.Ephemeral,
-                  fetchReply: true
-                })
-              }
-            });
-          } catch {
-            return interaction.reply({ content: "Could not open the dashboard. Try .musicpanel in this server.", ephemeral: true }).catch(() => {});
-          }
-        }
-        const voiceError = voiceCheck(message, fresh, actor);
-        if (voiceError) return interaction.reply({ content: voiceError, ephemeral: true });
-        const accessError = djCheck(message, manager.getSettings(guildId), actor);
-        if (accessError) return interaction.reply({ content: accessError, ephemeral: true });
-        try {
-          switch (action) {
-            case "toggle": if (fresh.paused) await fresh.resume(); else await fresh.pause(); break;
-            case "skip": if (!fresh.queue.current) throw new Error("No current track."); await fresh.skip(); break;
-            case "previous": {
-              const previous = manager.previousTracks.get(guildId);
-              if (!previous) throw new Error("No previous track is available in this player session.");
-              fresh.queue.tracks.unshift(previous); if (fresh.playing) await fresh.skip(); break;
-            }
-            case "stop":
-              await manager.lavalink.destroyPlayer(guildId, "control-stop");
-              collector.stop("stopped");
-              await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nThe player has stopped and LightCore has left the voice channel."))] }); return;
-            case "queue": {
-              const list = fresh.queue.tracks || [];
-              return interaction.reply({ components: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
-            }
-            case "vol_down": await fresh.setVolume(Math.max(0, Number(fresh.volume ?? 70) - 10)); break;
-            case "vol_up": await fresh.setVolume(Math.min(100, Number(fresh.volume ?? 70) + 10)); break;
-            case "loop": {
-              const current = manager.getSettings(guildId);
-              const next = current.loop === "off" ? "track" : current.loop === "track" ? "queue" : "off";
-              await manager.updateSettings(guildId, { loop: next });
-              if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
-              break;
-            }
-            case "shuffle": await fresh.queue.shuffle(); break;
-            case "autoplay": {
-              const currentSettings = manager.getSettings(guildId);
-              await manager.updateSettings(guildId, { autoplay: !currentSettings.autoplay });
-              break;
-            }
-            default: return interaction.reply({ content: "Unknown player control.", ephemeral: true });
-          }
-          const updated = manager.getSettings(guildId);
-          const currentTrack = fresh.queue?.current;
-          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated) : [])] });
-        } catch (error) {
-          if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
-        }
-      });
-      // Keep the interactive now-playing controls active until playback is stopped or the message is deleted.
-      return;
     }
 
-    if (["pause", "resume", "skip", "back", "stop", "queue", "volume", "shuffle", "remove", "clear", "seek", "loop", "autoplay"].includes(sub)) {
+    if (sub === "autoplay") {
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("Only members with Manage Server can change server-wide autoplay settings.");
+      const value = String(args[0] || "").toLowerCase();
+      if (!["on", "off"].includes(value)) return fail("Use .autoplay on or .autoplay off.");
+      await manager.updateSettings(guildId, { autoplay: value === "on", ...(value === "on" ? { loop: "off" } : {}) });
+      if (value === "on" && player && typeof player.setRepeatMode === "function") await player.setRepeatMode("off");
+      return reply("Autoplay is now **" + value + "** for this server.", "Autoplay updated", COLORS.success);
+    }
+
+    if (["pause", "resume", "skip", "back", "stop", "queue", "volume", "shuffle", "remove", "clear", "seek", "loop"].includes(sub)) {
       const voiceError = voiceCheck(message, player);
       if (voiceError) return fail(voiceError);
       if (!player) return fail("There is no active player. Start one with .play <song>.");
       const accessError = djCheck(message, settings);
       if (accessError) return fail(accessError);
+      if (["clear", "remove"].includes(sub) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && (!settings.djRoleId || !message.member.roles.cache.has(settings.djRoleId))) {
+        return fail("Clearing or removing queued tracks requires Manage Server or the configured DJ role.");
+      }
       try {
         if (sub === "pause") { if (player.paused) return reply("Playback is already paused."); await player.pause(); return reply("⏸️ Paused."); }
         if (sub === "resume") { if (!player.paused) return reply("Playback is not paused."); await player.resume(); return reply("▶️ Resumed."); }
@@ -369,15 +296,9 @@ export default {
         if (sub === "loop") {
           const mode = String(args[0] || "").toLowerCase();
           if (!["off", "track", "queue"].includes(mode)) return fail("Use .loop off, .loop track, or .loop queue.");
-          await manager.updateSettings(guildId, { loop: mode });
+          await manager.updateSettings(guildId, { loop: mode, ...(mode !== "off" ? { autoplay: false } : {}) });
           if (typeof player.setRepeatMode === "function") await player.setRepeatMode(mode);
           return reply("🔁 Loop mode set to **" + mode + "**.", "Loop updated", COLORS.success);
-        }
-        if (sub === "autoplay") {
-          const value = String(args[0] || "").toLowerCase();
-          if (!["on", "off"].includes(value)) return fail("Use .autoplay on or .autoplay off.");
-          await manager.updateSettings(guildId, { autoplay: value === "on" });
-          return reply("Autoplay is now **" + value + "** for this server.", "Autoplay updated", COLORS.success);
         }
       } catch (error) { return fail("That action failed: " + safeText(error?.message || error, 220)); }
     }
