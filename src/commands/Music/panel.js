@@ -35,11 +35,13 @@ function categoryMenu(category) {
     .setPlaceholder("🧭  Navigate music settings")
     .setMinValues(1).setMaxValues(1)
     .addOptions(
-      { label: "Playback", value: "playback", description: "Volume, search source, repeat and autoplay", emoji: "🎧", default: category === "playback" },
-      { label: "Queue", value: "queue", description: "Queue limits and smart continuation", emoji: "📜", default: category === "queue" },
+      { label: "Playback", value: "playback", description: "Default volume, search source and repeat", emoji: "🎧", default: category === "playback" },
+      { label: "Queue", value: "queue", description: "Queue capacity and request handling", emoji: "📜", default: category === "queue" },
+      { label: "Smart Playback", value: "smartplayback", description: "Autoplay and automatic continuation", emoji: "✨", default: category === "smartplayback" },
       { label: "DJ & Permissions", value: "access", description: "DJ role and control permissions", emoji: "🛡️", default: category === "access" },
       { label: "Channels", value: "channels", description: "Restrict request and voice channels", emoji: "🔒", default: category === "channels" },
-      { label: "Announcements", value: "display", description: "Now-playing messages and channel", emoji: "📣", default: category === "display" }
+      { label: "Announcements", value: "display", description: "Per-song announcement messages", emoji: "📣", default: category === "display" },
+      { label: "Now Playing", value: "nowplaying", description: "Artwork and requester display", emoji: "🖼️", default: category === "nowplaying" }
     ));
 }
 
@@ -52,11 +54,15 @@ function settingMenu(category, settings) {
     { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with recommendations when the queue ends", emoji: "✨" }
   ];
   if (category === "queue") options = [
-    { label: "Queue capacity · " + settings.maxQueue, value: "maxQueue:" + settings.maxQueue, description: "Maximum upcoming tracks allowed per server", emoji: "📚" },
+    { label: "Queue capacity · " + settings.maxQueue, value: "maxQueue:" + settings.maxQueue, description: "Maximum upcoming tracks allowed per server", emoji: "📚" }
+  ];
+  if (category === "smartplayback") options = [
     { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with similar music when the queue ends", emoji: "✨" }
   ];
   if (category === "display") options = [
-    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Post a separate message for every new song", emoji: "📣" },
+    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Post a separate message for every new song", emoji: "📣" }
+  ];
+  if (category === "nowplaying") options = [
     { label: "Show requester · " + (settings.showRequester ? "On" : "Off"), value: "showRequester:" + (settings.showRequester ? "on" : "off"), description: "Display who requested the current track", emoji: "🙋" },
     { label: "Show artwork · " + (settings.showArtwork ? "On" : "Off"), value: "showArtwork:" + (settings.showArtwork ? "on" : "off"), description: "Display track artwork when the source provides it", emoji: "🖼️" }
   ];
@@ -125,9 +131,19 @@ function buildPanel(client, guild, category) {
       detail: "**Starting volume** · " + settings.defaultVolume + "%\n**Search provider** · " + settings.defaultSource + "\n**Default repeat** · " + settings.loop + "\n**Autoplay** · " + (settings.autoplay ? "Enabled" : "Disabled")
     },
     queue: {
-      icon: "📚", title: "Queue & discovery",
-      description: "Keep requests manageable and decide what happens when the queue runs out.",
-      detail: "**Queue capacity** · " + settings.maxQueue + " tracks\n**Autoplay** · " + (settings.autoplay ? "Enabled" : "Disabled") + "\n\n-# Queue limits apply to new requests and playlists."
+      icon: "📚", title: "Queue management",
+      description: "Control how many tracks listeners can add to the server queue.",
+      detail: "**Queue capacity** · " + settings.maxQueue + " tracks\n\n-# The limit is applied when tracks are added."
+    },
+    smartplayback: {
+      icon: "✨", title: "Smart playback",
+      description: "Choose whether LightCore automatically finds another track when the queue ends.",
+      detail: "**Autoplay** · " + (settings.autoplay ? "Enabled" : "Disabled") + "\n**Default repeat** · " + settings.loop + "\n\n-# Autoplay is saved per server."
+    },
+    nowplaying: {
+      icon: "🖼️", title: "Now-playing appearance",
+      description: "Customise the details shown in LightCore's live player and track messages.",
+      detail: "**Artwork** · " + (settings.showArtwork ? "Shown when available" : "Hidden") + "\n**Requester** · " + (settings.showRequester ? "Shown" : "Hidden") + "\n\n-# Artwork availability depends on the music source."
     },
     access: {
       icon: "🛡️", title: "DJ access control",
@@ -210,7 +226,7 @@ function buildPanel(client, guild, category) {
       new ButtonBuilder().setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction").setEmoji("🔓").setStyle(ButtonStyle.Secondary)
     ));
   }
-  if (category === "playback" || category === "queue") rows.push(...controls(player, settings));
+  if (category === "playback" || category === "queue" || category === "smartplayback") rows.push(...controls(player, settings));
   return { components: [hero, settingsCard, ...rows] };
 }
 
@@ -402,10 +418,23 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
     },
     queue: {
       icon: "📚", title: "Queue",
-      intro: "Set healthy limits for requests and automatic continuation.",
+      intro: "Set the maximum number of upcoming tracks listeners may queue.",
+      summary: ["**Maximum queue**  ·  " + settings.maxQueue + " tracks"].join("\n")
+    },
+    smartplayback: {
+      icon: "✨", title: "Smart Playback",
+      intro: "Control automatic continuation when the current queue finishes.",
       summary: [
-        "**Maximum queue**  ·  " + settings.maxQueue + " tracks",
-        "**Autoplay**  ·  " + (settings.autoplay ? "🟢 Enabled" : "⚪ Disabled")
+        "**Autoplay**  ·  " + (settings.autoplay ? "🟢 Enabled" : "⚪ Disabled"),
+        "**Default repeat**  ·  " + settings.loop
+      ].join("\n")
+    },
+    nowplaying: {
+      icon: "🖼️", title: "Now Playing",
+      intro: "Choose which track details appear in the live player and announcements.",
+      summary: [
+        "**Artwork**  ·  " + (settings.showArtwork ? "🟢 Shown when available" : "⚪ Hidden"),
+        "**Requester**  ·  " + (settings.showRequester ? "🟢 Shown" : "⚪ Hidden")
       ].join("\n")
     },
     channels: {
@@ -437,8 +466,8 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
   const section = sections[category] || sections.playback;
   const settingsHeader = new SectionBuilder()
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ✦ LIGHTCORE SETTINGS\n-# SERVER CONTROL CENTER\n## " + clean(guild.name) +
-      "\nTune playback, queue behavior, access and player announcements. Changes save automatically."
+      "# ✦ LIGHTCORE • MUSIC CONTROL CENTER\n-# SERVER CONFIGURATION\n## " + clean(guild.name) +
+      "\nManage playback, queue, smart playback, DJ permissions, channel restrictions, announcements and now-playing layout. Changes save automatically."
     ));
   const serverIcon = typeof guild.iconURL === "function" ? guild.iconURL({ extension: "png", size: 256 }) : null;
   if (serverIcon) settingsHeader.setThumbnailAccessory(new ThumbnailBuilder().setURL(serverIcon).setDescription(clean(guild.name) + " server icon"));
