@@ -762,7 +762,7 @@ export async function openMusicSettingsPanel({ client, message }) {
         selection = null;
       } else if (action === "loop_setting") {
         const mode = interaction.values[0];
-        await client.music.updateSettings(message.guild.id, { loop: mode });
+        await client.music.updateSettings(message.guild.id, { loop: mode, ...(mode !== "off" ? { autoplay: false } : {}) });
         const activePlayer = client.music.getPlayer(message.guild.id);
         if (activePlayer && typeof activePlayer.setRepeatMode === "function") await activePlayer.setRepeatMode(mode);
         selection = null;
