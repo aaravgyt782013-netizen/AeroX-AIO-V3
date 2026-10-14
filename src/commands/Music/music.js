@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, SectionBuilder, ThumbnailBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { config } from "#config/config";
 import { openMusicPanel } from "./panel.js";
 
@@ -13,70 +13,11 @@ const duration = ms => {
 };
 const trackTitle = track => safeText(track?.info?.title || "Unknown track");
 const trackUrl = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
-function registeredEmoji(client, names, fallback) {
-  const wanted = (Array.isArray(names) ? names : [names]).map(name => String(name).toLowerCase());
-  const pools = [client?.application?.emojis?.cache, client?.emojis?.cache];
-  for (const guild of client?.guilds?.cache?.values?.() || []) pools.push(guild.emojis?.cache);
-  for (const pool of pools) {
-    if (!pool) continue;
-    const found = pool.find?.(emoji => wanted.some(name => emoji.name?.toLowerCase() === name || emoji.name?.toLowerCase().includes(name)));
-    if (found) return { id: found.id, name: found.name, animated: Boolean(found.animated) };
-  }
-  return fallback;
-}
-
 function embed(title, description, color = COLORS.info) {
   return new ContainerBuilder().setAccentColor(color)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("# ❄️ LIGHTCORE • " + safeText(title, 90) + "\n" + String(description || "No details provided.").slice(0, 3500)))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🎧 LightCore Music • Use .music help for commands"));
-}
-function playerControls(player, settings, client) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji(registeredEmoji(client, ["previous", "back"], "⏮️")).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(registeredEmoji(client, [player.paused ? "play" : "pause"], player.paused ? "▶️" : "⏸️")).setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji(registeredEmoji(client, ["skip", "next"], "⏭️")).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji(registeredEmoji(client, ["stop"], "⏹️")).setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji(registeredEmoji(client, ["queue", "playlist"], "📜")).setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:vol_down").setLabel("Volume −").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:vol_up").setLabel("Volume +").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:loop").setLabel("Loop: " + (settings.loop || "off")).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:autoplay").setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji(registeredEmoji(client, ["settings", "dashboard", "music"], "🎛️")).setStyle(ButtonStyle.Primary)
-    )
-  ];
-}
-function nowPlayingEmbed(player, track) {
-  const info = track?.info || {};
-  const url = trackUrl(track);
-  const progress = info.isStream ? "🔴 **LIVE**" : "`" + duration(player.position || 0) + " / " + duration(info.duration) + "`";
-  const artwork = info.artworkUrl || info.thumbnail || info.image || null;
-  const playerSection = new SectionBuilder()
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ✦ LIGHTCORE • NOW PLAYING\n-# MUSIC FOR YOUR COMMUNITY\n" +
-      (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + "\n\n" + progress
-    ));
-  if (/^https?:\/\//i.test(String(artwork || ""))) {
-    playerSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Album artwork for " + trackTitle(track)));
-  }
-  return new ContainerBuilder().setAccentColor(COLORS.info)
-    .addSectionComponents(playerSection)
-    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent([
-      "🎤 **Artist:** " + safeText(info.author || "Unknown", 100),
-      "⏱️ **Duration:** " + (info.isStream ? "LIVE" : duration(info.duration)),
-      "🙋 **Requested by:** " + safeText(track?.requester?.username || track?.requester?.tag || "A listener", 100),
-      "📜 **Queue:** " + String(player.queue?.tracks?.length || 0) + " upcoming",
-      "🔊 **Volume:** " + String(player.volume ?? 70) + "%"
-    ].join("\n")))
-    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Interactive controls"));
 }
 function voiceCheck(message, player, member = message.member) {
   const voice = member?.voice?.channel;
