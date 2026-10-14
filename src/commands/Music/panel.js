@@ -90,7 +90,11 @@ function controls(player, settings) {
     new ButtonBuilder().setCustomId("aerox_panel:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary).setDisabled((player?.queue?.tracks?.length || 0) < 2),
     new ButtonBuilder().setCustomId("aerox_panel:autoplay").setLabel("Autoplay " + (settings.autoplay ? "On" : "Off")).setEmoji("✨").setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
-  return [primary, secondary];
+  const seeking = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("aerox_panel:seek_back").setLabel("−10 sec").setEmoji("⏪").setStyle(ButtonStyle.Secondary).setDisabled(!active || !player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
+    new ButtonBuilder().setCustomId("aerox_panel:seek_forward").setLabel("+10 sec").setEmoji("⏩").setStyle(ButtonStyle.Secondary).setDisabled(!active || !player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
+  );
+  return [primary, secondary, seeking];
 }
 
 function buildDashboard(client, guild) {
@@ -423,6 +427,14 @@ export async function openMusicPanel({ client, message }) {
         } else if (action === "vol_down" || action === "vol_up") {
           const nextVolume = Math.max(0, Math.min(100, Number(player.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10)));
           await player.setVolume(nextVolume);
+        } else if (action === "seek_back" || action === "seek_forward") {
+          const current = player.queue?.current;
+          const length = Number(current?.info?.duration || 0);
+          if (!current || current.info?.isStream || !length || typeof player.seek !== "function") {
+            return interaction.reply({ content: "Seeking is unavailable for this track.", ephemeral: true }).catch(() => {});
+          }
+          const target = Math.max(0, Math.min(length - 1000, Number(player.position || 0) + (action === "seek_forward" ? 10000 : -10000)));
+          await player.seek(target);
         } else if (action === "loop") {
           const next = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
           await manager.updateSettings(message.guild.id, { loop: next });
