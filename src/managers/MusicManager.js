@@ -440,10 +440,17 @@ export class MusicManager {
           await fresh.seek(target);
         } else if (action === "loop") {
           const next = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
-          await this.updateSettings(guildId, { loop: next });
+          // Loop and recommendation autoplay are mutually exclusive to avoid
+          // trapping the player on the same track when the queue becomes empty.
+          await this.updateSettings(guildId, { loop: next, ...(next !== "off" ? { autoplay: false } : {}) });
           if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
         } else if (action === "autoplay") {
-          await this.updateSettings(guildId, { autoplay: !settings.autoplay });
+          if (!actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
+            return interaction.reply({ content: "Only members with **Manage Server** can change server-wide autoplay.", ephemeral: true }).catch(() => {});
+          }
+          const enabling = !settings.autoplay;
+          await this.updateSettings(guildId, { autoplay: enabling, ...(enabling ? { loop: "off" } : {}) });
+          if (enabling && typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode("off");
         } else if (action === "shuffle") {
           if ((fresh.queue?.tracks?.length || 0) < 2) return interaction.reply({ content: "Add at least two upcoming tracks before shuffling.", ephemeral: true }).catch(() => {});
           await fresh.queue.shuffle();
