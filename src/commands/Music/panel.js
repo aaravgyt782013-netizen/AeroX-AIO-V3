@@ -17,6 +17,18 @@ import {
 } from "discord.js";
 
 const COLORS = { primary: 0x5865F2, success: 0x57F287, warning: 0xFEE75C, danger: 0xED4245 };
+function registeredEmoji(client, names, fallback) {
+  const wanted = (Array.isArray(names) ? names : [names]).map(name => String(name).toLowerCase());
+  const pools = [client?.application?.emojis?.cache, client?.emojis?.cache];
+  for (const guild of client?.guilds?.cache?.values?.() || []) pools.push(guild.emojis?.cache);
+  for (const pool of pools) {
+    if (!pool) continue;
+    const found = pool.find?.(emoji => wanted.some(name => emoji.name?.toLowerCase() === name || emoji.name?.toLowerCase().includes(name)));
+    if (found) return { id: found.id, name: found.name, animated: Boolean(found.animated) };
+  }
+  return fallback;
+}
+
 const clean = value => String(value ?? "").replace(/[@\\*_~]/g, "").replace(/[\r\n]/g, " ").slice(0, 150);
 const duration = ms => {
   if (!Number.isFinite(Number(ms)) || Number(ms) < 0) return "LIVE";
@@ -29,7 +41,7 @@ const titleOf = track => clean(track?.info?.title || "Unknown track");
 const artworkOf = track => { const value = track?.info?.artworkUrl || track?.info?.thumbnail || track?.info?.image; return /^https?:\/\//i.test(String(value || "")) ? value : null; };
 const trackLink = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
 
-function categoryMenu(category) {
+function categoryMenu(client, category) {
   return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
     .setCustomId("aerox_panel:category")
     .setPlaceholder("🧭  Navigate music settings")
@@ -45,7 +57,7 @@ function categoryMenu(category) {
     ));
 }
 
-function settingMenu(category, settings) {
+function settingMenu(client, category, settings) {
   let options = [];
   if (category === "playback") options = [
     { label: "Default volume · " + settings.defaultVolume + "%", value: "defaultVolume:" + settings.defaultVolume, description: "Choose the starting volume for new sessions", emoji: "🔊" },
@@ -74,25 +86,25 @@ function settingMenu(category, settings) {
     .addOptions(options));
 }
 
-function controls(player, settings) {
+function controls(client, player, settings) {
   const active = Boolean(player);
   const primary = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("aerox_panel:previous").setEmoji("⏮️").setLabel("Previous").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:toggle").setEmoji(player?.paused ? "▶️" : "⏸️").setLabel(player?.paused ? "Resume" : "Pause").setStyle(ButtonStyle.Primary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:skip").setEmoji("⏭️").setLabel("Skip").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:stop").setEmoji("⏹️").setLabel("Stop").setStyle(ButtonStyle.Danger).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:queue").setEmoji("📜").setLabel("Queue").setStyle(ButtonStyle.Secondary).setDisabled(!active)
+    new ButtonBuilder().setCustomId("aerox_panel:previous").setEmoji(registeredEmoji(client, ["previous", "back"], "⏮️")).setLabel("Previous").setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:toggle").setEmoji(registeredEmoji(client, [player?.paused ? "play" : "pause"], player?.paused ? "▶️" : "⏸️")).setLabel(player?.paused ? "Resume" : "Pause").setStyle(ButtonStyle.Primary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:skip").setEmoji(registeredEmoji(client, ["skip", "next"], "⏭️")).setLabel("Skip").setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:stop").setEmoji(registeredEmoji(client, ["stop"], "⏹️")).setLabel("Stop").setStyle(ButtonStyle.Danger).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:queue").setEmoji(registeredEmoji(client, ["queue", "playlist"], "📜")).setLabel("Queue").setStyle(ButtonStyle.Secondary).setDisabled(!active)
   );
   const secondary = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("aerox_panel:vol_down").setLabel("− 10").setEmoji("🔉").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:vol_up").setLabel("+ 10").setEmoji("🔊").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:loop").setLabel("Repeat · " + settings.loop).setEmoji("🔁").setStyle(ButtonStyle.Secondary).setDisabled(!active),
-    new ButtonBuilder().setCustomId("aerox_panel:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary).setDisabled((player?.queue?.tracks?.length || 0) < 2),
-    new ButtonBuilder().setCustomId("aerox_panel:autoplay").setLabel("Autoplay " + (settings.autoplay ? "On" : "Off")).setEmoji("✨").setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("aerox_panel:vol_down").setLabel("− 10").setEmoji(registeredEmoji(client, ["volume_down", "vol_down", "volume"], "🔉")).setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:vol_up").setLabel("+ 10").setEmoji(registeredEmoji(client, ["volume_up", "vol_up", "volume"], "🔊")).setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:loop").setLabel("Repeat · " + settings.loop).setEmoji(registeredEmoji(client, ["loop", "repeat"], "🔁")).setStyle(ButtonStyle.Secondary).setDisabled(!active),
+    new ButtonBuilder().setCustomId("aerox_panel:shuffle").setLabel("Shuffle").setEmoji(registeredEmoji(client, ["shuffle"], "🔀")).setStyle(ButtonStyle.Secondary).setDisabled((player?.queue?.tracks?.length || 0) < 2),
+    new ButtonBuilder().setCustomId("aerox_panel:autoplay").setLabel("Autoplay " + (settings.autoplay ? "On" : "Off")).setEmoji(registeredEmoji(client, ["autoplay", "sparkles"], "✨")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
   const seeking = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("aerox_panel:seek_back").setLabel("−10 sec").setEmoji("⏪").setStyle(ButtonStyle.Secondary).setDisabled(!active || !player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
-    new ButtonBuilder().setCustomId("aerox_panel:seek_forward").setLabel("+10 sec").setEmoji("⏩").setStyle(ButtonStyle.Secondary).setDisabled(!active || !player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
+    new ButtonBuilder().setCustomId("aerox_panel:seek_back").setLabel("−10 sec").setEmoji(registeredEmoji(client, ["seek_back", "rewind"], "⏪")).setStyle(ButtonStyle.Secondary).setDisabled(!active || !player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
+    new ButtonBuilder().setCustomId("aerox_panel:seek_forward").setLabel("+10 sec").setEmoji(registeredEmoji(client, ["seek_forward", "forward"], "⏩")).setStyle(ButtonStyle.Secondary).setDisabled(!active || !player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
   );
   return [primary, secondary, seeking];
 }
@@ -138,12 +150,12 @@ function buildDashboard(client, guild) {
       (upcoming.length > 3 ? "\n-# And " + (upcoming.length - 3) + " more track(s) in the queue." : "")
     ));
   const nav = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("aerox_panel:open_settings").setLabel("Server Settings").setEmoji("⚙️").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("aerox_panel:refresh").setLabel("Refresh").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("aerox_panel:clear_queue").setLabel("Clear Queue").setEmoji("🧹").setStyle(ButtonStyle.Danger).setDisabled(upcoming.length === 0),
-    new ButtonBuilder().setCustomId("aerox_panel:stay247").setLabel("24/7 · " + (settings.stay247 ? "On" : "Off")).setEmoji("♾️").setStyle(settings.stay247 ? ButtonStyle.Success : ButtonStyle.Secondary).setDisabled(!player && !settings.stay247)
+    new ButtonBuilder().setCustomId("aerox_panel:open_settings").setLabel("Server Settings").setEmoji(registeredEmoji(client, ["settings", "gear"], "⚙️")).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("aerox_panel:refresh").setLabel("Refresh").setEmoji(registeredEmoji(client, ["refresh", "reload"], "🔄")).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("aerox_panel:clear_queue").setLabel("Clear Queue").setEmoji(registeredEmoji(client, ["clear", "trash"], "🧹")).setStyle(ButtonStyle.Danger).setDisabled(upcoming.length === 0),
+    new ButtonBuilder().setCustomId("aerox_panel:stay247").setLabel("24/7 · " + (settings.stay247 ? "On" : "Off")).setEmoji(registeredEmoji(client, ["247", "infinity"], "♾️")).setStyle(settings.stay247 ? ButtonStyle.Success : ButtonStyle.Secondary).setDisabled(!player && !settings.stay247)
   );
-  return { components: [hero, ...controls(player, settings), nav] };
+  return { components: [hero, ...controls(client, player, settings), nav] };
 }
 
 function buildPlayerMessage(client, guild) {
@@ -155,10 +167,10 @@ function buildPlayerMessage(client, guild) {
     new ButtonBuilder()
       .setCustomId("aerox_panel:open_settings")
       .setLabel("Music Settings")
-      .setEmoji("⚙️")
+      .setEmoji(registeredEmoji(client, ["settings", "gear"], "⚙️"))
       .setStyle(ButtonStyle.Secondary)
   );
-  return { components: [hero, ...controls(player, settings), settingsButton] };
+  return { components: [hero, ...controls(client, player, settings), settingsButton] };
 }
 
 function buildPanel(client, guild, category) {
@@ -245,8 +257,8 @@ function buildPanel(client, guild, category) {
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LIGHTCORE  /  MUSIC SETTINGS  /  SAVED PER SERVER"));
 
-  const rows = [categoryMenu(category)];
-  const menu = settingMenu(category, settings);
+  const rows = [categoryMenu(client, category)];
+  const menu = settingMenu(client, category, settings);
   if (menu) rows.push(menu);
   if (category === "display") {
     rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
@@ -257,7 +269,7 @@ function buildPanel(client, guild, category) {
     rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
       .setCustomId("aerox_panel:clear_announce_channel")
       .setLabel("Use song request channel")
-      .setEmoji("↩️")
+      .setEmoji(registeredEmoji(client, ["back", "return"], "↩️"))
       .setStyle(ButtonStyle.Secondary)));
   }
   if (category === "channels") {
@@ -276,10 +288,10 @@ function buildPanel(client, guild, category) {
       .setPlaceholder("🛡️  Choose the DJ role for this server")
       .setMinValues(1).setMaxValues(1)));
     rows.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction").setEmoji("🔓").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction").setEmoji(registeredEmoji(client, ["unlock", "open"], "🔓")).setStyle(ButtonStyle.Secondary)
     ));
   }
-  if (category === "playback" || category === "queue" || category === "smartplayback") rows.push(...controls(player, settings));
+  if (category === "playback" || category === "queue" || category === "smartplayback") rows.push(...controls(client, player, settings));
   return { components: [hero, settingsCard, ...rows] };
 }
 
@@ -312,9 +324,9 @@ async function showQueue(interaction, player) {
         })))));
     }
     components.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_queue:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary).setDisabled(tracks.length < 2),
-      new ButtonBuilder().setCustomId("aerox_queue:clear").setLabel("Clear queue").setEmoji("🧹").setStyle(ButtonStyle.Danger).setDisabled(tracks.length === 0),
-      new ButtonBuilder().setCustomId("aerox_queue:refresh").setLabel("Refresh").setEmoji("🔄").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("aerox_queue:shuffle").setLabel("Shuffle").setEmoji(registeredEmoji(client, ["shuffle"], "🔀")).setStyle(ButtonStyle.Secondary).setDisabled(tracks.length < 2),
+      new ButtonBuilder().setCustomId("aerox_queue:clear").setLabel("Clear queue").setEmoji(registeredEmoji(client, ["clear", "trash"], "🧹")).setStyle(ButtonStyle.Danger).setDisabled(tracks.length === 0),
+      new ButtonBuilder().setCustomId("aerox_queue:refresh").setLabel("Refresh").setEmoji(registeredEmoji(client, ["refresh", "reload"], "🔄")).setStyle(ButtonStyle.Primary)
     ));
     return { components };
   };
@@ -335,7 +347,10 @@ async function showQueue(interaction, player) {
     if (control.customId !== "aerox_queue:refresh") {
       if (!member.voice.channel) return control.reply({ content: "Join a voice channel first to manage the queue.", ephemeral: true }).catch(() => {});
       if (active?.voiceChannelId && member.voice.channel.id !== active.voiceChannelId) return control.reply({ content: "Join the same voice channel as LightCore first.", ephemeral: true }).catch(() => {});
-      if (!member.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !member.roles.cache.has(settings.djRoleId)) {
+      const destructive = ["aerox_queue:clear", "aerox_queue:remove"].includes(control.customId);
+      const hasDJAccess = member.permissions.has(PermissionFlagsBits.ManageGuild) || Boolean(settings.djRoleId && member.roles.cache.has(settings.djRoleId));
+      if (destructive && !hasDJAccess) return control.reply({ content: "Removing or clearing queued tracks requires Manage Server or the configured DJ role.", ephemeral: true }).catch(() => {});
+      if (!destructive && settings.djRoleId && !member.permissions.has(PermissionFlagsBits.ManageGuild) && !member.roles.cache.has(settings.djRoleId)) {
         return control.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to manage the queue.", ephemeral: true }).catch(() => {});
       }
     }
@@ -387,6 +402,8 @@ export async function openMusicPanel({ client, message }) {
     const settings = manager.getSettings(message.guild.id);
     const action = interaction.customId.split(":").at(-1);
     const isSettings = ["open_settings", "category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "request_channel", "clear_request_channel", "voice_channel", "clear_voice_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay", "stay247"].includes(action);
+    const hasDJAccess = actor.permissions.has(PermissionFlagsBits.ManageGuild) || Boolean(settings.djRoleId && actor.roles.cache.has(settings.djRoleId));
+    if (action === "clear_queue" && !hasDJAccess) return interaction.reply({ content: "Clearing the queue requires Manage Server or the configured DJ role.", ephemeral: true }).catch(() => {});
     if (isSettings && !actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
@@ -433,27 +450,31 @@ export async function openMusicPanel({ client, message }) {
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
             .setCustomId("aerox_panel:volume_setting").setPlaceholder("Choose the default volume")
             .addOptions(choices.map(n => ({ label: n + "%", value: String(n), default: n === settings.defaultVolume }))));
-          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(client, category), row, ...controls(client, player, settings)] });
         }
         if (key === "maxQueue") {
           const choices = [25, 50, 100, 250, 500];
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
             .setCustomId("aerox_panel:queue_setting").setPlaceholder("Choose the maximum queue size")
             .addOptions(choices.map(n => ({ label: n + " tracks", value: String(n), default: n === settings.maxQueue }))));
-          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(client, category), row, ...controls(client, player, settings)] });
         }
         if (key === "defaultSource") {
           const choices = [{ label: "YouTube Music", value: "ytmsearch" }, { label: "YouTube", value: "ytsearch" }, { label: "SoundCloud", value: "scsearch" }];
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("aerox_panel:source_setting").setPlaceholder("Choose the default search source").addOptions(choices.map(option => ({ ...option, default: option.value === settings.defaultSource }))));
-          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(client, category), row, ...controls(client, player, settings)] });
         }
         if (key === "loop") {
           const choices = ["off", "track", "queue"];
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("aerox_panel:loop_setting").setPlaceholder("Choose the default repeat mode").addOptions(choices.map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, default: mode === settings.loop }))));
-          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
+          return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(client, category), row, ...controls(client, player, settings)] });
         }
         if (["autoplay", "announceNowPlaying", "showRequester", "showArtwork"].includes(key)) patch[key] = value === "on";
-        if (Object.keys(patch).length) await manager.updateSettings(message.guild.id, patch);
+        if (key === "autoplay" && value === "on") patch.loop = "off";
+        if (Object.keys(patch).length) {
+          await manager.updateSettings(message.guild.id, patch);
+          if (patch.autoplay === true) { const activePlayer = manager.getPlayer(message.guild.id); if (activePlayer && typeof activePlayer.setRepeatMode === "function") await activePlayer.setRepeatMode("off"); }
+        }
       } else if (action === "volume_setting") {
         await manager.updateSettings(message.guild.id, { defaultVolume: Number(interaction.values[0]) });
       } else if (action === "queue_setting") {
@@ -536,7 +557,8 @@ export async function openMusicPanel({ client, message }) {
           if ((player.queue?.tracks?.length || 0) < 2) return interaction.reply({ content: "Add at least two upcoming tracks before shuffling.", ephemeral: true }).catch(() => {});
           await player.queue.shuffle();
         } else if (action === "autoplay") {
-          await manager.updateSettings(message.guild.id, { autoplay: !settings.autoplay });
+          await manager.updateSettings(message.guild.id, { autoplay: !settings.autoplay, ...(!settings.autoplay ? { loop: "off" } : {}) });
+          if (!settings.autoplay && player && typeof player.setRepeatMode === "function") await player.setRepeatMode("off");
         }
       }
       await interaction.update(buildDashboard(client, message.guild));
@@ -644,7 +666,7 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       "-# LIGHTCORE  /  SETTINGS  /  " + category.toUpperCase() + "\nOnly members with Manage Server can edit these options."
     ));
 
-  const rows = [categoryMenu(category)];
+  const rows = [categoryMenu(client, category)];
   if (category === "channels") {
     rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
       .setCustomId("aerox_panel:request_channel")
@@ -672,7 +694,7 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       .setPlaceholder(selection === "volume" ? "🔊  Select default volume" : selection === "queue" ? "📚  Select queue capacity" : selection === "source" ? "🔎  Select search provider" : "🔁  Select repeat mode")
       .addOptions(options)));
   } else {
-    const menu = settingMenu(category, settings);
+    const menu = settingMenu(client, category, settings);
     if (menu) rows.push(menu);
   }
   if (category === "display") {
@@ -684,7 +706,7 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
     rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
       .setCustomId("aerox_panel:clear_announce_channel")
       .setLabel("Use song request channel")
-      .setEmoji("↩️")
+      .setEmoji(registeredEmoji(client, ["back", "return"], "↩️"))
       .setStyle(ButtonStyle.Secondary)));
   }
   if (category === "access") {
@@ -693,7 +715,7 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       .setMinValues(1).setMaxValues(1)));
     rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
       .setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction")
-      .setEmoji("🔓").setStyle(ButtonStyle.Secondary)));
+      .setEmoji(registeredEmoji(client, ["unlock", "open"], "🔓")).setStyle(ButtonStyle.Secondary)));
   }
   return { components: [container, ...rows] };
 }
