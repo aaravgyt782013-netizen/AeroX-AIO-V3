@@ -31,14 +31,14 @@ function embed(title, description, color = COLORS.info) {
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🎧 LightCore Music • Use .music help for commands"));
 }
-function playerControls(player, settings) {
+function playerControls(player, settings, client) {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji(registeredEmoji(player.client, ["previous", "back"], "⏮️")).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(registeredEmoji(player.client, [player.paused ? "play" : "pause"], player.paused ? "▶️" : "⏸️")).setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji(registeredEmoji(player.client, ["skip", "next"], "⏭️")).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji(registeredEmoji(player.client, ["stop"], "⏹️")).setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji(registeredEmoji(player.client, ["queue", "playlist"], "📜")).setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji(registeredEmoji(client, ["previous", "back"], "⏮️")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(registeredEmoji(client, [player.paused ? "play" : "pause"], player.paused ? "▶️" : "⏸️")).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji(registeredEmoji(client, ["skip", "next"], "⏭️")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji(registeredEmoji(client, ["stop"], "⏹️")).setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji(registeredEmoji(client, ["queue", "playlist"], "📜")).setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("aerox_music:vol_down").setLabel("Volume −").setStyle(ButtonStyle.Secondary),
@@ -48,7 +48,7 @@ function playerControls(player, settings) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("aerox_music:autoplay").setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji(registeredEmoji(player.client, ["settings", "dashboard", "music"], "🎛️")).setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji(registeredEmoji(client, ["settings", "dashboard", "music"], "🎛️")).setStyle(ButtonStyle.Primary)
     )
   ];
 }
@@ -292,7 +292,7 @@ export default {
       // Always route the now-playing command to the current unified LightCore dashboard,
       // instead of creating a second, legacy player UI with a different control layout.
       return openMusicPanel({ client, message });
-      const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings)], flags: MessageFlags.IsComponentsV2 });
+      const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings, client)], flags: MessageFlags.IsComponentsV2 });
       const collector = sent.createMessageComponentCollector();
       collector.on("collect", async interaction => {
         const fresh = manager.getPlayer(guildId);
@@ -361,7 +361,7 @@ export default {
           }
           const updated = manager.getSettings(guildId);
           const currentTrack = fresh.queue?.current;
-          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated) : [])] });
+          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated, client) : [])] });
         } catch (error) {
           if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
         }
