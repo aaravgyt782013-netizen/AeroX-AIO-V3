@@ -8,6 +8,18 @@ import { loadNeonJsonSnapshot } from "#database/neon/snapshots";
 import { neonQuery } from "#database/neon/connection";
 
 const SETTINGS_FILE = path.resolve("database/data/music-settings.json");
+function registeredEmoji(client, names, fallback) {
+  const wanted = (Array.isArray(names) ? names : [names]).map(name => String(name).toLowerCase());
+  const pools = [client?.application?.emojis?.cache, client?.emojis?.cache];
+  for (const guild of client?.guilds?.cache?.values?.() || []) pools.push(guild.emojis?.cache);
+  for (const pool of pools) {
+    if (!pool) continue;
+    const found = pool.find?.(emoji => wanted.some(name => emoji.name?.toLowerCase() === name || emoji.name?.toLowerCase().includes(name)));
+    if (found) return { id: found.id, name: found.name, animated: Boolean(found.animated) };
+  }
+  return fallback;
+}
+
 const DEFAULTS = {
   defaultVolume: config.music.defaultVolume,
   maxQueue: config.music.maxQueue,
@@ -53,17 +65,32 @@ export class MusicManager {
             const settings = this.getSettings(player.guildId);
             if (!settings.autoplay || !lastPlayedTrack?.info?.title) return;
             const info = lastPlayedTrack.info;
-            const query = info.author ? info.author + " - " + info.title : info.title;
-            let result = null;
-            for (const source of [...new Set([settings.defaultSource, "ytmsearch", "ytsearch", "scsearch"].filter(Boolean))]) {
-              try {
-                result = await player.search({ query, source }, lastPlayedTrack.requester || "LightCore");
-                if (result?.tracks?.length) break;
-              } catch (error) {
-                logger.debug("Music", "Autoplay source " + source + " failed; trying the next source:", error);
+            // Autoplay must not inherit repeat-one mode or search the exact same title forever.
+            if (typeof player.setRepeatMode === "function") { try { await player.setRepeatMode("off"); } catch {} }
+            const queries = [
+              info.author ? info.author + " similar songs" : info.title + " similar songs",
+              info.author ? info.author + " radio" : info.title + " recommendations",
+              info.author ? info.author + " " + info.title : info.title
+            ];
+            const sources = [...new Set([settings.defaultSource, "ytmsearch", "ytsearch", "scsearch"].filter(Boolean))];
+            const recent = new Set([info.identifier, info.title].filter(Boolean).map(value => String(value).trim().toLowerCase()));
+            const queued = new Set((player.queue?.tracks || []).map(item => String(item.info?.identifier || item.info?.title || "").trim().toLowerCase()));
+            let next = null;
+            for (const query of queries) {
+              for (const source of sources) {
+                try {
+                  const result = await player.search({ query, source }, lastPlayedTrack.requester || "LightCore");
+                  next = (result?.tracks || []).find(item => {
+                    const itemInfo = item.info || {};
+                    const id = String(itemInfo.identifier || "").trim().toLowerCase();
+                    const title = String(itemInfo.title || "").trim().toLowerCase();
+                    return id && !recent.has(id) && !queued.has(id) && title && !recent.has(title) && !queued.has(title);
+                  }) || null;
+                  if (next) break;
+                } catch (error) { logger.debug("Music", "Autoplay source " + source + " failed; trying the next source:", error); }
               }
+              if (next) break;
             }
-            const next = result?.tracks?.find(track => track.info?.identifier !== info.identifier);
             if (next) await player.queue.add(next);
           }
         }
@@ -218,22 +245,22 @@ export class MusicManager {
     const settings = this.getSettings(player.guildId);
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aerox_track:previous").setLabel("Previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:toggle").setLabel(player?.paused ? "Resume" : "Pause").setEmoji(player?.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("aerox_track:skip").setLabel("Skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:stop").setLabel("Stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("aerox_track:queue").setLabel("Queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("aerox_track:previous").setLabel("Previous").setEmoji(registeredEmoji(this.client, ["previous", "back"], "⏮️")).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:toggle").setLabel(player?.paused ? "Resume" : "Pause").setEmoji(registeredEmoji(this.client, [player?.paused ? "play" : "pause"], player?.paused ? "▶️" : "⏸️")).setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("aerox_track:skip").setLabel("Skip").setEmoji(registeredEmoji(this.client, ["skip", "next"], "⏭️")).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:stop").setLabel("Stop").setEmoji(registeredEmoji(this.client, ["stop"], "⏹️")).setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("aerox_track:queue").setLabel("Queue").setEmoji(registeredEmoji(this.client, ["queue", "playlist"], "📜")).setStyle(ButtonStyle.Secondary)
       ),
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− 10").setEmoji("🔉").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ 10").setEmoji("🔊").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Repeat · " + settings.loop).setEmoji("🔁").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Full Control Panel").setEmoji("🎛️").setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− 10").setEmoji(registeredEmoji(this.client, ["volume_down", "vol_down", "volume"], "🔉")).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ 10").setEmoji(registeredEmoji(this.client, ["volume_up", "vol_up", "volume"], "🔊")).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Repeat · " + settings.loop).setEmoji(registeredEmoji(this.client, ["loop", "repeat"], "🔁")).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setEmoji(registeredEmoji(this.client, ["shuffle"], "🔀")).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Full Control Panel").setEmoji(registeredEmoji(this.client, ["settings", "dashboard", "music"], "🎛️")).setStyle(ButtonStyle.Success)
       ),
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aerox_track:seek_back").setLabel("−10 sec").setEmoji("⏪").setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
-        new ButtonBuilder().setCustomId("aerox_track:seek_forward").setLabel("+10 sec").setEmoji("⏩").setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
+        new ButtonBuilder().setCustomId("aerox_track:seek_back").setLabel("−10 sec").setEmoji(registeredEmoji(this.client, ["seek_back", "rewind"], "⏪")).setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
+        new ButtonBuilder().setCustomId("aerox_track:seek_forward").setLabel("+10 sec").setEmoji(registeredEmoji(this.client, ["seek_forward", "forward"], "⏩")).setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
       )
     ];
   }
@@ -289,57 +316,10 @@ export class MusicManager {
     let existing = this.trackPanels.get(guildId);
     const currentPlayer = this.getPlayer(guildId) || player;
     const currentTrack = currentPlayer.queue?.current || track;
+    const targetChannelId = settings.announceNowPlaying && settings.announcementChannelId ? settings.announcementChannelId : (player.textChannelId || settings.announcementChannelId);
+    const channel = targetChannelId ? (this.client.channels.cache.get(targetChannelId) || await this.client.channels.fetch(targetChannelId).catch(() => null)) : null;
 
-    // Send one announcement per track, with a button that opens the live control panel.
-    if (settings.announceNowPlaying) {
-      const channelId = settings.announcementChannelId || player.textChannelId;
-      const announcementChannel = channelId ? this.client.channels.cache.get(channelId) : null;
-      if (announcementChannel?.isTextBased()) {
-        try {
-          const announcementRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId("aerox_announcement:dashboard")
-              .setLabel("Open Music Control Panel")
-              .setEmoji("🎛️")
-              .setStyle(ButtonStyle.Primary)
-          );
-          const announcement = await announcementChannel.send({
-            components: [this.trackContainer(currentPlayer, track), announcementRow],
-            flags: MessageFlags.IsComponentsV2
-          });
-          const announcementCollector = announcement.createMessageComponentCollector();
-          announcementCollector.on("collect", async interaction => {
-            if (interaction.customId !== "aerox_announcement:dashboard") return;
-            const guild = interaction.guild;
-            const actor = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
-            if (!actor) return interaction.reply({ content: "I could not verify your server membership.", ephemeral: true }).catch(() => {});
-            try {
-              const { openMusicPanel } = await import("../commands/Music/panel.js");
-              return await openMusicPanel({
-                client: this.client,
-                message: {
-                  guild,
-                  member: actor,
-                  reply: options => interaction.reply({
-                    ...options,
-                    flags: (options.flags || 0) | MessageFlags.Ephemeral,
-                    fetchReply: true
-                  })
-                }
-              });
-            } catch (error) {
-              logger.warn("Music", "Could not open dashboard from a song announcement:", error);
-              return interaction.reply({ content: "Could not open the music dashboard. Try `.musicpanel`.", ephemeral: true }).catch(() => {});
-            }
-          });
-        } catch (error) {
-          logger.warn("Music", "Could not post song announcement in channel " + channelId + ":", error);
-        }
-      } else {
-        logger.warn("Music", "Song announcement channel is unavailable for guild " + guildId + ".");
-      }
-    }
-
+    // One persistent Components V2 message per guild replaces the legacy per-track announcement.
     const components = [this.trackContainer(currentPlayer, currentTrack), ...this.trackControls(currentPlayer)];
 
     // A process restart clears the in-memory map. Remove the saved stale player panel
@@ -361,6 +341,13 @@ export class MusicManager {
       }
     }
 
+    if (existing?.message && existing.channelId !== channel?.id) {
+      await existing.message.delete().catch(() => {});
+      existing.collector?.stop("panel-channel-changed");
+      this.trackPanels.delete(guildId);
+      existing = null;
+    }
+
     if (existing?.message && !existing.message.deleted) {
       try {
         await existing.message.edit({ components });
@@ -372,7 +359,7 @@ export class MusicManager {
       }
     }
 
-    const channel = player.textChannelId ? this.client.channels.cache.get(player.textChannelId) : null;
+
     if (!channel?.isTextBased()) {
       logger.warn("Music", "Cannot post player panel: playback text channel is unavailable for guild " + guildId);
       return;
