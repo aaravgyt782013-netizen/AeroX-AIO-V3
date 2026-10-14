@@ -71,6 +71,8 @@ function voiceCheck(message, player, member = message.member) {
   const voice = member?.voice?.channel;
   if (!voice) return "Join a voice channel first.";
   if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return "Join the same voice channel as the bot to control music.";
+  const settings = message.client?.music?.getSettings?.(message.guild.id);
+  if (settings?.allowedVoiceChannelId && voice.id !== settings.allowedVoiceChannelId) return "Music playback is restricted to <#" + settings.allowedVoiceChannelId + "> in this server.";
   const perms = voice.permissionsFor(message.guild.members.me);
   if (!perms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return "I need Connect and Speak permissions in your voice channel.";
   return null;
