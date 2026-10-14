@@ -355,7 +355,7 @@ export default {
         if (sub === "loop") {
           const mode = String(args[0] || "").toLowerCase();
           if (!["off", "track", "queue"].includes(mode)) return fail("Use .loop off, .loop track, or .loop queue.");
-          await manager.updateSettings(guildId, { loop: mode });
+          await manager.updateSettings(guildId, { loop: mode, ...(mode !== "off" ? { autoplay: false } : {}) });
           if (typeof player.setRepeatMode === "function") await player.setRepeatMode(mode);
           return reply("🔁 Loop mode set to **" + mode + "**.", "Loop updated", COLORS.success);
         }
