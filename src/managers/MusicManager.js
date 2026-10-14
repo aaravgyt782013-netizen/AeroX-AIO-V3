@@ -54,7 +54,15 @@ export class MusicManager {
             if (!settings.autoplay || !lastPlayedTrack?.info?.title) return;
             const info = lastPlayedTrack.info;
             const query = info.author ? info.author + " - " + info.title : info.title;
-            const result = await player.search({ query, source: settings.defaultSource }, lastPlayedTrack.requester || "LightCore");
+            let result = null;
+            for (const source of [...new Set([settings.defaultSource, "ytmsearch", "ytsearch", "scsearch"].filter(Boolean))]) {
+              try {
+                result = await player.search({ query, source }, lastPlayedTrack.requester || "LightCore");
+                if (result?.tracks?.length) break;
+              } catch (error) {
+                logger.debug("Music", "Autoplay source " + source + " failed; trying the next source:", error);
+              }
+            }
             const next = result?.tracks?.find(track => track.info?.identifier !== info.identifier);
             if (next) await player.queue.add(next);
           }
