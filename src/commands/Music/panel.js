@@ -140,7 +140,8 @@ function buildDashboard(client, guild) {
   const nav = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("aerox_panel:open_settings").setLabel("Server Settings").setEmoji("⚙️").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("aerox_panel:refresh").setLabel("Refresh").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("aerox_panel:clear_queue").setLabel("Clear Queue").setEmoji("🧹").setStyle(ButtonStyle.Danger).setDisabled(upcoming.length === 0)
+    new ButtonBuilder().setCustomId("aerox_panel:clear_queue").setLabel("Clear Queue").setEmoji("🧹").setStyle(ButtonStyle.Danger).setDisabled(upcoming.length === 0),
+    new ButtonBuilder().setCustomId("aerox_panel:stay247").setLabel("24/7 · " + (settings.stay247 ? "On" : "Off")).setEmoji("♾️").setStyle(settings.stay247 ? ButtonStyle.Success : ButtonStyle.Secondary).setDisabled(!player && !settings.stay247)
   );
   return { components: [hero, ...controls(player, settings), nav] };
 }
@@ -385,7 +386,7 @@ export async function openMusicPanel({ client, message }) {
     let player = manager.getPlayer(message.guild.id);
     const settings = manager.getSettings(message.guild.id);
     const action = interaction.customId.split(":").at(-1);
-    const isSettings = ["open_settings", "category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "request_channel", "clear_request_channel", "voice_channel", "clear_voice_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
+    const isSettings = ["open_settings", "category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "request_channel", "clear_request_channel", "voice_channel", "clear_voice_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay", "stay247"].includes(action);
     if (isSettings && !actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
@@ -489,8 +490,23 @@ export async function openMusicPanel({ client, message }) {
         await manager.updateSettings(message.guild.id, { allowedVoiceChannelId: null });
         category = "channels";
       } else {
-        if (!player && action !== "autoplay") return interaction.reply({ content: "No active player. Start music with .play first.", ephemeral: true }).catch(() => {});
-        if (action === "toggle") player.paused ? await player.resume() : await player.pause();
+        if (!player && action !== "autoplay" && action !== "stay247") return interaction.reply({ content: "No active player. Start music with .play first.", ephemeral: true }).catch(() => {});
+        if (action === "stay247") {
+          if (!settings.stay247) {
+            if (!player?.voiceChannelId) return interaction.reply({ content: "Start a music session first, then enable 24/7 while LightCore is connected to the voice channel you want it to stay in.", ephemeral: true }).catch(() => {});
+            await manager.updateSettings(message.guild.id, {
+              stay247: true,
+              stay247VoiceChannelId: player.voiceChannelId,
+              stay247TextChannelId: player.textChannelId || message.channel.id
+            });
+          } else {
+            await manager.updateSettings(message.guild.id, {
+              stay247: false,
+              stay247VoiceChannelId: null,
+              stay247TextChannelId: null
+            });
+          }
+        } else if (action === "toggle") player.paused ? await player.resume() : await player.pause();
         else if (action === "skip") await player.skip();
         else if (action === "previous") {
           const previous = manager.previousTracks.get(message.guild.id);
