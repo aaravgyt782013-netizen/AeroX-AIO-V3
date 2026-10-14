@@ -356,7 +356,15 @@ export default {
       return;
     }
 
-    if (["pause", "resume", "skip", "back", "stop", "queue", "volume", "shuffle", "remove", "clear", "seek", "loop", "autoplay"].includes(sub)) {
+    if (sub === "autoplay") {
+      if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("Only members with Manage Server can change server-wide autoplay settings.");
+      const value = String(args[0] || "").toLowerCase();
+      if (!["on", "off"].includes(value)) return fail("Use .autoplay on or .autoplay off.");
+      await manager.updateSettings(guildId, { autoplay: value === "on" });
+      return reply("Autoplay is now **" + value + "** for this server.", "Autoplay updated", COLORS.success);
+    }
+
+    if (["pause", "resume", "skip", "back", "stop", "queue", "volume", "shuffle", "remove", "clear", "seek", "loop"].includes(sub)) {
       const voiceError = voiceCheck(message, player);
       if (voiceError) return fail(voiceError);
       if (!player) return fail("There is no active player. Start one with .play <song>.");
@@ -403,12 +411,6 @@ export default {
           await manager.updateSettings(guildId, { loop: mode });
           if (typeof player.setRepeatMode === "function") await player.setRepeatMode(mode);
           return reply("🔁 Loop mode set to **" + mode + "**.", "Loop updated", COLORS.success);
-        }
-        if (sub === "autoplay") {
-          const value = String(args[0] || "").toLowerCase();
-          if (!["on", "off"].includes(value)) return fail("Use .autoplay on or .autoplay off.");
-          await manager.updateSettings(guildId, { autoplay: value === "on" });
-          return reply("Autoplay is now **" + value + "** for this server.", "Autoplay updated", COLORS.success);
         }
       } catch (error) { return fail("That action failed: " + safeText(error?.message || error, 220)); }
     }
