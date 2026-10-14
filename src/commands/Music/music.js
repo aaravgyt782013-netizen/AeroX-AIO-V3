@@ -247,6 +247,9 @@ export default {
 
     if (sub === "nowplaying" || sub === "np") {
       if (!player?.queue?.current) return fail("Nothing is playing right now. Use .play <song> to start.");
+      // Always route the now-playing command to the current unified LightCore dashboard,
+      // instead of creating a second, legacy player UI with a different control layout.
+      return openMusicPanel({ client, message });
       const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings)], flags: MessageFlags.IsComponentsV2 });
       const collector = sent.createMessageComponentCollector();
       collector.on("collect", async interaction => {
