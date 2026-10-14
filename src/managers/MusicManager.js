@@ -187,6 +187,10 @@ export class MusicManager {
         new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Full Control Panel").setEmoji("🎛️").setStyle(ButtonStyle.Success)
       )
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("aerox_track:seek_back").setLabel("−10 sec").setEmoji("⏪").setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
+        new ButtonBuilder().setCustomId("aerox_track:seek_forward").setLabel("+10 sec").setEmoji("⏩").setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
+      )
     ];
   }
 
@@ -374,6 +378,14 @@ export class MusicManager {
           return interaction.reply({ components: [new ContainerBuilder().setAccentColor(0x5865F2).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 📜 LIGHTCORE • QUEUE\n" + (lines.join("\n") || "*No upcoming tracks.*")))], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
         } else if (action === "vol_down" || action === "vol_up") {
           await fresh.setVolume(Math.max(0, Math.min(100, Number(fresh.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10))));
+        } else if (action === "seek_back" || action === "seek_forward") {
+          const current = fresh.queue?.current;
+          const length = Number(current?.info?.duration || 0);
+          if (!current || current.info?.isStream || !length || typeof fresh.seek !== "function") {
+            return interaction.reply({ content: "Seeking is unavailable for this track.", ephemeral: true }).catch(() => {});
+          }
+          const target = Math.max(0, Math.min(length - 1000, Number(fresh.position || 0) + (action === "seek_forward" ? 10000 : -10000)));
+          await fresh.seek(target);
         } else if (action === "loop") {
           const next = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
           await this.updateSettings(guildId, { loop: next });
