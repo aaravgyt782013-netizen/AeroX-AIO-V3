@@ -249,7 +249,7 @@ export default {
         let result = await searchWithFallback(player, query, settings, message.author, isUrl);
         // Spotify URLs are not directly playable on every Lavalink setup. If direct
         // resolution fails, look up the track title and search a playable source.
-        if (!result?.tracks?.length && /^https?:\\/\\/(open\\.)?spotify\\.com\\/(track|album|playlist)\\//i.test(query)) {
+        if (!result?.tracks?.length && /^https?:\/\/(open\.)?spotify\.com\/(track|album|playlist)\//i.test(query)) {
           try {
             const response = await fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(query), { signal: AbortSignal.timeout(5000) });
             if (response.ok) {
