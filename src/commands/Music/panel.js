@@ -47,13 +47,13 @@ function categoryMenu(client, category) {
     .setPlaceholder("🧭  Navigate music settings")
     .setMinValues(1).setMaxValues(1)
     .addOptions(
-      { label: "Playback", value: "playback", description: "Default volume, search source and repeat", emoji: "🎧", default: category === "playback" },
-      { label: "Queue", value: "queue", description: "Queue capacity and request handling", emoji: "📜", default: category === "queue" },
-      { label: "Smart Playback", value: "smartplayback", description: "Autoplay and automatic continuation", emoji: "✨", default: category === "smartplayback" },
-      { label: "DJ & Permissions", value: "access", description: "DJ role and control permissions", emoji: "🛡️", default: category === "access" },
-      { label: "Channels", value: "channels", description: "Restrict request and voice channels", emoji: "🔒", default: category === "channels" },
-      { label: "Announcements", value: "display", description: "Per-song announcement messages", emoji: "📣", default: category === "display" },
-      { label: "Now Playing", value: "nowplaying", description: "Artwork and requester display", emoji: "🖼️", default: category === "nowplaying" }
+      { label: "Playback", value: "playback", description: "Default volume, search source and repeat", emoji: registeredEmoji(client, ["music", "headphones", "play"], "🎧"), default: category === "playback" },
+      { label: "Queue", value: "queue", description: "Queue capacity and request handling", emoji: registeredEmoji(client, ["queue", "playlist"], "📜"), default: category === "queue" },
+      { label: "Smart Playback", value: "smartplayback", description: "Autoplay and automatic continuation", emoji: registeredEmoji(client, ["autoplay", "sparkles"], "✨"), default: category === "smartplayback" },
+      { label: "DJ & Permissions", value: "access", description: "DJ role and control permissions", emoji: registeredEmoji(client, ["dj", "shield", "security"], "🛡️"), default: category === "access" },
+      { label: "Channels", value: "channels", description: "Restrict request and voice channels", emoji: registeredEmoji(client, ["lock", "channel"], "🔒"), default: category === "channels" },
+      { label: "Announcements", value: "display", description: "Per-song announcement messages", emoji: registeredEmoji(client, ["announce", "notification"], "📣"), default: category === "display" },
+      { label: "Now Playing", value: "nowplaying", description: "Artwork and requester display", emoji: registeredEmoji(client, ["artwork", "image"], "🖼️"), default: category === "nowplaying" }
     ));
 }
 
@@ -72,7 +72,7 @@ function settingMenu(client, category, settings) {
     { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with similar music when the queue ends", emoji: "✨" }
   ];
   if (category === "display") options = [
-    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Post a separate message for every new song", emoji: "📣" }
+    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Route the single live player panel to the configured announcement channel", emoji: "📣" }
   ];
   if (category === "nowplaying") options = [
     { label: "Show requester · " + (settings.showRequester ? "On" : "Off"), value: "showRequester:" + (settings.showRequester ? "on" : "off"), description: "Display who requested the current track", emoji: "🙋" },
