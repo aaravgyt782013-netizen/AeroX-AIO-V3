@@ -71,7 +71,7 @@ export class MusicManager {
     }) : null;
 
     if (!this.lavalink) {
-      logger.warn("Music", "No Lavalink node configured. Set LAVALINK_HOST/PORT/PASSWORD or LAVALINK_NODES.");
+      logger.warn("Music", "No Lavalink node configured. Set LAVALINK_PASSWORD (shared) or LAVALINK_NODE_1_PASSWORD and LAVALINK_NODE_2_PASSWORD, or configure LAVALINK_NODES.");
       return;
     }
 
