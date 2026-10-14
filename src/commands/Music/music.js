@@ -374,6 +374,9 @@ export default {
       if (!player) return fail("There is no active player. Start one with .play <song>.");
       const accessError = djCheck(message, settings);
       if (accessError) return fail(accessError);
+      if (["clear", "remove"].includes(sub) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && (!settings.djRoleId || !message.member.roles.cache.has(settings.djRoleId))) {
+        return fail("Clearing or removing queued tracks requires Manage Server or the configured DJ role.");
+      }
       try {
         if (sub === "pause") { if (player.paused) return reply("Playback is already paused."); await player.pause(); return reply("⏸️ Paused."); }
         if (sub === "resume") { if (!player.paused) return reply("Playback is not paused."); await player.resume(); return reply("▶️ Resumed."); }
