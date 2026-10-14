@@ -85,6 +85,21 @@ function controls(player, settings) {
   return [primary, secondary];
 }
 
+function buildPlayerMessage(client, guild) {
+  const manager = client.music;
+  const settings = manager.getSettings(guild.id);
+  const player = manager.getPlayer(guild.id);
+  const hero = buildPanel(client, guild, "playback").components[0];
+  const settingsButton = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("aerox_panel:open_settings")
+      .setLabel("Music Settings")
+      .setEmoji("⚙️")
+      .setStyle(ButtonStyle.Secondary)
+  );
+  return { components: [hero, ...controls(player, settings), settingsButton] };
+}
+
 function buildPanel(client, guild, category) {
   const manager = client.music;
   const settings = manager.getSettings(guild.id);
@@ -216,7 +231,7 @@ export async function openMusicPanel({ client, message }) {
   if (!message.guild || !message.member) return;
   if (!client.music) return message.reply("The music manager is not ready yet.");
   let category = "playback";
-  const sent = await message.reply({ ...buildPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
+  const sent = await message.reply({ ...buildPlayerMessage(client, message.guild), flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector();
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This panel belongs to another server.", ephemeral: true }).catch(() => {});
@@ -226,21 +241,35 @@ export async function openMusicPanel({ client, message }) {
     let player = manager.getPlayer(message.guild.id);
     const settings = manager.getSettings(message.guild.id);
     const action = interaction.customId.split(":").at(-1);
-    const isSettings = ["category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "request_channel", "clear_request_channel", "voice_channel", "clear_voice_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
+    const isSettings = ["open_settings", "category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "request_channel", "clear_request_channel", "voice_channel", "clear_voice_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting"].includes(action);
     if (isSettings && !actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
     const voice = actor.voice.channel;
     const isPlayback = !isSettings;
-    if (isPlayback && action !== "autoplay") {
+    if (isPlayback) {
       if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
       if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
+      if (settings.allowedVoiceChannelId && voice.id !== settings.allowedVoiceChannelId) return interaction.reply({ content: "Music playback is restricted to <#" + settings.allowedVoiceChannelId + "> in this server.", ephemeral: true }).catch(() => {});
       if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
         return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
       }
     }
     try {
-      if (action === "category") {
+      if (action === "open_settings") {
+        return openMusicSettingsPanel({
+          client,
+          message: {
+            guild: message.guild,
+            member: actor,
+            reply: options => interaction.reply({
+              ...options,
+              flags: (options.flags || 0) | MessageFlags.Ephemeral,
+              fetchReply: true
+            })
+          }
+        });
+      } else if (action === "category") {
         category = interaction.values[0];
       } else if (action === "setting") {
         const [key, value] = interaction.values[0].split(":");
@@ -330,7 +359,7 @@ export async function openMusicPanel({ client, message }) {
           await manager.updateSettings(message.guild.id, { autoplay: !settings.autoplay });
         }
       }
-      await interaction.update(buildPanel(client, message.guild, category));
+      await interaction.update(buildPlayerMessage(client, message.guild));
     } catch (error) {
       const text = clean(error?.message || error);
       if (interaction.deferred || interaction.replied) await interaction.followUp({ content: "That panel action failed: " + text, ephemeral: true }).catch(() => {});
