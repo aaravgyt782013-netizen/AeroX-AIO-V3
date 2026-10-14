@@ -93,6 +93,54 @@ function controls(player, settings) {
   return [primary, secondary];
 }
 
+function buildDashboard(client, guild) {
+  const manager = client.music;
+  const settings = manager.getSettings(guild.id);
+  const player = manager.getPlayer(guild.id);
+  const current = player?.queue?.current;
+  const upcoming = player?.queue?.tracks || [];
+  const total = Number(current?.info?.duration || 0);
+  const position = Math.max(0, Number(player?.position || 0));
+  const progress = total > 0 ? Math.max(0, Math.min(18, Math.floor(position / total * 18))) : 0;
+  const bar = current?.info?.isStream ? "🔴 LIVE STREAM" : total > 0 ? "▬".repeat(progress) + "🔘" + "▬".repeat(Math.max(0, 17 - progress)) : "━━━━━━━━━━━━━━━━━━";
+  const title = current ? (trackLink(current) ? "[" + titleOf(current) + "](" + trackLink(current) + ")" : "**" + titleOf(current) + "**") : "*Nothing is playing yet — use .play <song or URL>*";
+  const status = !player ? "IDLE" : player.paused ? "PAUSED" : player.playing ? "PLAYING" : "CONNECTED";
+  const artwork = settings.showArtwork ? artworkOf(current) : null;
+  const now = new SectionBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    "## " + (player?.paused ? "⏸️ PAUSED" : current ? "🎶 NOW PLAYING" : "🎧 READY TO PLAY") + "\\n" +
+    title + "\\n-# " + clean(current?.info?.author || "LightCore Music") + "\\n\\n" +
+    bar + "\\n`" + (current ? duration(position) : "0:00") + " / " + (current ? duration(total) : "0:00") + "`"
+  ));
+  if (artwork) now.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Artwork for " + titleOf(current)));
+  const hero = new ContainerBuilder().setAccentColor(current ? COLORS.success : COLORS.primary)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "# ✦ LIGHTCORE MUSIC\\n-# THE MUSIC EXPERIENCE FOR YOUR SERVER\\n## " + clean(guild.name) +
+      "\\nSearch, queue, and control music without leaving Discord."
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addSectionComponents(now)
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "### 📡 PLAYER STATUS\\n" +
+      "**Status** · " + status + "   **Volume** · " + String(player?.volume ?? settings.defaultVolume) + "%\\n" +
+      "**Repeat** · " + settings.loop + "   **Autoplay** · " + (settings.autoplay ? "On" : "Off") + "\\n" +
+      "**Up next** · " + upcoming.length + " track(s)" +
+      (settings.showRequester && current?.requester?.username ? "   **Requested by** · " + clean(current.requester.username) : "")
+    ))
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      "### 📜 UP NEXT\\n" +
+      (upcoming.slice(0, 3).map((track, i) => "**" + (i + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration)).join("\\n") || "*Your queue is empty. Try .play <song> to add music.*") +
+      (upcoming.length > 3 ? "\\n-# And " + (upcoming.length - 3) + " more track(s) in the queue." : "")
+    ));
+  const nav = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("aerox_panel:open_settings").setLabel("Server Settings").setEmoji("⚙️").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("aerox_panel:refresh").setLabel("Refresh").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("aerox_panel:clear_queue").setLabel("Clear Queue").setEmoji("🧹").setStyle(ButtonStyle.Danger).setDisabled(upcoming.length === 0)
+  );
+  return { components: [hero, ...controls(player, settings), nav] };
+}
+
 function buildPlayerMessage(client, guild) {
   const manager = client.music;
   const settings = manager.getSettings(guild.id);
@@ -264,7 +312,7 @@ export async function openMusicPanel({ client, message }) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
     const voice = actor.voice.channel;
-    const isPlayback = !isSettings;
+    const isPlayback = !isSettings && action !== "refresh";
     if (isPlayback) {
       if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
       if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
@@ -377,7 +425,7 @@ export async function openMusicPanel({ client, message }) {
           await manager.updateSettings(message.guild.id, { autoplay: !settings.autoplay });
         }
       }
-      await interaction.update(buildPanel(client, message.guild, category));
+      await interaction.update(buildDashboard(client, message.guild));
     } catch (error) {
       const text = clean(error?.message || error);
       if (interaction.deferred || interaction.replied) await interaction.followUp({ content: "That panel action failed: " + text, ephemeral: true }).catch(() => {});
