@@ -14,6 +14,8 @@ const DEFAULTS = {
   djRoleId: null,
   announceNowPlaying: true,
   announcementChannelId: null,
+  requestChannelId: null,
+  allowedVoiceChannelId: null,
   defaultSource: "ytmsearch",
   autoplay: false,
   loop: "off"
