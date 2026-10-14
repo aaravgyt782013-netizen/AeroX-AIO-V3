@@ -242,7 +242,7 @@ export class MusicManager {
   async announce(player, track) {
     const guildId = player.guildId;
     const settings = this.getSettings(guildId);
-    const existing = this.trackPanels.get(guildId);
+    let existing = this.trackPanels.get(guildId);
     const currentPlayer = this.getPlayer(guildId) || player;
     const currentTrack = currentPlayer.queue?.current || track;
 
@@ -298,6 +298,25 @@ export class MusicManager {
 
     const components = [this.trackContainer(currentPlayer, currentTrack), ...this.trackControls(currentPlayer)];
 
+    // A process restart clears the in-memory map. Remove the saved stale player panel
+    // before creating a fresh one, so users do not keep seeing a dead/old control message.
+    if (!existing) {
+      const savedChannelId = settings.trackPanelChannelId;
+      const savedMessageId = settings.trackPanelMessageId;
+      if (savedChannelId && savedMessageId) {
+        try {
+          const savedChannel = this.client.channels.cache.get(savedChannelId) || await this.client.channels.fetch(savedChannelId);
+          const savedMessage = savedChannel?.isTextBased() && savedChannel.messages
+            ? await savedChannel.messages.fetch(savedMessageId).catch(() => null)
+            : null;
+          if (savedMessage) await savedMessage.delete().catch(() => {});
+        } catch (error) {
+          logger.warn("Music", "Could not remove the previous process's stale player panel:", error);
+        }
+        await this.updateSettings(guildId, { trackPanelChannelId: null, trackPanelMessageId: null }).catch(error => logger.warn("Music", "Could not clear stale player-panel metadata:", error));
+      }
+    }
+
     if (existing?.message && !existing.message.deleted) {
       try {
         await existing.message.edit({ components });
@@ -318,6 +337,7 @@ export class MusicManager {
     const sent = await channel.send({ components, flags: MessageFlags.IsComponentsV2 });
     const collector = sent.createMessageComponentCollector();
     this.trackPanels.set(guildId, { message: sent, collector, channelId: channel.id });
+    await this.updateSettings(guildId, { trackPanelChannelId: channel.id, trackPanelMessageId: sent.id }).catch(error => logger.warn("Music", "Could not persist player-panel metadata:", error));
 
     collector.on("collect", async interaction => {
       if (!interaction.customId.startsWith("aerox_track:")) {
@@ -371,6 +391,7 @@ export class MusicManager {
           await this.lavalink.destroyPlayer(guildId, "track-panel-stop");
           collector.stop("stopped");
           this.trackPanels.delete(guildId);
+          await this.updateSettings(guildId, { trackPanelChannelId: null, trackPanelMessageId: null }).catch(() => {});
           return interaction.update({ components: [new ContainerBuilder().setAccentColor(0xED4245).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nLightCore has stopped playback."))] });
         } else if (action === "queue") {
           const list = fresh.queue?.tracks || [];
