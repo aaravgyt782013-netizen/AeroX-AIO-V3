@@ -283,20 +283,94 @@ function buildPanel(client, guild, category) {
 }
 
 async function showQueue(interaction, player) {
-  const tracks = player?.queue?.tracks || [];
-  const lines = tracks.slice(0, 15).map((track, index) => "**" + (index + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration));
-  const current = player?.queue?.current;
-  const container = new ContainerBuilder().setAccentColor(COLORS.primary)
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# 📜 LIGHTCORE • QUEUE\n" +
-      (current ? "🎵 **Now playing:** " + titleOf(current) + "\n\n" : "") +
-      (lines.join("\n") || "*No upcoming tracks.*") +
-      (tracks.length > 15 ? "\n\n…and " + (tracks.length - 15) + " more tracks." : "") +
-      "\n\n-# " + tracks.length + " upcoming track(s)"
+  const manager = interaction.client.music;
+  const guildId = interaction.guildId;
+  const render = () => {
+    const fresh = manager.getPlayer(guildId) || player;
+    const tracks = fresh?.queue?.tracks || [];
+    const current = fresh?.queue?.current;
+    const lines = tracks.slice(0, 15).map((track, index) => "**" + (index + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration));
+    const container = new ContainerBuilder().setAccentColor(COLORS.primary)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        "# 📜 LIGHTCORE • QUEUE MANAGER\n" +
+        (current ? "🎵 **Now playing:** " + titleOf(current) + "\n\n" : "") +
+        (lines.join("\n") || "*No upcoming tracks.*") +
+        (tracks.length > 15 ? "\n\n…and " + (tracks.length - 15) + " more tracks." : "") +
+        "\n\n-# " + tracks.length + " upcoming track(s) · select a track to remove it"
+      ));
+    const components = [container];
+    if (tracks.length) {
+      components.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+        .setCustomId("aerox_queue:remove")
+        .setPlaceholder("🗑️  Select an upcoming track to remove")
+        .setMinValues(1).setMaxValues(1)
+        .addOptions(tracks.slice(0, 25).map((track, index) => ({
+          label: (index + 1) + ". " + titleOf(track).slice(0, 85),
+          description: duration(track.info?.duration),
+          value: String(index)
+        })))));
+    }
+    components.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aerox_queue:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary).setDisabled(tracks.length < 2),
+      new ButtonBuilder().setCustomId("aerox_queue:clear").setLabel("Clear queue").setEmoji("🧹").setStyle(ButtonStyle.Danger).setDisabled(tracks.length === 0),
+      new ButtonBuilder().setCustomId("aerox_queue:refresh").setLabel("Refresh").setEmoji("🔄").setStyle(ButtonStyle.Primary)
     ));
-  return interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
+    return { components };
+  };
+  const sent = await interaction.reply({
+    ...render(),
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    fetchReply: true
+  });
+  const collector = sent.createMessageComponentCollector({ time: 120000 });
+  collector.on("collect", async control => {
+    if (control.user.id !== interaction.user.id) {
+      return control.reply({ content: "Open your own queue panel to manage these tracks.", ephemeral: true }).catch(() => {});
+    }
+    const member = await control.guild?.members.fetch(control.user.id).catch(() => null);
+    if (!member) return control.reply({ content: "I could not verify your server membership.", ephemeral: true }).catch(() => {});
+    const settings = manager.getSettings(guildId);
+    const active = manager.getPlayer(guildId);
+    if (control.customId !== "aerox_queue:refresh") {
+      if (!member.voice.channel) return control.reply({ content: "Join a voice channel first to manage the queue.", ephemeral: true }).catch(() => {});
+      if (active?.voiceChannelId && member.voice.channel.id !== active.voiceChannelId) return control.reply({ content: "Join the same voice channel as LightCore first.", ephemeral: true }).catch(() => {});
+      if (!member.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !member.roles.cache.has(settings.djRoleId)) {
+        return control.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to manage the queue.", ephemeral: true }).catch(() => {});
+      }
+    }
+    try {
+      const fresh = manager.getPlayer(guildId);
+      if (!fresh) return control.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 Queue unavailable\nThe music session has ended."))] });
+      if (control.customId === "aerox_queue:remove") {
+        const index = Number(control.values?.[0]);
+        const tracks = fresh.queue?.tracks || [];
+        if (!Number.isInteger(index) || index < 0 || index >= tracks.length) return control.reply({ content: "That queue item is no longer available. Refresh and try again.", ephemeral: true });
+        const [removed] = tracks.splice(index, 1);
+        await control.update(render());
+        return control.followUp({ content: "Removed **" + titleOf(removed) + "** from the queue.", ephemeral: true }).catch(() => {});
+      }
+      if (control.customId === "aerox_queue:clear") {
+        const tracks = fresh.queue?.tracks || [];
+        const count = tracks.length;
+        tracks.splice(0, count);
+        await control.update(render());
+        return control.followUp({ content: "Cleared " + count + " upcoming track(s). The current track will keep playing.", ephemeral: true }).catch(() => {});
+      }
+      if (control.customId === "aerox_queue:shuffle") {
+        await fresh.queue.shuffle();
+      }
+      await control.update(render());
+    } catch (error) {
+      const msg = clean(error?.message || error);
+      if (control.deferred || control.replied) await control.followUp({ content: "Queue action failed: " + msg, ephemeral: true }).catch(() => {});
+      else await control.reply({ content: "Queue action failed: " + msg, ephemeral: true }).catch(() => {});
+    }
+  });
+  collector.on("end", () => {
+    sent.edit({ components: [new ContainerBuilder().setAccentColor(COLORS.primary).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 📜 LIGHTCORE • QUEUE MANAGER\nThis queue panel expired. Press Queue on the music player to open a fresh one."))] }).catch(() => {});
+  });
+  return sent;
 }
-
 export async function openMusicPanel({ client, message }) {
   if (!message.guild || !message.member) return;
   if (!client.music) return message.reply("The music manager is not ready yet.");
