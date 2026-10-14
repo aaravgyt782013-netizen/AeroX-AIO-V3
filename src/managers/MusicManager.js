@@ -171,23 +171,21 @@ export class MusicManager {
   }
 
   trackControls(player) {
+    const settings = this.getSettings(player.guildId);
     return [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aerox_track:previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:toggle").setEmoji(player?.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("aerox_track:skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("aerox_track:queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("aerox_track:previous").setLabel("Previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:toggle").setLabel(player?.paused ? "Resume" : "Pause").setEmoji(player?.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("aerox_track:skip").setLabel("Skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:stop").setLabel("Stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("aerox_track:queue").setLabel("Queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
       ),
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− Volume").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ Volume").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Loop: " + this.getSettings(player.guildId).loop).setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setStyle(ButtonStyle.Secondary)
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aerox_track:autoplay").setLabel("Autoplay: " + (this.getSettings(player.guildId).autoplay ? "On" : "Off")).setStyle(this.getSettings(player.guildId).autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Open Music Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId("aerox_track:vol_down").setLabel("− 10").setEmoji("🔉").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:vol_up").setLabel("+ 10").setEmoji("🔊").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Repeat · " + settings.loop).setEmoji("🔁").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Full Control Panel").setEmoji("🎛️").setStyle(ButtonStyle.Success)
       )
     ];
   }
@@ -216,18 +214,24 @@ export class MusicManager {
       playerSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Album artwork for " + title));
     }
     const container = new ContainerBuilder().setAccentColor(0x5865F2)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        "# ✦ LIGHTCORE  /  MUSIC PLAYER\n-# NOW PLAYING • LIVE SERVER SESSION"
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addSectionComponents(playerSection)
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(new TextDisplayBuilder().setContent([
-        "🎤 **Artist:** " + this.escape(info.author || "Unknown artist"),
-        "⏱️ **Duration:** " + (info.isStream ? "LIVE" : this.formatDuration(total)),
-        ...(settings.showRequester ? ["🙋 **Requested by:** " + this.escape(track?.requester?.username || track?.requester?.tag || "A listener")] : []),
-        "🔊 **Volume:** " + String(player?.volume ?? settings.defaultVolume) + "%",
-        "📜 **Queue:** " + String(player?.queue?.tracks?.length || 0) + " upcoming",
-        "🔁 **Repeat:** " + settings.loop
+        "### 🎚️ SESSION DETAILS",
+        "**Artist**  ·  " + this.escape(info.author || "Unknown artist"),
+        "**Length**  ·  " + (info.isStream ? "🔴 Live stream" : this.formatDuration(total)),
+        ...(settings.showRequester ? ["**Requested by**  ·  " + this.escape(track?.requester?.username || track?.requester?.tag || "A listener")] : []),
+        "**Volume**  ·  " + String(player?.volume ?? settings.defaultVolume) + "%",
+        "**Queue**  ·  " + String(player?.queue?.tracks?.length || 0) + " upcoming",
+        "**Repeat**  ·  " + settings.loop,
+        "**Autoplay**  ·  " + (settings.autoplay ? "On" : "Off")
       ].join("\n")))
       .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# LightCore Music • Use the buttons below to control playback"));
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# Use the controls below, or open the full LightCore control panel for server settings and advanced playback."));
     return container;
   }
 
