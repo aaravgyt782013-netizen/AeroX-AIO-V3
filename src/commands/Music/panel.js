@@ -460,7 +460,10 @@ export async function openMusicPanel({ client, message }) {
       } else if (action === "source_setting") {
         await manager.updateSettings(message.guild.id, { defaultSource: interaction.values[0] });
       } else if (action === "loop_setting") {
-        await manager.updateSettings(message.guild.id, { loop: interaction.values[0] });
+        const mode = interaction.values[0];
+        await manager.updateSettings(message.guild.id, { loop: mode });
+        const activePlayer = manager.getPlayer(message.guild.id);
+        if (activePlayer && typeof activePlayer.setRepeatMode === "function") await activePlayer.setRepeatMode(mode);
       } else if (action === "djrole") {
         await manager.updateSettings(message.guild.id, { djRoleId: interaction.values[0] });
         category = "access";
@@ -720,7 +723,10 @@ export async function openMusicSettingsPanel({ client, message }) {
         await client.music.updateSettings(message.guild.id, { defaultSource: interaction.values[0] });
         selection = null;
       } else if (action === "loop_setting") {
-        await client.music.updateSettings(message.guild.id, { loop: interaction.values[0] });
+        const mode = interaction.values[0];
+        await client.music.updateSettings(message.guild.id, { loop: mode });
+        const activePlayer = client.music.getPlayer(message.guild.id);
+        if (activePlayer && typeof activePlayer.setRepeatMode === "function") await activePlayer.setRepeatMode(mode);
         selection = null;
       } else if (action === "djrole") {
         await client.music.updateSettings(message.guild.id, { djRoleId: interaction.values[0] });
