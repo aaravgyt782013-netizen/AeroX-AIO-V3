@@ -339,8 +339,11 @@ export default {
             }
             case "shuffle": await fresh.queue.shuffle(); break;
             case "autoplay": {
+              if (!actor.permissions.has(PermissionFlagsBits.ManageGuild)) return interaction.reply({ content: "Only members with Manage Server can change server-wide autoplay.", ephemeral: true });
               const currentSettings = manager.getSettings(guildId);
-              await manager.updateSettings(guildId, { autoplay: !currentSettings.autoplay });
+              const enabling = !currentSettings.autoplay;
+              await manager.updateSettings(guildId, { autoplay: enabling, ...(enabling ? { loop: "off" } : {}) });
+              if (enabling && typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode("off");
               break;
             }
             default: return interaction.reply({ content: "Unknown player control.", ephemeral: true });
@@ -360,7 +363,8 @@ export default {
       if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("Only members with Manage Server can change server-wide autoplay settings.");
       const value = String(args[0] || "").toLowerCase();
       if (!["on", "off"].includes(value)) return fail("Use .autoplay on or .autoplay off.");
-      await manager.updateSettings(guildId, { autoplay: value === "on" });
+      await manager.updateSettings(guildId, { autoplay: value === "on", ...(value === "on" ? { loop: "off" } : {}) });
+      if (value === "on" && player && typeof player.setRepeatMode === "function") await player.setRepeatMode("off");
       return reply("Autoplay is now **" + value + "** for this server.", "Autoplay updated", COLORS.success);
     }
 
