@@ -274,14 +274,20 @@ export default {
         if (!tracks.length) return fail("No playable results. Try another search or URL, and verify the Lavalink source plugin.");
         if (sub === "search") return sendSearchPicker(message, tracks, query, player, manager, settings);
         if (result.loadType === "playlist") {
+          const hadCurrentTrack = Boolean(player.queue?.current || player.playing || player.paused);
           const added = await addTracks(player, tracks, settings.maxQueue);
           if (!added.accepted) return fail("The queue is full (" + settings.maxQueue + " tracks).");
-          return reply("📚 Added " + added.accepted + " track(s) from **" + safeText(result.playlistInfo?.name || "playlist") + "**." + (added.rejected ? "\nSkipped " + added.rejected + " track(s) because the queue limit was reached." : ""), "Playlist queued", COLORS.success);
+          // Starting playback creates/updates the single persistent player panel, so
+          // avoid sending a second success message for the first track.
+          if (!hadCurrentTrack) return;
+          return reply("📚 Added " + added.accepted + " track(s) from **" + safeText(result.playlistInfo?.name || "playlist") + "** to the queue." + (added.rejected ? "\nSkipped " + added.rejected + " track(s) because the queue limit was reached." : ""), "Playlist queued", COLORS.success);
         }
         const track = tracks[0];
         if ((player.queue?.tracks?.length || 0) >= settings.maxQueue) return fail("The queue is full (" + settings.maxQueue + " tracks).");
+        const hadCurrentTrack = Boolean(player.queue?.current || player.playing || player.paused);
         await player.queue.add(track);
         if (!player.playing && !player.paused) await player.play();
+        if (!hadCurrentTrack) return;
         const url = trackUrl(track);
         return reply("🎶 Added " + (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + " · " + duration(track.info?.duration) + "\nRequested by " + message.author + ".", "Added to queue", COLORS.success);
       } catch (error) { return fail("Playback request failed: " + safeText(error?.message || error, 220)); }
@@ -289,85 +295,8 @@ export default {
 
     if (sub === "nowplaying" || sub === "np") {
       if (!player?.queue?.current) return fail("Nothing is playing right now. Use .play <song> to start.");
-      // Always route the now-playing command to the current unified LightCore dashboard,
-      // instead of creating a second, legacy player UI with a different control layout.
+      // Use the unified persistent player panel; do not create a second legacy controls message.
       return openMusicPanel({ client, message });
-      const sent = await message.reply({ components: [nowPlayingEmbed(player, player.queue.current), ...playerControls(player, settings, client)], flags: MessageFlags.IsComponentsV2 });
-      const collector = sent.createMessageComponentCollector();
-      collector.on("collect", async interaction => {
-        const fresh = manager.getPlayer(guildId);
-        if (!fresh) return interaction.reply({ content: "The player has ended. Start another track to continue.", ephemeral: true });
-        const actor = message.guild.members.cache.get(interaction.user.id) || await message.guild.members.fetch(interaction.user.id).catch(() => null);
-        if (!actor) return interaction.reply({ content: "I could not verify your server membership. Try again.", ephemeral: true });
-        const action = interaction.customId.split(":").at(-1);
-        if (action === "dashboard") {
-          try {
-            return await openMusicPanel({
-              client,
-              message: {
-                guild: interaction.guild,
-                member: actor,
-                reply: options => interaction.reply({
-                  ...options,
-                  flags: (options.flags || 0) | MessageFlags.Ephemeral,
-                  fetchReply: true
-                })
-              }
-            });
-          } catch {
-            return interaction.reply({ content: "Could not open the dashboard. Try .musicpanel in this server.", ephemeral: true }).catch(() => {});
-          }
-        }
-        const voiceError = voiceCheck(message, fresh, actor);
-        if (voiceError) return interaction.reply({ content: voiceError, ephemeral: true });
-        const accessError = djCheck(message, manager.getSettings(guildId), actor);
-        if (accessError) return interaction.reply({ content: accessError, ephemeral: true });
-        try {
-          switch (action) {
-            case "toggle": if (fresh.paused) await fresh.resume(); else await fresh.pause(); break;
-            case "skip": if (!fresh.queue.current) throw new Error("No current track."); await fresh.skip(); break;
-            case "previous": {
-              const previous = manager.previousTracks.get(guildId);
-              if (!previous) throw new Error("No previous track is available in this player session.");
-              fresh.queue.tracks.unshift(previous); if (fresh.playing) await fresh.skip(); break;
-            }
-            case "stop":
-              await manager.lavalink.destroyPlayer(guildId, "control-stop");
-              collector.stop("stopped");
-              await interaction.update({ components: [new ContainerBuilder().setAccentColor(COLORS.warning).addTextDisplayComponents(new TextDisplayBuilder().setContent("# ⏹️ Playback stopped\nThe player has stopped and LightCore has left the voice channel."))] }); return;
-            case "queue": {
-              const list = fresh.queue.tracks || [];
-              return interaction.reply({ components: [embed("📜 Up Next", list.slice(0, 10).map((t, i) => (i + 1) + ". **" + trackTitle(t) + "** · " + duration(t.info?.duration)).join("\n") || "No upcoming tracks.")], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
-            }
-            case "vol_down": await fresh.setVolume(Math.max(0, Number(fresh.volume ?? 70) - 10)); break;
-            case "vol_up": await fresh.setVolume(Math.min(100, Number(fresh.volume ?? 70) + 10)); break;
-            case "loop": {
-              const current = manager.getSettings(guildId);
-              const next = current.loop === "off" ? "track" : current.loop === "track" ? "queue" : "off";
-              await manager.updateSettings(guildId, { loop: next });
-              if (typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode(next);
-              break;
-            }
-            case "shuffle": await fresh.queue.shuffle(); break;
-            case "autoplay": {
-              if (!actor.permissions.has(PermissionFlagsBits.ManageGuild)) return interaction.reply({ content: "Only members with Manage Server can change server-wide autoplay.", ephemeral: true });
-              const currentSettings = manager.getSettings(guildId);
-              const enabling = !currentSettings.autoplay;
-              await manager.updateSettings(guildId, { autoplay: enabling, ...(enabling ? { loop: "off" } : {}) });
-              if (enabling && typeof fresh.setRepeatMode === "function") await fresh.setRepeatMode("off");
-              break;
-            }
-            default: return interaction.reply({ content: "Unknown player control.", ephemeral: true });
-          }
-          const updated = manager.getSettings(guildId);
-          const currentTrack = fresh.queue?.current;
-          await interaction.update({ components: [currentTrack ? nowPlayingEmbed(fresh, currentTrack) : new ContainerBuilder().setAccentColor(COLORS.info).addTextDisplayComponents(new TextDisplayBuilder().setContent("# 🎧 LIGHTCORE MUSIC\nThe current track has ended.")), ...(currentTrack ? playerControls(fresh, updated, client) : [])] });
-        } catch (error) {
-          if (!interaction.deferred && !interaction.replied) await interaction.reply({ content: safeText(error?.message || error, 180), ephemeral: true }).catch(() => {});
-        }
-      });
-      // Keep the interactive now-playing controls active until playback is stopped or the message is deleted.
-      return;
     }
 
     if (sub === "autoplay") {
