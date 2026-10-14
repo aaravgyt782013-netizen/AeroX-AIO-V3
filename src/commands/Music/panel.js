@@ -56,7 +56,9 @@ function settingMenu(category, settings) {
     { label: "Autoplay · " + (settings.autoplay ? "On" : "Off"), value: "autoplay:" + (settings.autoplay ? "on" : "off"), description: "Continue with similar music when the queue ends", emoji: "✨" }
   ];
   if (category === "display") options = [
-    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Post a separate message for every new song", emoji: "📣" }
+    { label: "Track announcements · " + (settings.announceNowPlaying ? "On" : "Off"), value: "announceNowPlaying:" + (settings.announceNowPlaying ? "on" : "off"), description: "Post a separate message for every new song", emoji: "📣" },
+    { label: "Show requester · " + (settings.showRequester ? "On" : "Off"), value: "showRequester:" + (settings.showRequester ? "on" : "off"), description: "Display who requested the current track", emoji: "🙋" },
+    { label: "Show artwork · " + (settings.showArtwork ? "On" : "Off"), value: "showArtwork:" + (settings.showArtwork ? "on" : "off"), description: "Display track artwork when the source provides it", emoji: "🖼️" }
   ];
   if (!options.length) return null;
   return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
@@ -151,7 +153,7 @@ function buildPanel(client, guild, category) {
       songTitle + "\n-# " + artist + "\n\n" + progressBar + "\n`" +
       (current ? duration(position) : "0:00") + " / " + (current ? duration(trackDuration) : "0:00") + "`"
     ));
-  if (artworkOf(current)) songSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artworkOf(current)).setDescription("Album artwork for " + titleOf(current)));
+  if (settings.showArtwork && artworkOf(current)) songSection.setThumbnailAccessory(new ThumbnailBuilder().setURL(artworkOf(current)).setDescription("Album artwork for " + titleOf(current)));
   const hero = new ContainerBuilder().setAccentColor(current ? COLORS.success : COLORS.primary)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
       "# ✦ LIGHTCORE MUSIC\n-# YOUR SERVER. YOUR SOUND.\n## " + clean(guild.name) + "\nA visual music player for your community."
@@ -298,7 +300,7 @@ export async function openMusicPanel({ client, message }) {
           const row = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("aerox_panel:loop_setting").setPlaceholder("Choose the default repeat mode").addOptions(choices.map(mode => ({ label: mode === "off" ? "Off" : mode === "track" ? "Repeat track" : "Repeat queue", value: mode, default: mode === settings.loop }))));
           return interaction.update({ components: [buildPanel(client, message.guild, category).components[0], categoryMenu(category), row, ...controls(player, settings)] });
         }
-        if (key === "autoplay" || key === "announceNowPlaying") patch[key] = value === "on";
+        if (["autoplay", "announceNowPlaying", "showRequester", "showArtwork"].includes(key)) patch[key] = value === "on";
         if (Object.keys(patch).length) await manager.updateSettings(message.guild.id, patch);
       } else if (action === "volume_setting") {
         await manager.updateSettings(message.guild.id, { defaultVolume: Number(interaction.values[0]) });
