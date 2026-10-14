@@ -1,6 +1,44 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+const parseLavalinkNodes = () => {
+  const explicit = (process.env.LAVALINK_NODES || "").trim();
+  if (explicit) {
+    return explicit.split(",").map((entry, index) => {
+      const parts = entry.trim().split(":");
+      if (parts.length < 5) return null;
+      const host = parts.shift();
+      const port = Number(parts.shift());
+      const id = parts.pop();
+      const secure = parts.pop();
+      const authorization = parts.join(":");
+      return host && Number.isInteger(port) && port > 0 && authorization
+        ? { id: id || `node-${index + 1}`, host, port, authorization, secure: secure === "true" }
+        : null;
+    }).filter(Boolean);
+  }
+
+  // The two Millohost nodes are defaults; credentials remain environment-only.
+  const sharedPassword = process.env.LAVALINK_PASSWORD;
+  const definitions = [
+    {
+      id: process.env.LAVALINK_NODE_1_ID || "millohost-primary",
+      host: process.env.LAVALINK_NODE_1_HOST || "lava-v4.millohost.my.id",
+      port: Number(process.env.LAVALINK_NODE_1_PORT || "443"),
+      authorization: process.env.LAVALINK_NODE_1_PASSWORD || sharedPassword,
+      secure: (process.env.LAVALINK_NODE_1_SECURE || "true") === "true"
+    },
+    {
+      id: process.env.LAVALINK_NODE_2_ID || "millohost-secondary",
+      host: process.env.LAVALINK_NODE_2_HOST || "lava4.millohost.my.id",
+      port: Number(process.env.LAVALINK_NODE_2_PORT || "443"),
+      authorization: process.env.LAVALINK_NODE_2_PASSWORD || sharedPassword,
+      secure: (process.env.LAVALINK_NODE_2_SECURE || "true") === "true"
+    }
+  ];
+  return definitions.filter(node => node.authorization && Number.isInteger(node.port) && node.port > 0);
+};
+
 export const config = {
   token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
@@ -14,16 +52,7 @@ export const config = {
     enabled: process.env.MUSIC_ENABLED !== "false",
     defaultVolume: Math.min(100, Math.max(1, Number.parseInt(process.env.MUSIC_DEFAULT_VOLUME || "70", 10) || 70)),
     maxQueue: Math.min(500, Math.max(10, Number.parseInt(process.env.MUSIC_MAX_QUEUE || "100", 10) || 100)),
-    nodes: (process.env.LAVALINK_NODES || "").split(",").map((entry, index) => {
-      const parts = entry.trim().split(":");
-      if (parts.length < 5) return null;
-      const host = parts.shift();
-      const port = parts.shift();
-      const id = parts.pop();
-      const secure = parts.pop();
-      const authorization = parts.join(":");
-      return host && port && authorization ? { id: id || `node-${index + 1}`, host, port: Number(port), authorization, secure: secure === "true" } : null;
-    }).filter(Boolean),
+    nodes: parseLavalinkNodes(),
     node: process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : [],
   },
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/aerox" },
