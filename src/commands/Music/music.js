@@ -136,7 +136,7 @@ export default {
     if (!message.guild || !message.member) return;
     const manager = client.music;
     const guildId = message.guild.id;
-    const sub = String(args.shift() || "help").toLowerCase();
+    const sub = String(args.shift() || "panel").toLowerCase();
     const settings = manager.getSettings(guildId);
     let player = manager.getPlayer(guildId);
     const reply = (description, title = "LightCore Music", color = COLORS.info) => message.reply({ components: [embed(title, description, color)], flags: MessageFlags.IsComponentsV2 });
