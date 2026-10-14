@@ -162,20 +162,6 @@ function buildPanel(client, guild, category) {
   const rows = [categoryMenu(category)];
   const menu = settingMenu(category, settings);
   if (menu) rows.push(menu);
-  if (category === "channels") {
-    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
-      .setCustomId("aerox_panel:request_channel")
-      .setPlaceholder("💬  Choose music request text channel")
-      .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
-    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
-      .setCustomId("aerox_panel:voice_channel")
-      .setPlaceholder("🔊  Choose allowed voice channel")
-      .setChannelTypes(ChannelType.GuildVoice).setMinValues(1).setMaxValues(1)));
-    rows.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_panel:clear_request_channel").setLabel("Allow any text channel").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_panel:clear_voice_channel").setLabel("Allow any voice channel").setStyle(ButtonStyle.Secondary)
-    ));
-  }
   if (category === "display") {
     rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
       .setCustomId("aerox_panel:announce_channel")
@@ -437,6 +423,20 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
     ));
 
   const rows = [categoryMenu(category)];
+  if (category === "channels") {
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:request_channel")
+      .setPlaceholder("💬  Choose music request text channel")
+      .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:voice_channel")
+      .setPlaceholder("🔊  Choose allowed voice channel")
+      .setChannelTypes(ChannelType.GuildVoice).setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aerox_panel:clear_request_channel").setLabel("Allow any text channel").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_panel:clear_voice_channel").setLabel("Allow any voice channel").setStyle(ButtonStyle.Secondary)
+    ));
+  }
   if (selection) {
     const options = selection === "volume"
       ? [10, 25, 50, 70, 80, 100].map(n => ({ label: n + "%", value: String(n), description: n === settings.defaultVolume ? "Current default volume" : "Set the default volume to " + n + "%", default: n === settings.defaultVolume }))
