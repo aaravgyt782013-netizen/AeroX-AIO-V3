@@ -20,6 +20,9 @@ const DEFAULTS = {
   allowedVoiceChannelId: null,
   defaultSource: "ytmsearch",
   autoplay: false,
+  stay247: false,
+  stay247VoiceChannelId: null,
+  stay247TextChannelId: null,
   loop: "off"
 };
 
@@ -142,6 +145,11 @@ export class MusicManager {
     await this.lavalink.init({ id: this.client.user.id, username: this.client.user.username });
     this.initialized = true;
     logger.success("Music", "Music manager initialized with " + this.nodesConfig.length + " configured Lavalink node(s).");
+    await this.ensure247Players();
+    this.stay247Timer = setInterval(() => {
+      this.ensure247Players().catch(error => logger.warn("Music", "24/7 voice keep-alive check failed:", error));
+    }, 20000);
+    this.stay247Timer.unref?.();
   }
 
   sendRawData(data) {
@@ -154,6 +162,34 @@ export class MusicManager {
 
   getSettings(guildId) {
     return { ...DEFAULTS, ...(this.settings[guildId] || {}) };
+  }
+
+  async ensure247Players() {
+    if (!this.initialized || !this.lavalink) return;
+    for (const [guildId] of Object.entries(this.settings)) {
+      const settings = this.getSettings(guildId);
+      if (!settings.stay247 || !settings.stay247VoiceChannelId) continue;
+      if (!this.client.guilds.cache.has(guildId)) continue;
+      try {
+        let player = this.getPlayer(guildId);
+        if (player && player.voiceChannelId && player.voiceChannelId !== settings.stay247VoiceChannelId) {
+          // Do not force-move a live session that a moderator has intentionally moved.
+          continue;
+        }
+        if (!player) {
+          player = this.lavalink.createPlayer({
+            guildId,
+            voiceChannelId: settings.stay247VoiceChannelId,
+            textChannelId: settings.stay247TextChannelId || settings.requestChannelId || settings.announcementChannelId || undefined,
+            selfDeaf: true,
+            volume: settings.defaultVolume
+          });
+        }
+        if (!player.connected) await player.connect();
+      } catch (error) {
+        logger.warn("Music", "Could not restore 24/7 voice session for guild " + guildId + ":", error);
+      }
+    }
   }
 
   async updateSettings(guildId, patch) {
