@@ -116,6 +116,12 @@ class HelpCommand extends Command {
         }
       }
 
+      // The Music category now documents the unified music command and its two
+      // interactive panels. Keep legacy one-command wrappers executable and
+      // directly searchable (for example, `help play`), but do not clutter the
+      // category list with the old duplicate entries.
+      if (helpCategory === "Music" && !["music", "musicpanel", "musicsetting"].includes(name)) continue;
+
       if (!categories.has(helpCategory)) categories.set(helpCategory, []);
       const list = categories.get(helpCategory);
       if (!list.some(existing => existing.name === helpCommand.name)) {
