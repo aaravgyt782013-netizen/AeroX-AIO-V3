@@ -483,7 +483,7 @@ export async function openMusicPanel({ client, message }) {
         await manager.updateSettings(message.guild.id, { defaultSource: interaction.values[0] });
       } else if (action === "loop_setting") {
         const mode = interaction.values[0];
-        await manager.updateSettings(message.guild.id, { loop: mode });
+        await manager.updateSettings(message.guild.id, { loop: mode, ...(mode !== "off" ? { autoplay: false } : {}) });
         const activePlayer = manager.getPlayer(message.guild.id);
         if (activePlayer && typeof activePlayer.setRepeatMode === "function") await activePlayer.setRepeatMode(mode);
       } else if (action === "djrole") {
@@ -748,7 +748,12 @@ export async function openMusicSettingsPanel({ client, message }) {
         else if (key === "defaultSource") selection = "source";
         else if (key === "loop") selection = "loop";
         else {
-          await client.music.updateSettings(message.guild.id, { [key]: value === "on" });
+          const enabled = value === "on";
+          await client.music.updateSettings(message.guild.id, { [key]: enabled, ...(key === "autoplay" && enabled ? { loop: "off" } : {}) });
+          if (key === "autoplay" && enabled) {
+            const activePlayer = client.music.getPlayer(message.guild.id);
+            if (activePlayer && typeof activePlayer.setRepeatMode === "function") await activePlayer.setRepeatMode("off");
+          }
           selection = null;
         }
       } else if (action === "volume_setting") {
