@@ -240,7 +240,7 @@ export async function openMusicPanel({ client, message }) {
     let player = manager.getPlayer(message.guild.id);
     const settings = manager.getSettings(message.guild.id);
     const action = interaction.customId.split(":").at(-1);
-    const isSettings = ["category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
+    const isSettings = ["category", "setting", "djrole", "clear_dj", "announce_channel", "clear_announce_channel", "request_channel", "clear_request_channel", "voice_channel", "clear_voice_channel", "volume_setting", "queue_setting", "source_setting", "loop_setting", "autoplay"].includes(action);
     if (isSettings && !actor.permissions.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({ content: "Only members with **Manage Server** can change music settings.", ephemeral: true }).catch(() => {});
     }
@@ -305,6 +305,18 @@ export async function openMusicPanel({ client, message }) {
       } else if (action === "clear_announce_channel") {
         await manager.updateSettings(message.guild.id, { announcementChannelId: null });
         category = "display";
+      } else if (action === "request_channel") {
+        await manager.updateSettings(message.guild.id, { requestChannelId: interaction.values[0] });
+        category = "channels";
+      } else if (action === "clear_request_channel") {
+        await manager.updateSettings(message.guild.id, { requestChannelId: null });
+        category = "channels";
+      } else if (action === "voice_channel") {
+        await manager.updateSettings(message.guild.id, { allowedVoiceChannelId: interaction.values[0] });
+        category = "channels";
+      } else if (action === "clear_voice_channel") {
+        await manager.updateSettings(message.guild.id, { allowedVoiceChannelId: null });
+        category = "channels";
       } else {
         if (!player && action !== "autoplay") return interaction.reply({ content: "No active player. Start music with .play first.", ephemeral: true }).catch(() => {});
         if (action === "toggle") player.paused ? await player.resume() : await player.pause();
@@ -522,6 +534,22 @@ export async function openMusicSettingsPanel({ client, message }) {
       } else if (action === "clear_announce_channel") {
         await client.music.updateSettings(message.guild.id, { announcementChannelId: null });
         category = "display";
+        selection = null;
+      } else if (action === "request_channel") {
+        await client.music.updateSettings(message.guild.id, { requestChannelId: interaction.values[0] });
+        category = "channels";
+        selection = null;
+      } else if (action === "clear_request_channel") {
+        await client.music.updateSettings(message.guild.id, { requestChannelId: null });
+        category = "channels";
+        selection = null;
+      } else if (action === "voice_channel") {
+        await client.music.updateSettings(message.guild.id, { allowedVoiceChannelId: interaction.values[0] });
+        category = "channels";
+        selection = null;
+      } else if (action === "clear_voice_channel") {
+        await client.music.updateSettings(message.guild.id, { allowedVoiceChannelId: null });
+        category = "channels";
         selection = null;
       }
       await interaction.update(buildServerSettingsPanel(client, message.guild, category, selection));
