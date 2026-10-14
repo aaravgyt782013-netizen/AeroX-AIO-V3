@@ -207,10 +207,16 @@ export default {
     }
 
     if (["play", "p", "search"].includes(sub)) {
+      if (settings.requestChannelId && message.channel.id !== settings.requestChannelId) {
+        return fail("Music requests are restricted to <#" + settings.requestChannelId + "> in this server.");
+      }
       const query = args.join(" ").trim();
       if (!query) return fail("Tell me what to play: .play <song or URL>.");
       const voice = message.member.voice.channel;
       if (!voice) return fail("Join a voice channel before requesting music.");
+      if (settings.allowedVoiceChannelId && voice.id !== settings.allowedVoiceChannelId) {
+        return fail("Music playback is restricted to <#" + settings.allowedVoiceChannelId + "> in this server.");
+      }
       const voicePerms = voice.permissionsFor(message.guild.members.me);
       if (!voicePerms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return fail("I need Connect and Speak permissions in your voice channel.");
       if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return fail("I'm already playing in another voice channel in this server.");
