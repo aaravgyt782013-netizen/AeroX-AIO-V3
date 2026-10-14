@@ -88,6 +88,25 @@ async function addTracks(player, tracks, maxQueue) {
   if (accepted.length && !player.playing && !player.paused) await player.play();
   return { accepted: accepted.length, rejected: tracks.length - accepted.length };
 }
+
+// Try the configured source first, then compatible fallbacks. This avoids making
+// playback depend on a source plugin that may not be enabled on every Lavalink node.
+async function searchWithFallback(player, query, settings, requester, isUrl) {
+  const sources = isUrl
+    ? [null]
+    : [...new Set([settings.defaultSource, "ytmsearch", "ytsearch", "scsearch"].filter(Boolean))];
+  let lastError = null;
+  for (const source of sources) {
+    try {
+      const result = await player.search({ query, ...(source ? { source } : {}) }, requester);
+      if (result?.tracks?.length) return result;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) throw lastError;
+  return { tracks: [], loadType: "empty" };
+}
 async function sendSearchPicker(message, tracks, query, player, manager, settings) {
   const shown = tracks.slice(0, 5);
   const row = new ActionRowBuilder().addComponents(shown.map((track, index) =>
@@ -227,7 +246,19 @@ export default {
         if (!player.connected) await player.connect();
         if (typeof player.setRepeatMode === "function") await player.setRepeatMode(settings.loop || "off");
         const isUrl = /^https?:\/\//i.test(query);
-        const result = await player.search({ query, ...(isUrl ? {} : { source: settings.defaultSource }) }, message.author);
+        let result = await searchWithFallback(player, query, settings, message.author, isUrl);
+        // Spotify URLs are not directly playable on every Lavalink setup. If direct
+        // resolution fails, look up the track title and search a playable source.
+        if (!result?.tracks?.length && /^https?:\\/\\/(open\\.)?spotify\\.com\\/(track|album|playlist)\\//i.test(query)) {
+          try {
+            const response = await fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(query), { signal: AbortSignal.timeout(5000) });
+            if (response.ok) {
+              const metadata = await response.json();
+              const spotifyTitle = String(metadata?.title || "").trim();
+              if (spotifyTitle) result = await searchWithFallback(player, spotifyTitle, settings, message.author, false);
+            }
+          } catch { /* Keep the normal no-results response if Spotify metadata is unavailable. */ }
+        }
         const tracks = result?.tracks || [];
         if (!tracks.length) return fail("No playable results. Try another search or URL, and verify the Lavalink source plugin.");
         if (sub === "search") return sendSearchPicker(message, tracks, query, player, manager, settings);
