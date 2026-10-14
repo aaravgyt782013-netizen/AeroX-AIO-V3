@@ -107,31 +107,31 @@ function buildDashboard(client, guild) {
   const status = !player ? "IDLE" : player.paused ? "PAUSED" : player.playing ? "PLAYING" : "CONNECTED";
   const artwork = settings.showArtwork ? artworkOf(current) : null;
   const now = new SectionBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(
-    "## " + (player?.paused ? "⏸️ PAUSED" : current ? "🎶 NOW PLAYING" : "🎧 READY TO PLAY") + "\\n" +
-    title + "\\n-# " + clean(current?.info?.author || "LightCore Music") + "\\n\\n" +
-    bar + "\\n`" + (current ? duration(position) : "0:00") + " / " + (current ? duration(total) : "0:00") + "`"
+    "## " + (player?.paused ? "⏸️ PAUSED" : current ? "🎶 NOW PLAYING" : "🎧 READY TO PLAY") + "\n" +
+    title + "\n-# " + clean(current?.info?.author || "LightCore Music") + "\n\n" +
+    bar + "\n`" + (current ? duration(position) : "0:00") + " / " + (current ? duration(total) : "0:00") + "`"
   ));
   if (artwork) now.setThumbnailAccessory(new ThumbnailBuilder().setURL(artwork).setDescription("Artwork for " + titleOf(current)));
   const hero = new ContainerBuilder().setAccentColor(current ? COLORS.success : COLORS.primary)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "# ✦ LIGHTCORE MUSIC\\n-# THE MUSIC EXPERIENCE FOR YOUR SERVER\\n## " + clean(guild.name) +
-      "\\nSearch, queue, and control music without leaving Discord."
+      "# ✦ LIGHTCORE MUSIC\n-# THE MUSIC EXPERIENCE FOR YOUR SERVER\n## " + clean(guild.name) +
+      "\nSearch, queue, and control music without leaving Discord."
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addSectionComponents(now)
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "### 📡 PLAYER STATUS\\n" +
-      "**Status** · " + status + "   **Volume** · " + String(player?.volume ?? settings.defaultVolume) + "%\\n" +
-      "**Repeat** · " + settings.loop + "   **Autoplay** · " + (settings.autoplay ? "On" : "Off") + "\\n" +
+      "### 📡 PLAYER STATUS\n" +
+      "**Status** · " + status + "   **Volume** · " + String(player?.volume ?? settings.defaultVolume) + "%\n" +
+      "**Repeat** · " + settings.loop + "   **Autoplay** · " + (settings.autoplay ? "On" : "Off") + "\n" +
       "**Up next** · " + upcoming.length + " track(s)" +
       (settings.showRequester && current?.requester?.username ? "   **Requested by** · " + clean(current.requester.username) : "")
     ))
     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      "### 📜 UP NEXT\\n" +
-      (upcoming.slice(0, 3).map((track, i) => "**" + (i + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration)).join("\\n") || "*Your queue is empty. Try .play <song> to add music.*") +
-      (upcoming.length > 3 ? "\\n-# And " + (upcoming.length - 3) + " more track(s) in the queue." : "")
+      "### 📜 UP NEXT\n" +
+      (upcoming.slice(0, 3).map((track, i) => "**" + (i + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration)).join("\n") || "*Your queue is empty. Try .play <song> to add music.*") +
+      (upcoming.length > 3 ? "\n-# And " + (upcoming.length - 3) + " more track(s) in the queue." : "")
     ));
   const nav = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("aerox_panel:open_settings").setLabel("Server Settings").setEmoji("⚙️").setStyle(ButtonStyle.Secondary),
@@ -297,7 +297,7 @@ export async function openMusicPanel({ client, message }) {
   if (!message.guild || !message.member) return;
   if (!client.music) return message.reply("The music manager is not ready yet.");
   let category = "playback";
-  const sent = await message.reply({ ...buildPanel(client, message.guild, category), flags: MessageFlags.IsComponentsV2 });
+  const sent = await message.reply({ ...buildDashboard(client, message.guild), flags: MessageFlags.IsComponentsV2 });
   const collector = sent.createMessageComponentCollector();
   collector.on("collect", async interaction => {
     if (interaction.guildId !== message.guild.id) return interaction.reply({ content: "This panel belongs to another server.", ephemeral: true }).catch(() => {});
@@ -335,6 +335,15 @@ export async function openMusicPanel({ client, message }) {
             })
           }
         });
+      } else if (action === "refresh") {
+        return interaction.update(buildDashboard(client, message.guild));
+      } else if (action === "clear_queue") {
+        if (!player) return interaction.reply({ content: "There is no active player.", ephemeral: true }).catch(() => {});
+        const queue = player.queue?.tracks || [];
+        const removed = queue.length;
+        queue.splice(0, queue.length);
+        await interaction.update(buildDashboard(client, message.guild));
+        return interaction.followUp({ content: "Cleared " + removed + " upcoming track(s). The current song will keep playing.", ephemeral: true }).catch(() => {});
       } else if (action === "category") {
         category = interaction.values[0];
       } else if (action === "setting") {
