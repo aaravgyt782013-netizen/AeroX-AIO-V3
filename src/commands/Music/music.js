@@ -13,6 +13,17 @@ const duration = ms => {
 };
 const trackTitle = track => safeText(track?.info?.title || "Unknown track");
 const trackUrl = track => /^https?:\/\//i.test(track?.info?.uri || "") ? track.info.uri : null;
+function registeredEmoji(client, names, fallback) {
+  const wanted = (Array.isArray(names) ? names : [names]).map(name => String(name).toLowerCase());
+  const pools = [client?.application?.emojis?.cache, client?.emojis?.cache];
+  for (const guild of client?.guilds?.cache?.values?.() || []) pools.push(guild.emojis?.cache);
+  for (const pool of pools) {
+    if (!pool) continue;
+    const found = pool.find?.(emoji => wanted.some(name => emoji.name?.toLowerCase() === name || emoji.name?.toLowerCase().includes(name)));
+    if (found) return { id: found.id, name: found.name, animated: Boolean(found.animated) };
+  }
+  return fallback;
+}
 
 function embed(title, description, color = COLORS.info) {
   return new ContainerBuilder().setAccentColor(color)
@@ -23,11 +34,11 @@ function embed(title, description, color = COLORS.info) {
 function playerControls(player, settings) {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji("⏮️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(player.paused ? "▶️" : "⏸️").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji("⏭️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji("⏹️").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji("📜").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("aerox_music:previous").setEmoji(registeredEmoji(player.client, ["previous", "back"], "⏮️")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:toggle").setEmoji(registeredEmoji(player.client, [player.paused ? "play" : "pause"], player.paused ? "▶️" : "⏸️")).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("aerox_music:skip").setEmoji(registeredEmoji(player.client, ["skip", "next"], "⏭️")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_music:stop").setEmoji(registeredEmoji(player.client, ["stop"], "⏹️")).setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("aerox_music:queue").setEmoji(registeredEmoji(player.client, ["queue", "playlist"], "📜")).setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("aerox_music:vol_down").setLabel("Volume −").setStyle(ButtonStyle.Secondary),
@@ -37,7 +48,7 @@ function playerControls(player, settings) {
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("aerox_music:autoplay").setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji("🎛️").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("aerox_music:dashboard").setLabel("Open Music Dashboard").setEmoji(registeredEmoji(player.client, ["settings", "dashboard", "music"], "🎛️")).setStyle(ButtonStyle.Primary)
     )
   ];
 }
