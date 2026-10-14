@@ -186,7 +186,7 @@ export class MusicManager {
         new ButtonBuilder().setCustomId("aerox_track:loop").setLabel("Repeat · " + settings.loop).setEmoji("🔁").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:shuffle").setLabel("Shuffle").setEmoji("🔀").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aerox_track:dashboard").setLabel("Full Control Panel").setEmoji("🎛️").setStyle(ButtonStyle.Success)
-      )
+      ),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aerox_track:seek_back").setLabel("−10 sec").setEmoji("⏪").setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream)),
         new ButtonBuilder().setCustomId("aerox_track:seek_forward").setLabel("+10 sec").setEmoji("⏩").setStyle(ButtonStyle.Secondary).setDisabled(!player?.queue?.current || Boolean(player?.queue?.current?.info?.isStream))
