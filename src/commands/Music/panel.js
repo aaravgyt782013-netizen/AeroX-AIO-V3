@@ -37,8 +37,9 @@ function categoryMenu(category) {
     .addOptions(
       { label: "Playback", value: "playback", description: "Volume, search source, repeat and autoplay", emoji: "🎧", default: category === "playback" },
       { label: "Queue", value: "queue", description: "Queue limits and smart continuation", emoji: "📜", default: category === "queue" },
-      { label: "Access", value: "access", description: "DJ role and control permissions", emoji: "🛡️", default: category === "access" },
-      { label: "Display", value: "display", description: "Now-playing announcements", emoji: "🪄", default: category === "display" }
+      { label: "DJ & Permissions", value: "access", description: "DJ role and control permissions", emoji: "🛡️", default: category === "access" },
+      { label: "Channels", value: "channels", description: "Restrict request and voice channels", emoji: "🔒", default: category === "channels" },
+      { label: "Announcements", value: "display", description: "Now-playing messages and channel", emoji: "📣", default: category === "display" }
     ));
 }
 
@@ -116,8 +117,13 @@ function buildPanel(client, guild, category) {
       description: "Choose who can manage the player. Server managers always retain an override.",
       detail: "**DJ role** · " + (settings.djRoleId ? "<@&" + settings.djRoleId + ">" : "Not configured") + "\n**Override** · Manage Server\n\n-# Select a role below, or remove the restriction to let everyone control playback."
     },
+    channels: {
+      icon: "🔒", title: "Channel restrictions",
+      description: "Restrict song requests to one text channel and playback to one voice channel.",
+      detail: "**Request channel** · " + (settings.requestChannelId ? "<#" + settings.requestChannelId + ">" : "Any text channel") + "\n**Allowed voice channel** · " + (settings.allowedVoiceChannelId ? "<#" + settings.allowedVoiceChannelId + ">" : "Any voice channel") + "\n\n-# These restrictions apply to new music requests."
+    },
     display: {
-      icon: "🪄", title: "Player announcements",
+      icon: "📣", title: "Player announcements",
       description: "Control the extra track announcements posted when music changes.",
       detail: "**Track announcements** · " + (settings.announceNowPlaying ? "Enabled" : "Disabled") + "\n**Announcement channel** · " + (settings.announcementChannelId ? "<#" + settings.announcementChannelId + ">" : "Use song request channel") + "\n\n-# Every song announcement includes an Open Music Control Panel button."
     }
@@ -156,6 +162,20 @@ function buildPanel(client, guild, category) {
   const rows = [categoryMenu(category)];
   const menu = settingMenu(category, settings);
   if (menu) rows.push(menu);
+  if (category === "channels") {
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:request_channel")
+      .setPlaceholder("💬  Choose music request text channel")
+      .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:voice_channel")
+      .setPlaceholder("🔊  Choose allowed voice channel")
+      .setChannelTypes(ChannelType.GuildVoice).setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aerox_panel:clear_request_channel").setLabel("Allow any text channel").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aerox_panel:clear_voice_channel").setLabel("Allow any voice channel").setStyle(ButtonStyle.Secondary)
+    ));
+  }
   if (category === "display") {
     rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
       .setCustomId("aerox_panel:announce_channel")
@@ -168,6 +188,16 @@ function buildPanel(client, guild, category) {
       .setEmoji("↩️")
       .setStyle(ButtonStyle.Secondary)));
   }
+  if (category === "channels") {
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:request_channel")
+      .setPlaceholder("💬  Restrict requests to a text channel")
+      .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
+    rows.push(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
+      .setCustomId("aerox_panel:voice_channel")
+      .setPlaceholder("🔊  Restrict playback to a voice channel")
+      .setChannelTypes(ChannelType.GuildVoice).setMinValues(1).setMaxValues(1)));
+  }
   if (category === "access") {
     rows.push(new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
       .setCustomId("aerox_panel:djrole")
@@ -177,7 +207,7 @@ function buildPanel(client, guild, category) {
       new ButtonBuilder().setCustomId("aerox_panel:clear_dj").setLabel("Remove DJ restriction").setEmoji("🔓").setStyle(ButtonStyle.Secondary)
     ));
   }
-  rows.push(...controls(player, settings));
+  if (category === "playback" || category === "queue") rows.push(...controls(player, settings));
   return { components: [hero, settingsCard, ...rows] };
 }
 
@@ -347,6 +377,14 @@ function buildServerSettingsPanel(client, guild, category, selection = null) {
       summary: [
         "**Maximum queue**  ·  " + settings.maxQueue + " tracks",
         "**Autoplay**  ·  " + (settings.autoplay ? "🟢 Enabled" : "⚪ Disabled")
+      ].join("\n")
+    },
+    channels: {
+      icon: "🔒", title: "Channels",
+      intro: "Optionally require a dedicated text channel for requests and a specific voice channel for playback.",
+      summary: [
+        "**Request channel**  ·  " + (settings.requestChannelId ? "<#" + settings.requestChannelId + ">" : "Any text channel"),
+        "**Allowed voice channel**  ·  " + (settings.allowedVoiceChannelId ? "<#" + settings.allowedVoiceChannelId + ">" : "Any voice channel")
       ].join("\n")
     },
     access: {
