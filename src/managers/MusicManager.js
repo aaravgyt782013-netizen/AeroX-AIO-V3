@@ -323,6 +323,7 @@ export class MusicManager {
         const voice = actor.voice.channel;
         if (!voice) return interaction.reply({ content: "Join a voice channel first to control playback.", ephemeral: true }).catch(() => {});
         if (fresh.voiceChannelId && fresh.voiceChannelId !== voice.id) return interaction.reply({ content: "Join the same voice channel as LightCore to control playback.", ephemeral: true }).catch(() => {});
+        if (settings.allowedVoiceChannelId && voice.id !== settings.allowedVoiceChannelId) return interaction.reply({ content: "Music playback is restricted to <#" + settings.allowedVoiceChannelId + "> in this server.", ephemeral: true }).catch(() => {});
         if (!actor.permissions.has(PermissionFlagsBits.ManageGuild) && settings.djRoleId && !actor.roles.cache.has(settings.djRoleId)) {
           return interaction.reply({ content: "You need the configured DJ role <@&" + settings.djRoleId + "> to control music.", ephemeral: true }).catch(() => {});
         }
