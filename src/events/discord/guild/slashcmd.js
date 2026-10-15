@@ -230,23 +230,14 @@ async function handleChatInputCommand(interaction, client) {
   }
 
   try {
+    // Apply blacklist gates before cooldowns or command-specific behavior.
+    if (db.isUserBlacklisted(interaction.user.id) || db.isGuildBlacklisted(interaction.guild.id)) return;
     const cooldownTime = antiAbuse.checkCooldown(
       interaction.user.id,
       commandToExecute,
     );
     if (cooldownTime) {
       return _sendCooldownError(interaction, cooldownTime, commandToExecute);
-    }
-
-    if (
-      db.isUserBlacklisted(interaction.user.id) ||
-      db.isGuildBlacklisted(interaction.guild.id)
-    ) {
-      return _sendError(
-        interaction,
-        "Access Denied",
-        "You are not permitted to use this bot.",
-      );
     }
 
     if (
