@@ -11,19 +11,28 @@ export default {
       try { message = await message.fetch(); } catch {}
     }
 
-    // Discord does not include the deleter in messageDelete. Resolve it from
-    // the audit log when permissions and audit-log timing allow; bulk deletions
-    // and self-deletions may not have a reliable matching entry.
+    // Audit-log entries can arrive slightly after messageDelete. Wait briefly,
+    // then only attribute the deletion when there is one unambiguous recent
+    // entry for the same author and channel. Never guess an executor.
     let deleter = null;
     try {
-      const logs = await message.guild.fetchAuditLogs({ type: AuditLogEvent.MessageDelete, limit: 6 });
-      const entry = logs.entries.find(item =>
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      const logs = await message.guild.fetchAuditLogs({
+        type: AuditLogEvent.MessageDelete,
+        limit: 10,
+      });
+      const matches = logs.entries.filter(item =>
         item.targetId === message.author?.id &&
         item.extra?.channel?.id === message.channelId &&
-        Date.now() - item.createdTimestamp < 8000
+        Date.now() - item.createdTimestamp >= 0 &&
+        Date.now() - item.createdTimestamp < 6000
       );
-      if (entry) deleter = entry.executor || null;
-    } catch {}
+      if (matches.length === 1) {
+        deleter = matches[0].executor || null;
+      }
+    } catch {
+      // Missing View Audit Log permission is expected to leave executor unknown.
+    }
 
     const content = String(message.content || "").trim();
     const fields = [
