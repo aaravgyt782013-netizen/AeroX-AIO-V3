@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, Section
 import { LavalinkManager } from "lavalink-client";
 import { config } from "#config/config";
 import { logger } from "#utils/logger";
-import { MusicSettingsStore, MUSIC_DEFAULTS } from "#managers/music/MusicSettingsStore";
+import { MusicSettingsStore } from "#managers/music/MusicSettingsStore";
 
 export class MusicManager {
   constructor(client) {
