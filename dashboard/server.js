@@ -100,7 +100,7 @@ function canManage(guild) {
   return (perms & 0x20n) === 0x20n || (perms & 0x8n) === 0x8n || guild.owner === true;
 }
 function safeGuild(g) {
-  return { id: g.id, name: g.name, icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128` : null };
+  return { id: g.id, name: g.name, icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128` : null, owner: g.owner === true, permissions: g.permissions || "0" };
 }
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, configured: missing.length === 0, missing }));
@@ -144,19 +144,38 @@ app.get("/auth/callback", async (req, res) => {
 app.post("/auth/logout", (req, res) => req.session.destroy(() => res.json({ ok: true })));
 app.get("/api/me", (req, res) => res.json({ user: req.session.user || null }));
 app.get("/api/guilds", requireAuth, async (req, res) => {
-  const guilds = req.session.guilds || [];
-  const filtered = [];
-  for (const guild of guilds) {
+  const userGuilds = req.session.guilds || [];
+  const guildList = [];
+  for (const guild of userGuilds) {
+    let inBot = false;
     try {
-      const botGuild = await discord("/guilds/" + guild.id);
-      if (botGuild && (!botGuildIds.size || botGuildIds.has(guild.id))) filtered.push(guild);
-    } catch {}
+      await discord("/guilds/" + guild.id);
+      inBot = !botGuildIds.size || botGuildIds.has(guild.id);
+    } catch { inBot = false; }
+    const permissions = BigInt(guild.permissions || "0");
+    const canInvite = guild.owner === true || (permissions & 0x8n) === 0x8n;
+    guildList.push({
+      ...guild,
+      inBot,
+      canInvite,
+      premium: premiumGuildIds.has(guild.id),
+      inviteUrl: (!inBot && canInvite && process.env.DISCORD_CLIENT_ID)
+        ? "https://discord.com/oauth2/authorize?" + new URLSearchParams({
+            client_id: process.env.DISCORD_CLIENT_ID,
+            permissions: process.env.DISCORD_BOT_PERMISSIONS || "0",
+            scope: "bot applications.commands",
+            guild_id: guild.id,
+            disable_guild_select: "true"
+          }).toString()
+        : null
+    });
   }
-  res.json({ guilds: filtered.map((g) => ({ ...g, premium: premiumGuildIds.has(g.id) })), botGuildIdsConfigured: botGuildIds.size > 0 });
+  res.json({ guilds: guildList, botGuildIdsConfigured: botGuildIds.size > 0 });
 });
 app.get("/api/guilds/:id/settings", requireAuth, async (req, res) => {
   const id = req.params.id;
   if (!(req.session.guildAccess || []).includes(id)) return res.status(403).json({ error: "You do not have Manage Server permission for this server." });
+  if (botGuildIds.size && !botGuildIds.has(id)) return res.status(409).json({ error: "LightCore is not configured for this server. Invite the bot first." });
   try {
     await discord("/guilds/" + id);
     const rows = await sql`SELECT settings FROM dashboard_guild_settings WHERE guild_id = ${id} LIMIT 1`;
@@ -169,6 +188,7 @@ app.get("/api/guilds/:id/settings", requireAuth, async (req, res) => {
 app.put("/api/guilds/:id/settings", requireAuth, async (req, res) => {
   const id = req.params.id;
   if (!(req.session.guildAccess || []).includes(id)) return res.status(403).json({ error: "You do not have Manage Server permission for this server." });
+  if (botGuildIds.size && !botGuildIds.has(id)) return res.status(409).json({ error: "LightCore is not configured for this server. Invite the bot first." });
   const allowed = ["welcome", "leveling", "logging", "tickets", "moderation"];
   const input = req.body?.settings;
   if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some((k) => !allowed.includes(k))) return res.status(400).json({ error: "Invalid settings payload." });
