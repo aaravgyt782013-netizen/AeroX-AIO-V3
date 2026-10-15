@@ -127,26 +127,75 @@ export class MusicManager {
   }
 
   async recommendNext(player, lastTrack) {
-    const settings = this.getSettings(player.guildId);
-    if (!settings.autoplay || !lastTrack?.info?.title) return;
+    const guildId = player.guildId;
+    const settings = this.getSettings(guildId);
+    if (!settings.autoplay || !lastTrack?.info) return;
+
     if (typeof player.setRepeatMode === "function") await player.setRepeatMode("off").catch(() => {});
-    const info = lastTrack.info;
-    const banned = new Set([info.identifier, info.title].filter(Boolean).map(x => String(x).toLowerCase().trim()));
-    const queued = new Set((player.queue?.tracks || []).map(x => String(x.info?.identifier || x.info?.title || "").toLowerCase().trim()));
-    const queries = [info.author && info.author + " similar songs", info.author && info.author + " radio", info.author && info.title && info.author + " " + info.title].filter(Boolean);
-    for (const query of queries) {
+
+    // Autoplay is intentionally independent of the previous title. Use randomized,
+    // broad discovery queries so it doesn't keep replaying the same song/search result.
+    const pools = [
+      "random popular songs",
+      "viral music hits",
+      "popular Hindi songs",
+      "popular English songs",
+      "pop hits playlist",
+      "indie music mix",
+      "rock hits playlist",
+      "electronic dance music hits",
+      "R&B hits playlist",
+      "lofi music mix",
+      "trending songs playlist",
+      "classic hits playlist",
+      "chill music playlist",
+      "anime music playlist",
+      "hip hop hits playlist",
+      "acoustic songs playlist"
+    ];
+    for (let i = pools.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pools[i], pools[j]] = [pools[j], pools[i]];
+    }
+
+    const identity = track => {
+      const info = track?.info || {};
+      return String(info.identifier || info.uri || info.title || "").toLowerCase().trim();
+    };
+    const titleKey = track => String(track?.info?.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const currentId = identity(lastTrack);
+    const currentTitle = titleKey(lastTrack);
+    const queuedIds = new Set((player.queue?.tracks || []).map(identity));
+    const recent = this.recentAutoplayTracks?.get(guildId) || new Set();
+    const isNew = track => {
+      const id = identity(track);
+      const title = titleKey(track);
+      return Boolean(id && title && id !== currentId && title !== currentTitle &&
+        !queuedIds.has(id) && !recent.has(id));
+    };
+
+    for (const query of pools.slice(0, 8)) {
       try {
-        const result = await searchWithFallback(player, query, { ...settings, defaultSource: settings.defaultSource }, lastTrack.requester || "LightCore");
-        const candidate = (result.tracks || []).find(track => {
-          const id = String(track.info?.identifier || "").toLowerCase().trim();
-          const title = String(track.info?.title || "").toLowerCase().trim();
-          return title && !banned.has(id) && !banned.has(title) && !queued.has(id) && !queued.has(title);
-        });
-        if (candidate) { await player.queue.add(candidate); return; }
+        const result = await searchWithFallback(
+          player, query, { ...settings, defaultSource: settings.defaultSource },
+          lastTrack.requester || "LightCore"
+        );
+        const candidates = (result?.tracks || []).filter(isNew);
+        if (!candidates.length) continue;
+        const candidate = candidates[Math.floor(Math.random() * candidates.length)];
+        await player.queue.add(candidate);
+        if (!this.recentAutoplayTracks) this.recentAutoplayTracks = new Map();
+        recent.add(identity(candidate));
+        while (recent.size > 20) recent.delete(recent.values().next().value);
+        this.recentAutoplayTracks.set(guildId, recent);
+        logger.info("Music", "Autoplay queued a randomized recommendation: " + safe(candidate.info?.title));
+        return candidate;
       } catch (error) {
-        logger.debug("Music", "Autoplay recommendation search failed:", error);
+        logger.debug("Music", "Random autoplay search failed for " + query + ":", error);
       }
     }
+    logger.warn("Music", "Autoplay could not find a fresh recommendation for guild " + guildId);
+    return null;
   }
 
   async restoreStay247() {
