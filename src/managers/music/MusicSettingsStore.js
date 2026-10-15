@@ -49,13 +49,23 @@ export class MusicSettingsStore {
       ? snapshot
       : localSettings;
 
-    // One-time import only: never overwrite rows that already exist in Neon.
-    for (const [guildId, guildSettings] of Object.entries(legacySettings || {})) {
-      if (!guildId || !guildSettings || typeof guildSettings !== "object" || Array.isArray(guildSettings)) continue;
-      await neonQuery(
-        "INSERT INTO aerox_music_settings (guild_id, settings) VALUES ($1, $2::jsonb) ON CONFLICT (guild_id) DO NOTHING",
-        [guildId, JSON.stringify(guildSettings)]
-      );
+    // Import legacy data in one deterministic batch. Multiple Discord shards
+    // initialize simultaneously, so per-row writes can deadlock on shared keys.
+    const legacyRows = Object.entries(legacySettings || {})
+      .filter(([guildId, guildSettings]) =>
+        Boolean(guildId) &&
+        guildSettings &&
+        typeof guildSettings === "object" &&
+        !Array.isArray(guildSettings)
+      )
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([guild_id, settings]) => ({ guild_id, settings }));
+
+    if (legacyRows.length) {
+      await this.retryDeadlock(() => neonQuery(
+        "INSERT INTO aerox_music_settings (guild_id, settings) SELECT item.guild_id, item.settings FROM jsonb_to_recordset($1::jsonb) AS item(guild_id TEXT, settings JSONB) ON CONFLICT (guild_id) DO NOTHING",
+        [JSON.stringify(legacyRows)]
+      ));
     }
 
     const result = await neonQuery("SELECT guild_id, settings FROM aerox_music_settings");
@@ -86,6 +96,18 @@ export class MusicSettingsStore {
     };
     await this.writeLocalCache();
     return this.get(guildId);
+  }
+
+  async retryDeadlock(operation, attempt = 0) {
+    try {
+      return await operation();
+    } catch (error) {
+      const isDeadlock = error?.code === "40P01" || /deadlock detected/i.test(String(error?.message || ""));
+      if (!isDeadlock || attempt >= 3) throw error;
+      const delay = 180 * (attempt + 1) + Math.floor(Math.random() * 220);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return this.retryDeadlock(operation, attempt + 1);
+    }
   }
 
   async writeLocalCache() {
