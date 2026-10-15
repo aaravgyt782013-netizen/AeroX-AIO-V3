@@ -1511,16 +1511,23 @@ class HelpCommand extends Command {
   }
 
   _getCategoryEmoji(category) {
-    const categoryLower = category.toLowerCase();
+    const categoryLower = String(category || "").toLowerCase();
+    // These help categories use the exact requested Unicode icons.
+    const requestedIcons = {
+      settings: "⚙️",
+      tracking: "🕰️",
+      developer: "🧑‍💻",
+      developers: "🧑‍💻",
+      welcome: "👐",
+    };
+    if (requestedIcons[categoryLower]) return requestedIcons[categoryLower];
+
     const emojiKey = `category_${categoryLower}`;
-    // Keep the existing category icons; Premium uses the Owner category icon
-    // as requested when a dedicated Premium icon is not configured.
+    // Preserve configured custom emojis for every other category.
     const categoryEmoji = emoji.get(emojiKey)
       || (categoryLower === "premium" ? emoji.get("category_owner") : null);
-    
-    if (categoryEmoji) {
-      return categoryEmoji;
-    }
+
+    if (categoryEmoji) return categoryEmoji;
     return emoji.get("folder");
   }
 
