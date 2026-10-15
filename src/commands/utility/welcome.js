@@ -11,6 +11,7 @@ import {
   SeparatorSpacingSize,
 } from "discord.js";
 import { db } from "#database/DatabaseManager";
+import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/AutomationUtils";
 
@@ -156,6 +157,7 @@ class WelcomeCommand extends Command {
     if (sub === "setup") {
       const channel = resolveChannel(message, args[1]);
       const text = args.slice(2).join(" ") || DEFAULT_MESSAGE;
+      if (text !== DEFAULT_MESSAGE && !db.isGuildPremium(guildId)) return message.reply(replyBox(emoji.get("info") + " Custom welcome messages require **Guild Premium**. Use the default message or upgrade this server."));
       if (!channel) return message.reply(replyBox(emoji.get("cross") + " Mention a text channel or provide its ID."));
       db.setWelcome(guildId, channel.id, text, "embed");
       return sendWelcomeSetup(message, message.author.id);
@@ -165,6 +167,7 @@ class WelcomeCommand extends Command {
       const text = args.slice(1).join(" ");
       const current = db.getWelcome(guildId);
       if (!text) return message.reply(replyBox(emoji.get("cross") + " Provide a welcome message."));
+      if (!db.isGuildPremium(guildId)) return message.reply(replyBox(emoji.get("info") + " Custom welcome messages require **Guild Premium**."));
       if (!current?.channel_id) return message.reply(replyBox(emoji.get("cross") + " Run .welcome setup #channel message first."));
       db.setWelcome(guildId, current.channel_id, text, current.welcome_style || "embed");
       return message.reply(replyBox(emoji.get("check") + " Welcome message updated."));
