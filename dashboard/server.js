@@ -137,7 +137,7 @@ app.put("/api/guilds/:id/settings", requireAuth, async (req, res) => {
     res.status(503).json({ error: "Settings could not be saved. Verify DATABASE_URL and Neon access." });
   }
 });
-app.get("*", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/{*path}", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 if (missing.length) console.warn("Dashboard environment not fully configured:", missing.join(", "));
 if (sql) ensureSchema().catch((err) => console.error("Neon schema initialization failed:", err.message));
