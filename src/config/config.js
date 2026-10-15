@@ -57,7 +57,7 @@ export const config = {
     nodes: lavalinkNodes,
     node: lavalinkNodes.length ? [] : (process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : []),
   },
-  links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/aerox" },
+  links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/4waqdE9AVZ" },
   status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: "CUSTOM" },
   colors: { info: "#3498db", success: "#2ecc71", warning: "#f39c12", error: "#e74c3c" },
   assets: { defaultThumbnail: process.env.DEFAULT_THUMBNAIL || null, helpThumbnail: process.env.HELP_THUMBNAIL || null, bannerUrl: process.env.BANNER_URL || null },
