@@ -60,7 +60,7 @@ async function searchPicker({ message, tracks, query, manager, player }) {
     embeds: [card("🔎 Search results", "**Query:** " + clean(query, 150) + "\nChoose one of the results below.\n\n" + shown.map((track, index) => "**" + (index + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration)).join("\n"))],
     components: [new ActionRowBuilder().addComponents(menu)]
   });
-  const collector = sent.createMessageComponentCollector({ time: 90000, max: 1 });
+  const collector = sent.createMessageComponentCollector({ time: 90000 });
   collector.on("collect", async interaction => {
     if (interaction.user.id !== message.author.id) return interaction.reply({ content: "Only the person who started this search can choose a result.", ephemeral: true }).catch(() => {});
     const freshMember = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
@@ -76,11 +76,7 @@ async function searchPicker({ message, tracks, query, manager, player }) {
       const wasActive = Boolean(freshPlayer.queue?.current || freshPlayer.playing || freshPlayer.paused);
       const result = await addTracks(freshPlayer, [selected], settings.maxQueue);
       if (!result.accepted) return interaction.reply({ content: "The queue is full.", ephemeral: true });
-      await interaction.update({
-        embeds: [card("✅ Added to queue", "**" + titleOf(selected) + "** · " + duration(selected.info?.duration), COLORS.success)],
-        components: []
-      });
-      if (!wasActive) await manager.publishPlayer(freshPlayer, selected).catch(() => {});
+      await interaction.update({\n        embeds: [card("✅ Added to queue", "**" + titleOf(selected) + "** · " + duration(selected.info?.duration), COLORS.success)],\n        components: []\n      });\n      collector.stop("selected");\n      if (!wasActive) await manager.publishPlayer(freshPlayer, selected).catch(() => {});
     } catch (error) {
       await interaction.reply({ content: "Could not play that result: " + clean(error?.message || error), ephemeral: true }).catch(() => {});
     }
