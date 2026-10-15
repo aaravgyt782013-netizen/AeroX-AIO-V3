@@ -111,15 +111,14 @@ export async function openMusicSettingsPanel({ client, message, interaction, mem
 
   const payload = {
     embeds: [settingsEmbed(guild, manager.getSettings(guild.id))],
-    components: settingsComponents(client, manager.getSettings(guild.id)),
-    flags: MessageFlags.Ephemeral
+    components: settingsComponents(client, manager.getSettings(guild.id))
   };
   let sent;
   if (interaction) {
-    await interaction.reply(payload);
+    await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
     sent = await interaction.fetchReply();
   } else {
-    sent = await message.reply({ ...payload, flags: MessageFlags.Ephemeral });
+    sent = await message.reply(payload);
   }
 
   const collector = sent.createMessageComponentCollector({ idle: 10 * 60 * 1000 });
