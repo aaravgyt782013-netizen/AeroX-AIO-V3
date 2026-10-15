@@ -80,6 +80,7 @@ class HelpCommand extends Command {
       welcome: "Welcome",
       greetings: "Welcome",
       greet: "Welcome",
+      greetingsystem: "Welcome",
     };
     return aliases[key] || String(name || "").trim();
   }
@@ -125,6 +126,10 @@ class HelpCommand extends Command {
       // but don't list it as a user-facing command. List each actual music
       // command (play, queue, pause, playskip, playtop, etc.) individually,
       // matching the other help categories.
+      // Keep welcome/greeting configuration in its own dedicated help category,
+      // regardless of legacy command folder metadata.
+      if (name === "welcome") helpCommand.category = "Welcome";
+
       const hideFromMusicIndex = helpCategory === "Music" && name === "music";
       if (!hideFromMusicIndex) {
         if (!categories.has(helpCategory)) categories.set(helpCategory, []);
