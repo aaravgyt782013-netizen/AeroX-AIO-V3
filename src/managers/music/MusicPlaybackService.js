@@ -56,7 +56,10 @@ export async function searchWithFallback(player, query, settings = {}, requester
   const spotify = isSpotifyUrl(input);
   let lastError = null;
 
-  if (isUrl && !spotify) {
+  // Always let Lavalink/source plugins resolve the original URL first. This is
+  // essential for YouTube videos, Shorts, playlists and Spotify URLs when a
+  // compatible Spotify plugin is installed.
+  if (isUrl) {
     try {
       const direct = await player.search({ query: input }, requester);
       if (hasTracks(direct)) return direct;
@@ -69,6 +72,7 @@ export async function searchWithFallback(player, query, settings = {}, requester
   if (spotify) {
     const metadata = await resolveSpotifyMetadata(input, options.fetchImpl);
     if (!metadata?.title) {
+      // A Spotify URL may still be resolvable by a Lavalink Spotify plugin.
       if (lastError) throw lastError;
       return { tracks: [], loadType: "empty", spotifyResolutionFailed: true };
     }
@@ -103,7 +107,10 @@ export async function addTracks(player, tracks, maxQueue) {
   // Lavalink can report playing=false briefly after trackEnd/skip. If no current
   // track exists, explicitly kick off the queue instead of leaving it stranded.
   const hasCurrent = Boolean(player.queue?.current);
-  if (accepted.length && !player.paused && (!player.playing || !hasCurrent)) {
+  // Do not call play() again while a current track is set: during skip/end
+  // transitions that can race Lavalink's own queue advancement and pick the
+  // wrong item. Start manually only for a genuinely idle player.
+  if (accepted.length && !hasCurrent && !player.playing && !player.paused) {
     await player.play();
   }
 
