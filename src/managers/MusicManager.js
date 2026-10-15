@@ -51,8 +51,26 @@ export class MusicManager {
     this.lavalink.on("trackStart", (player, track) => {
       this.publishPlayer(player, track).catch(error => logger.warn("Music", "Could not update player panel:", error));
     });
-    this.lavalink.on("trackEnd", (player, track) => {
+    this.lavalink.on("trackEnd", (player, track, payload) => {
       if (track) this.previousTracks.set(player.guildId, track);
+      // Lavalink can emit FINISHED/LOAD_FAILED/STOPPED with a stale current-track
+      // reference during skip transitions. Let the library advance normal queues;
+      // only request autoplay after a genuine FINISHED event and an empty queue.
+      const reason = String(payload?.reason || payload?.track?.reason || "").toUpperCase();
+      if (reason && reason !== "FINISHED") return;
+      if ((player.queue?.tracks?.length || 0) > 0) return;
+      const settings = this.getSettings(player.guildId);
+      if (!settings.autoplay || !track) return;
+      Promise.resolve().then(async () => {
+        // Give Lavalink's queue handler first chance to advance, then only
+        // add autoplay if the player is still idle and no manual track arrived.
+        await new Promise(resolve => setTimeout(resolve, 250));
+        if ((player.queue?.tracks?.length || 0) > 0 || player.queue?.current || player.playing || player.paused) return;
+        const next = await this.recommendNext(player, track);
+        if (next && !player.queue?.current && !player.playing && !player.paused) {
+          await player.play().catch(error => logger.warn("Music", "Autoplay start failed:", error));
+        }
+      }).catch(error => logger.warn("Music", "Track-end recovery failed:", error));
     });
     this.lavalink.on("trackError", (player, track, payload) => {
       logger.error("Music", "Playback error in " + player.guildId + " for " + safe(track?.info?.title), payload);
