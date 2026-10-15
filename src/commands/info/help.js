@@ -723,12 +723,15 @@ class HelpCommand extends Command {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
       );
 
+      // Keep the text list and select menu aligned. Previously the text block
+      // displayed every command while the menu only contained the first page,
+      // making later commands look like they had no detailed-help option.
       const pageSize = 20;
       const totalPages = Math.max(1, Math.ceil(directCommands.length / pageSize));
       const safePage = Math.min(Math.max(Number(page) || 0, 0), totalPages - 1);
       const pageCommands = directCommands.slice(safePage * pageSize, (safePage + 1) * pageSize);
       const selectOptions = pageCommands.map((cmd) => ({
-        label: cmd.name,
+        label: cmd.name.slice(0, 100),
         emoji: this._getEmojiObject("info"),
         value: `cmd_${cmd.name}`,
         description: cmd.description ? cmd.description.slice(0, 100) : "No description",
