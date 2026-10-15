@@ -348,6 +348,11 @@ export default {
       try {
         const result = leveling.awardMessageXp(message.guild.id, message.author.id);
         if (result.leveledUp) {
+          // Apply every configured role reward as soon as the member levels up.
+          // The old path announced the level but never applied rewards here.
+          await leveling.applyRewards(message.member, result.level).catch((error) =>
+            logger.warn("Leveling", "Could not apply level-up role rewards", error),
+          );
           const settings = result.settings || leveling.getSettings(message.guild.id);
           const channel = settings.announcement_channel_id
             ? await message.guild.channels.fetch(settings.announcement_channel_id).catch(() => null)
