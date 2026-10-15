@@ -130,28 +130,35 @@ export class MusicManager {
     const guildId = player.guildId;
     const settings = this.getSettings(guildId);
     if (!settings.autoplay || !lastTrack?.info) return;
+    // Autoplay is only a fallback after the user queue is exhausted. Never
+    // inject a random track while a manually requested queue item is waiting.
+    if ((player.queue?.tracks?.length || 0) > 0) return;
 
     if (typeof player.setRepeatMode === "function") await player.setRepeatMode("off").catch(() => {});
 
     // Autoplay is intentionally independent of the previous title. Use randomized,
     // broad discovery queries so it doesn't keep replaying the same song/search result.
     const pools = [
-      "random popular songs",
-      "viral music hits",
-      "popular Hindi songs",
-      "popular English songs",
-      "pop hits playlist",
-      "indie music mix",
-      "rock hits playlist",
-      "electronic dance music hits",
-      "R&B hits playlist",
-      "lofi music mix",
-      "trending songs playlist",
-      "classic hits playlist",
-      "chill music playlist",
-      "anime music playlist",
-      "hip hop hits playlist",
-      "acoustic songs playlist"
+      "random song",
+      "popular Hindi song",
+      "popular English song",
+      "viral song",
+      "pop song",
+      "indie song",
+      "rock song",
+      "electronic dance song",
+      "R&B song",
+      "lofi song",
+      "trending song",
+      "classic hit song",
+      "chill song",
+      "anime song",
+      "hip hop song",
+      "acoustic song",
+      "Punjabi hit song",
+      "Bollywood hit song",
+      "K-pop hit song",
+      "2000s hit song"
     ];
     for (let i = pools.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -174,7 +181,7 @@ export class MusicManager {
         !queuedIds.has(id) && !recent.has(id));
     };
 
-    for (const query of pools.slice(0, 8)) {
+    for (const query of pools.slice(0, 12)) {
       try {
         const result = await searchWithFallback(
           player, query, { ...settings, defaultSource: settings.defaultSource },
@@ -264,7 +271,9 @@ export class MusicManager {
       .setFooter({ text: "LightCore • Shared server player" })
       .setTimestamp();
     if (settings.showRequester && track?.requester) embed.addFields({ name: "Requested by", value: safe(track.requester.username || track.requester.tag || "Listener"), inline: true });
-    const artwork = settings.showArtwork ? (info.artworkUrl || info.thumbnail || info.image) : null;
+    const youtubeArtwork = info.identifier && /(?:youtube\.com|youtu\.be)/i.test(String(info.uri || ""))
+      ? "https://img.youtube.com/vi/" + info.identifier + "/hqdefault.jpg" : null;
+    const artwork = settings.showArtwork ? (info.artworkUrl || info.thumbnail || info.image || youtubeArtwork) : null;
     if (http(artwork)) embed.setThumbnail(artwork);
     return embed;
   }
