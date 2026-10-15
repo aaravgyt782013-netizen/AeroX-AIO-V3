@@ -459,6 +459,16 @@ class HelpCommand extends Command {
 
   _createMainContainer(commands, categories, subcategories) {
     try {
+      // Keep the Leveling help tab aligned with the current XP/rank system;
+      // stale legacy leveling commands should not be advertised.
+      const currentLevelingCommands = new Set(["level", "leaderboard", "levelconfig", "rewards", "xp"]);
+      if (categories.has("Leveling")) {
+        categories.set(
+          "Leveling",
+          categories.get("Leveling").filter((command) => currentLevelingCommands.has(String(command.name).toLowerCase())),
+        );
+      }
+
       const categoryOrder = [
         "Info", "Utility", "Stats", "Leveling", "Fun", "Pfps", "Invites",
         "Music", "Voice", "Ticket", "Logging", "Moderation", "Giveaway",
@@ -547,7 +557,15 @@ class HelpCommand extends Command {
         .setPlaceholder("Select a category")
         .addOptions(
           categoryArray.slice(0, 25).map((category) => {
-            const categoryEmoji = this._getEmojiObject(`category_${category.toLowerCase()}`)
+            const requestedIcons = {
+              settings: "⚙️",
+              tracking: "🕰️",
+              developer: "🧑‍💻",
+              developers: "🧑‍💻",
+              welcome: "👐",
+            };
+            const categoryEmoji = requestedIcons[category.toLowerCase()]
+              || this._getEmojiObject(`category_${category.toLowerCase()}`)
               || (category.toLowerCase() === "premium" ? this._getEmojiObject("category_owner") : null)
               || this._getEmojiObject("folder");
             return {
