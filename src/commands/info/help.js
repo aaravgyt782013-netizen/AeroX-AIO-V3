@@ -336,6 +336,9 @@ class HelpCommand extends Command {
 
   async slashExecute({ client, interaction }) {
     try {
+      // A full command-registry scan can take longer than Discord's 3-second
+      // initial interaction window. Acknowledge first, then edit the reply.
+      await interaction.deferReply();
       const { commands, categories, subcategories } =
         await this._scanCommandDirectories(client);
       const commandName = interaction.options.getString("command");
@@ -354,12 +357,11 @@ class HelpCommand extends Command {
             subcategories,
           );
         } else {
-          return interaction.reply({
+          return interaction.editReply({
             components: [
               this._createErrorContainer(`Command "${commandName}" not found.`),
             ],
             flags: MessageFlags.IsComponentsV2,
-            ephemeral: true,
           });
         }
       }
@@ -372,12 +374,11 @@ class HelpCommand extends Command {
         });
       }
 
-      const helpMessage = await interaction.reply({
+      const helpMessage = await interaction.editReply({
         components: [
           this._createMainContainer(commands, categories, subcategories),
         ],
         flags: MessageFlags.IsComponentsV2,
-        fetchReply: true,
       });
 
       this._setupCollector(
@@ -402,6 +403,7 @@ class HelpCommand extends Command {
                 "An error occurred while loading help.",
               ),
             ],
+            flags: MessageFlags.IsComponentsV2,
           });
         } else {
           await interaction.reply({
@@ -410,6 +412,7 @@ class HelpCommand extends Command {
                 "An error occurred while loading help.",
               ),
             ],
+            flags: MessageFlags.IsComponentsV2,
             ephemeral: true,
           });
         }
@@ -1109,11 +1112,16 @@ class HelpCommand extends Command {
           subcategories,
         );
       } else {
-        const helpMessage = await messageOrInteraction.reply({
-          components: [container],
-          flags: MessageFlags.IsComponentsV2,
-          fetchReply: true,
-        });
+        const helpMessage = messageOrInteraction.deferred || messageOrInteraction.replied
+          ? await messageOrInteraction.editReply({
+              components: [container],
+              flags: MessageFlags.IsComponentsV2,
+            })
+          : await messageOrInteraction.reply({
+              components: [container],
+              flags: MessageFlags.IsComponentsV2,
+              fetchReply: true,
+            });
         this._setupCollector(
           helpMessage,
           messageOrInteraction.user.id,
