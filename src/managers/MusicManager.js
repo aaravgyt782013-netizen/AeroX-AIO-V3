@@ -234,7 +234,7 @@ export class MusicManager {
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("lightcore:vol_down").setEmoji(ICON.volumeDown).setLabel("Volume −").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("lightcore:vol_up").setEmoji(ICON.volumeUp).setLabel("Volume +").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("lightcore:loop").setEmoji(ICON.loop).setLabel("Repeat: " + settings.loop).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("lightcore:loop").setEmoji(ICON.loop).setLabel("Repeat: " + settings.loop).setStyle(settings.loop !== "off" ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("lightcore:shuffle").setEmoji(ICON.shuffle).setLabel("Shuffle").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("lightcore:dashboard").setEmoji(ICON.dashboard).setLabel("Settings").setStyle(ButtonStyle.Success)
       ),
@@ -256,10 +256,10 @@ export class MusicManager {
       : "Duration unavailable";
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
-      .setTitle("✦ LIGHTCORE • MUSIC PLAYER")
+      .setTitle("🎧 LIGHTCORE • NOW PLAYING")
       .setDescription(info.title
-        ? (http(info.uri) ? "[" + safe(info.title) + "](" + info.uri + ")" : "**" + safe(info.title) + "**") + "\n" + progress
-        : "Nothing is playing. Use `.play <song or URL>` to start a session.")
+        ? "▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" + (http(info.uri) ? "**[" + safe(info.title) + "](" + info.uri + ")**" : "**" + safe(info.title) + "**") + "\n" + progress + "\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+        : "🎵 Nothing is playing yet.\nUse `.play <song, YouTube link, or Spotify link>` to start a session.")
       .addFields(
         { name: "Artist", value: safe(info.author || "Unknown artist"), inline: true },
         { name: "Duration", value: info.isStream ? "Live" : this.formatDuration(total), inline: true },
