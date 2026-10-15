@@ -77,6 +77,9 @@ class HelpCommand extends Command {
       settings: "Settings",
       setting: "Settings",
       tracking: "Tracking",
+      welcome: "Welcome",
+      greetings: "Welcome",
+      greet: "Welcome",
     };
     return aliases[key] || String(name || "").trim();
   }
@@ -105,7 +108,9 @@ class HelpCommand extends Command {
       const name = command.name.toLowerCase();
       const helpCategory = ["channel", "categorydelete"].includes(name)
         ? "Channel"
-        : this._canonicalCategoryName(command.category || "Utility");
+        : name === "welcome"
+          ? "Welcome"
+          : this._canonicalCategoryName(command.category || "Utility");
 
       const helpCommand = { ...command, category: helpCategory };
       commands.set(name, helpCommand);
