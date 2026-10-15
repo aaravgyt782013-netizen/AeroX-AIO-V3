@@ -280,15 +280,21 @@ function _parseCommand(message, client) {
   // longest full command/alias name, regardless of how many words it contains.
   const commandNames = new Map();
   for (const [name, command] of commands) {
-    if (name) commandNames.set(String(name).toLowerCase(), command.name);
+    if (!command) continue;
+    const canonical = String(command.name || name || "").trim().toLowerCase();
+    if (name && canonical) commandNames.set(String(name).trim().toLowerCase(), canonical);
     for (const alias of command.aliases || []) {
-      if (alias) commandNames.set(String(alias).toLowerCase(), command.name);
+      if (alias && canonical) commandNames.set(String(alias).trim().toLowerCase(), canonical);
     }
   }
-  // Include aliases registered by the handler even if a command's own alias
-  // list is not normalized identically.
+  // Include handler aliases even when their registered target uses different
+  // casing; the canonical name is always taken from the actual command object.
   for (const [alias, target] of aliases) {
-    if (alias && target) commandNames.set(String(alias).toLowerCase(), target);
+    if (!alias || !target) continue;
+    const targetCommand = [...commands.values()].find(
+      (command) => String(command?.name || "").toLowerCase() === String(target).toLowerCase(),
+    );
+    if (targetCommand) commandNames.set(String(alias).trim().toLowerCase(), targetCommand.name.toLowerCase());
   }
 
   for (let length = normalized.length; length >= 1; length--) {
@@ -440,9 +446,21 @@ export default {
     const { commandName, args } = commandInfo;
     let command = client.commandHandler.commands.get(commandName);
     if (!command) {
-      const aliasTarget = client.commandHandler.aliases.get(commandName);
+      // Command maps may contain legacy mixed-case keys. Resolve the canonical
+      // registered command case-insensitively before giving up.
+      command = [...client.commandHandler.commands.values()].find(
+        (item) => String(item?.name || "").toLowerCase() === commandName.toLowerCase(),
+      );
+    }
+    if (!command) {
+      const aliasTarget = [...client.commandHandler.aliases.entries()].find(
+        ([alias]) => String(alias).toLowerCase() === commandName.toLowerCase(),
+      )?.[1];
       if (aliasTarget) {
-        command = client.commandHandler.commands.get(aliasTarget);
+        command = client.commandHandler.commands.get(aliasTarget)
+          || [...client.commandHandler.commands.values()].find(
+            (item) => String(item?.name || "").toLowerCase() === String(aliasTarget).toLowerCase(),
+          );
       }
     }
     if (!command) return;
