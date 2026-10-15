@@ -112,7 +112,7 @@ export default {
     const fail = text => reply("⚠️ Music action unavailable", text, COLORS.danger);
 
     if (!config.music.enabled) return fail("Music is disabled by the bot owner.");
-    if (["panel", "dashboard", "setup"].includes(sub)) return openMusicPanel({ client, message });
+    if (["panel", "dashboard", "setup", "musicpanel"].includes(sub)) return openMusicPanel({ client, message });
     if (sub === "help") return reply("🎧 LightCore Music", [
       "**Playback**  `.play <song or URL>` · `.search <query>` · `.pause` · `.resume` · `.skip` · `.back` · `.stop`",
       "**Queue**  `.queue [page]` · `.shuffle` · `.remove <position>` · `.clear`",
@@ -189,6 +189,12 @@ export default {
           (queued.rejected ? "\nSkipped " + queued.rejected + " track(s) because the queue limit was reached." : ""),
           COLORS.success);
       } catch (error) { return fail("Playback request failed: " + clean(error?.message || error, 220)); }
+    }
+
+    if (["nowplaying", "np"].includes(sub)) {
+      if (!player?.queue?.current) return fail("Nothing is playing right now. Use `.play <song>` to start.");
+      const published = await manager.publishPlayer(player);
+      return published || reply("🎧 Now playing", manager.playerEmbed(player).data.description || "Player refreshed.");
     }
 
     if (sub === "autoplay") {
