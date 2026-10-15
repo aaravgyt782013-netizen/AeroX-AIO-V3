@@ -76,7 +76,12 @@ async function searchPicker({ message, tracks, query, manager, player }) {
       const wasActive = Boolean(freshPlayer.queue?.current || freshPlayer.playing || freshPlayer.paused);
       const result = await addTracks(freshPlayer, [selected], settings.maxQueue);
       if (!result.accepted) return interaction.reply({ content: "The queue is full.", ephemeral: true });
-      await interaction.update({\n        embeds: [card("✅ Added to queue", "**" + titleOf(selected) + "** · " + duration(selected.info?.duration), COLORS.success)],\n        components: []\n      });\n      collector.stop("selected");\n      if (!wasActive) await manager.publishPlayer(freshPlayer, selected).catch(() => {});
+      await interaction.update({
+        embeds: [card("✅ Added to queue", "**" + titleOf(selected) + "** · " + duration(selected.info?.duration), COLORS.success)],
+        components: []
+      });
+      collector.stop("selected");
+      if (!wasActive) await manager.publishPlayer(freshPlayer, selected).catch(() => {});
     } catch (error) {
       await interaction.reply({ content: "Could not play that result: " + clean(error?.message || error), ephemeral: true }).catch(() => {});
     }
