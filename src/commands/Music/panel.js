@@ -181,10 +181,12 @@ export async function openMusicSettingsPanel({ client, message, interaction, mem
         else if (action === "set_loop") patch = { loop: selected, ...(selected !== "off" ? { autoplay: false } : {}) };
       } else if (control.isRoleSelectMenu() && action === "djrole") patch = { djRoleId: control.values[0] };
       else if (control.isChannelSelectMenu() && action === "request_channel") patch = { requestChannelId: control.values[0] };
-      else if (control.isChannelSelectMenu() && action === "voice_channel") patch = { allowedVoiceChannelId: control.values[0] };\n      else if (control.isChannelSelectMenu() && action === "announce_channel") patch = { announcementChannelId: control.values[0] };
+      else if (control.isChannelSelectMenu() && action === "voice_channel") patch = { allowedVoiceChannelId: control.values[0] };
+      else if (control.isChannelSelectMenu() && action === "announce_channel") patch = { announcementChannelId: control.values[0] };
       else if (action === "clear_dj") patch = { djRoleId: null };
       else if (action === "clear_request") patch = { requestChannelId: null };
-      else if (action === "clear_voice") patch = { allowedVoiceChannelId: null };\n      else if (action === "clear_announce") patch = { announcementChannelId: null };
+      else if (action === "clear_voice") patch = { allowedVoiceChannelId: null };
+      else if (action === "clear_announce") patch = { announcementChannelId: null };
       else return control.reply({ content: "Unknown setting action.", ephemeral: true });
 
       if (Object.keys(patch).length) {
