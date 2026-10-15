@@ -212,7 +212,10 @@ export default {
           queued = { accepted: 1, rejected: 0 };
         } else queued = await addTracks(active, tracks, settings.maxQueue);
         if (!queued.accepted) return fail("The queue is full (" + settings.maxQueue + " upcoming tracks).");
-        if (!wasActive) return;
+        if (!wasActive) {
+          if (sub === "playtop" && !active.playing && !active.paused) await active.play();
+          else return;
+        }
         const playlist = result.loadType === "playlist";
         if (playlist) return reply("📚 Playlist queued",
           "Added **" + queued.accepted + "** tracks from **" + clean(result.playlistInfo?.name || "playlist") + "**." +
