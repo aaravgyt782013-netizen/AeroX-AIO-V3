@@ -8,6 +8,7 @@ class PremiumUserCommand extends Command {
       name: "premiumuser",
       description: "Manage your Premium user perks",
       usage: "premiumuser <status|prefix|resetprefix> [prefix]",
+      examples: ["premiumuser status", "premiumuser prefix !", "premiumuser resetprefix"],
       aliases: ["mypremium", "premiumme"],
       category: "Premium",
       cooldown: 3,
