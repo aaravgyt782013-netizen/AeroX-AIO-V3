@@ -230,7 +230,7 @@ export class MusicManager {
     const components = this.controls(player);
     const existing = this.panels.get(guildId);
     if (existing?.channelId === channel.id && existing.message) {
-      try { await existing.message.edit({ embeds: [this.playerEmbed(player, track)], components }); return; }
+      try { await existing.message.edit({ embeds: [this.playerEmbed(player, track)], components }); return existing.message; }
       catch { this.panels.delete(guildId); }
     }
     const oldChannelId = settings.trackPanelChannelId;
@@ -250,6 +250,7 @@ export class MusicManager {
     collector.on("end", () => {
       if (this.panels.get(guildId)?.message?.id === message.id) this.panels.delete(guildId);
     });
+    return message;
   }
 
   async handleControl(interaction, guildId = interaction.guildId) {
