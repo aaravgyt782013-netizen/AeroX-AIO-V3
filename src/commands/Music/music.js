@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { config } from "#config/config";
+import { addTracks, ensurePlayer, searchWithFallback } from "#managers/music/MusicPlaybackService";
 import { openMusicPanel } from "./panel.js";
 
 const COLORS = { info: 0x5865F2, success: 0x57F287, warning: 0xFEE75C, error: 0xED4245 };
@@ -32,32 +33,6 @@ function voiceCheck(message, player, member = message.member) {
 function djCheck(message, settings, member = message.member) {
   if (!settings.djRoleId || member.roles.cache.has(settings.djRoleId) || member.permissions.has(PermissionFlagsBits.ManageGuild)) return null;
   return "You need the configured DJ role <@&" + settings.djRoleId + "> to control playback.";
-}
-async function addTracks(player, tracks, maxQueue) {
-  const available = Math.max(0, maxQueue - (player.queue?.tracks?.length || 0));
-  const accepted = tracks.slice(0, available);
-  for (const track of accepted) await player.queue.add(track);
-  if (accepted.length && !player.playing && !player.paused) await player.play();
-  return { accepted: accepted.length, rejected: tracks.length - accepted.length };
-}
-
-// Try the configured source first, then compatible fallbacks. This avoids making
-// playback depend on a source plugin that may not be enabled on every Lavalink node.
-async function searchWithFallback(player, query, settings, requester, isUrl) {
-  const sources = isUrl
-    ? [null]
-    : [...new Set([settings.defaultSource, "ytmsearch", "ytsearch", "scsearch"].filter(Boolean))];
-  let lastError = null;
-  for (const source of sources) {
-    try {
-      const result = await player.search({ query, ...(source ? { source } : {}) }, requester);
-      if (result?.tracks?.length) return result;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  if (lastError) throw lastError;
-  return { tracks: [], loadType: "empty" };
 }
 async function sendSearchPicker(message, tracks, query, player, manager, settings) {
   const shown = tracks.slice(0, 5);
@@ -194,23 +169,16 @@ export default {
       if (!voicePerms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) return fail("I need Connect and Speak permissions in your voice channel.");
       if (player?.voiceChannelId && player.voiceChannelId !== voice.id) return fail("I'm already playing in another voice channel in this server.");
       try {
-        if (!player) player = manager.lavalink.createPlayer({ guildId, voiceChannelId: voice.id, textChannelId: message.channel.id, selfDeaf: true, volume: settings.defaultVolume });
-        if (!player.connected) await player.connect();
-        if (typeof player.setRepeatMode === "function") await player.setRepeatMode(settings.loop || "off");
-        const isUrl = /^https?:\/\//i.test(query);
-        let result = await searchWithFallback(player, query, settings, message.author, isUrl);
-        // Spotify URLs are not directly playable on every Lavalink setup. If direct
-        // resolution fails, look up the track title and search a playable source.
-        if (!result?.tracks?.length && /^https?:\/\/(open\.)?spotify\.com\/(track|album|playlist)\//i.test(query)) {
-          try {
-            const response = await fetch("https://open.spotify.com/oembed?url=" + encodeURIComponent(query), { signal: AbortSignal.timeout(5000) });
-            if (response.ok) {
-              const metadata = await response.json();
-              const spotifyTitle = String(metadata?.title || "").trim();
-              if (spotifyTitle) result = await searchWithFallback(player, spotifyTitle, settings, message.author, false);
-            }
-          } catch { /* Keep the normal no-results response if Spotify metadata is unavailable. */ }
+        player = await ensurePlayer(manager, {
+          guildId,
+          voiceChannelId: voice.id,
+          textChannelId: message.channel.id,
+          volume: settings.defaultVolume
+        });
+        if (typeof player.setRepeatMode === "function") {
+          await player.setRepeatMode(settings.loop || "off");
         }
+        const result = await searchWithFallback(player, query, settings, message.author);
         const tracks = result?.tracks || [];
         if (!tracks.length) return fail("No playable results. Try another search or URL, and verify the Lavalink source plugin.");
         if (sub === "search") return sendSearchPicker(message, tracks, query, player, manager, settings);
@@ -226,8 +194,8 @@ export default {
         const track = tracks[0];
         if ((player.queue?.tracks?.length || 0) >= settings.maxQueue) return fail("The queue is full (" + settings.maxQueue + " tracks).");
         const hadCurrentTrack = Boolean(player.queue?.current || player.playing || player.paused);
-        await player.queue.add(track);
-        if (!player.playing && !player.paused) await player.play();
+        const added = await addTracks(player, [track], settings.maxQueue);
+        if (!added.accepted) return fail("The queue is full (" + settings.maxQueue + " tracks).");
         if (!hadCurrentTrack) return;
         const url = trackUrl(track);
         return reply("🎶 Added " + (url ? "[" + trackTitle(track) + "](" + url + ")" : "**" + trackTitle(track) + "**") + " · " + duration(track.info?.duration) + "\nRequested by " + message.author + ".", "Added to queue", COLORS.success);
