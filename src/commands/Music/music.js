@@ -133,8 +133,8 @@ export default {
     if (!config.music.enabled) return fail("Music is disabled by the bot owner.");
     if (["panel", "dashboard", "setup", "musicpanel"].includes(sub)) return openMusicPanel({ client, message });
     if (sub === "help") return reply("🎧 LightCore Music", [
-      "**Playback**  `.play <song or URL>` · `.search <query>` · `.pause` · `.resume` · `.skip` · `.back` · `.stop`",
-      "**Queue**  `.queue [page]` · `.shuffle` · `.remove <position>` · `.clear`",
+      "**Playback**  `.play <song or URL>` · `.search <query>` · `.playskip <song>` · `.playtop <song>` · `.pause` · `.resume` · `.skip` · `.forceskip` · `.skipto <position>` · `.back` · `.stop`",
+      "**Queue**  `.queue [page]` · `.shuffle` · `.move <from> <to>` · `.remove <position>` · `.removedupes` · `.clear` · `.queueloop`",
       "**Controls**  `.volume <0-100>` · `.seek <seconds>` · `.loop <off|track|queue>` · `.autoplay <on|off>`",
       "**Settings**  `.musicsetting` · `.music config`",
       "Music requires a reachable Lavalink v4 node with a compatible source plugin."
@@ -184,7 +184,7 @@ export default {
       return reply("✅ Settings saved", "Saved **" + key + "** for this server. The setting is persisted in Neon.", COLORS.success);
     }
 
-    if (["play", "p", "search"].includes(sub)) {
+    if (["play", "p", "search", "playskip", "playtop"].includes(sub)) {
       if (settings.requestChannelId && message.channel.id !== settings.requestChannelId) return fail("Send music requests in <#" + settings.requestChannelId + ">.");
       const query = args.join(" ").trim();
       if (!query) return fail("Provide a song or URL. Example: `.play Blinding Lights`.");
@@ -199,7 +199,18 @@ export default {
         if (sub === "search") return searchPicker({ message, tracks, query, manager, player: active });
         const { addTracks } = await import("#managers/music/MusicPlaybackService");
         const wasActive = Boolean(active.queue?.current || active.playing || active.paused);
-        const queued = await addTracks(active, tracks, settings.maxQueue);
+        let queued;
+        if (sub === "playtop" || sub === "playskip") {
+          const chosen = tracks[0];
+          const slots = Math.max(0, settings.maxQueue - (active.queue?.tracks?.length || 0));
+          if (slots < 1) return fail("The queue is full (" + settings.maxQueue + " upcoming tracks).");
+          active.queue.tracks.unshift(chosen);
+          if (sub === "playskip") {
+            if (active.queue?.current) await active.skip();
+            else if (!active.playing && !active.paused) await active.play();
+          }
+          queued = { accepted: 1, rejected: 0 };
+        } else queued = await addTracks(active, tracks, settings.maxQueue);
         if (!queued.accepted) return fail("The queue is full (" + settings.maxQueue + " upcoming tracks).");
         if (!wasActive) return;
         const playlist = result.loadType === "playlist";
@@ -228,17 +239,28 @@ export default {
       return reply("✨ Autoplay updated", "Autoplay is now **" + (updated.autoplay ? "on" : "off") + "**.", COLORS.success);
     }
 
-    if (["pause", "resume", "skip", "back", "stop", "queue", "volume", "shuffle", "remove", "clear", "seek", "loop"].includes(sub)) {
+    if (["pause", "resume", "skip", "forceskip", "skipto", "back", "stop", "queue", "volume", "shuffle", "move", "remove", "removedupes", "clear", "seek", "rewind", "forward", "replay", "loop", "queueloop"].includes(sub)) {
       if (!player) return fail("There is no active player. Start with `.play <song>`.");
       const error = voiceError(message, player, settings);
       if (error) return fail(error);
-      const destructive = ["clear", "remove"].includes(sub);
+      const destructive = ["clear", "remove", "move", "removedupes", "skipto", "forceskip"].includes(sub);
       const access = djError(message, settings, destructive);
       if (access) return fail(access);
       try {
         if (sub === "pause") { if (player.paused) return reply("Already paused", "Playback is already paused."); await player.pause(); return reply("⏸️ Paused", "Playback is paused."); }
         if (sub === "resume") { if (!player.paused) return reply("Already playing", "Playback is not paused."); await player.resume(); return reply("▶️ Resumed", "Playback has resumed.", COLORS.success); }
-        if (sub === "skip") { if (!player.queue?.current) return fail("There is no current track to skip."); await player.skip(); return reply("⏭️ Skipped", "Skipped the current track.", COLORS.success); }
+        if (sub === "skip" || sub === "forceskip") {
+          if (!player.queue?.current) return fail("There is no current track to skip.");
+          await player.skip();
+          return reply("⏭️ Skipped", sub === "forceskip" ? "Track force-skipped by a server music moderator." : "Skipped the current track.", COLORS.success);
+        }
+        if (sub === "skipto") {
+          const n = Number(args[0]); const tracks = player.queue?.tracks || [];
+          if (!Number.isInteger(n) || n < 1 || n > tracks.length) return fail("Use .skipto <queue position> from 1 to " + tracks.length + ".");
+          tracks.splice(0, n - 1);
+          await player.skip();
+          return reply("⏭️ Skipped to track", "Skipped ahead to queue position **" + n + "**.", COLORS.success);
+        }
         if (sub === "back") {
           const previous = manager.previousTracks.get(guildId);
           if (!previous) return fail("No previous track is available in this session.");
@@ -265,6 +287,21 @@ export default {
           const lines = tracks.slice(start, start + pageSize).map((track, index) => "**" + (start + index + 1) + ".** " + titleOf(track) + " · " + duration(track.info?.duration));
           return reply("📜 LightCore queue", (player.queue?.current ? "**Now playing:** " + titleOf(player.queue.current) + "\n\n" : "") + (lines.join("\n") || "No upcoming tracks.") + "\n\n**" + tracks.length + "** upcoming · page " + activePage + "/" + pages);
         }
+        if (sub === "move") {
+          const from = Number(args[0]); const to = Number(args[1]); const tracks = player.queue?.tracks || [];
+          if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || from > tracks.length || to < 1 || to > tracks.length) return fail("Use .move <from> <to> with valid upcoming queue positions (1-" + tracks.length + ").");
+          const [item] = tracks.splice(from - 1, 1); tracks.splice(to - 1, 0, item);
+          return reply("↕️ Queue item moved", "Moved **" + titleOf(item) + "** from position " + from + " to " + to + ".", COLORS.success);
+        }
+        if (sub === "removedupes") {
+          const tracks = player.queue?.tracks || []; const seen = new Set(); let removed = 0;
+          for (let i = tracks.length - 1; i >= 0; i--) {
+            const info = tracks[i]?.info || {};
+            const key = String(info.identifier || info.uri || (String(info.title || "") + "|" + String(info.author || ""))).toLowerCase();
+            if (key && seen.has(key)) { tracks.splice(i, 1); removed++; } else if (key) seen.add(key);
+          }
+          return reply("🧹 Duplicate tracks removed", "Removed **" + removed + "** duplicate upcoming track(s).", COLORS.success);
+        }
         if (sub === "remove") {
           const n = Number(args[0]); const tracks = player.queue?.tracks || [];
           if (!Number.isInteger(n) || n < 1 || n > tracks.length) return fail("Choose a queue position from 1 to " + tracks.length + ".");
@@ -275,12 +312,25 @@ export default {
           const tracks = player.queue?.tracks || []; const count = tracks.length; tracks.splice(0, count);
           return reply("🧹 Queue cleared", "Removed " + count + " upcoming track(s). The current song will continue.", COLORS.success);
         }
+        if (sub === "rewind" || sub === "forward" || sub === "replay") {
+          const current = player.queue?.current; const total = Number(current?.info?.duration || 0);
+          if (!current || current.info?.isStream || !total || typeof player.seek !== "function") return fail("This track does not support seeking.");
+          const offset = sub === "rewind" ? -10000 : sub === "forward" ? 10000 : -Number(player.position || 0);
+          await player.seek(Math.max(0, Math.min(total - 1000, Number(player.position || 0) + offset)));
+          return reply("⏩ Playback position updated", sub === "replay" ? "Restarted the current track." : (sub === "rewind" ? "Rewound 10 seconds." : "Forwarded 10 seconds."), COLORS.success);
+        }
         if (sub === "seek") {
           const seconds = Number(args[0]); const track = player.queue?.current; const total = Number(track?.info?.duration || 0);
           if (!track || track.info?.isStream || !Number.isFinite(seconds) || seconds < 0 || seconds * 1000 >= total) return fail("Use `.seek <seconds>` within the current track. Live streams cannot be seeked.");
           if (typeof player.seek !== "function") return fail("The current player does not support seeking.");
           await player.seek(Math.floor(seconds * 1000));
           return reply("⏩ Seek complete", "Jumped to **" + duration(seconds * 1000) + "**.", COLORS.success);
+        }
+        if (sub === "queueloop") {
+          const mode = settings.loop === "queue" ? "off" : "queue";
+          const updated = await manager.updateSettings(guildId, { loop: mode, ...(mode !== "off" ? { autoplay: false } : {}) });
+          await player.setRepeatMode?.(updated.loop);
+          return reply("🔁 Queue loop updated", "Queue repeat is now **" + (mode === "queue" ? "on" : "off") + "**.", COLORS.success);
         }
         if (sub === "loop") {
           const mode = String(args[0] || "").toLowerCase();
