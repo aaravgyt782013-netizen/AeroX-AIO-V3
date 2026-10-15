@@ -2,6 +2,7 @@ import { Command } from "#structures/classes/Command";
 import { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from "discord.js";
 import { leveling } from "#managers/LevelingManager";
 import { db } from "#database/DatabaseManager";
+import emoji from "#config/emoji";
 
 class LevelConfigCommand extends Command {
   constructor() {
@@ -17,16 +18,18 @@ class LevelConfigCommand extends Command {
   }
 
   async execute({ message, args }) {
-    if (!message.guild) return message.reply("This command can only be used in a server.");
-    if (!message.member.permissions.has("ManageGuild")) return message.reply("You need **Manage Server** permission to configure leveling.");
-    const action = (args[0] || "show").toLowerCase();
+    if (!message.guild) return message.reply(`${emoji.get("cross", "❌")} This command can only be used in a server.`);
+    if (!message.member.permissions.has("ManageGuild")) return message.reply(`${emoji.get("lock", "🔒")} You need **Manage Server** permission to configure leveling.`);
+    // Some prefix handlers pass the entire remainder as one argument; normalize it so multi-word subcommands work.
+    const rawArgs = Array.isArray(args) ? args.flatMap((value) => String(value).split(/\\s+/).filter(Boolean)) : [];
+    const action = (rawArgs[0] || "show").toLowerCase();
     const current = leveling.getSettings(message.guild.id);
     try {
       if (action === "off" || action === "on") {
         leveling.configure(message.guild.id, { enabled: action === "on" });
       } else if (action === "xp") {
-        const min = Number(args[1]);
-        const max = Number(args[2]);
+        const min = Number(rawArgs[1]);
+        const max = Number(rawArgs[2]);
         if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < min || max > 1000) {
           return message.reply("Usage: `levelconfig xp <min XP> <max XP>` (0–1000).");
         }
@@ -36,7 +39,7 @@ class LevelConfigCommand extends Command {
         if (!Number.isInteger(seconds) || seconds < 0 || seconds > 86400) return message.reply("Cooldown must be 0–86400 seconds.");
         leveling.configure(message.guild.id, { cooldown_ms: seconds * 1000 });
       } else if (action === "channel") {
-        const raw = (args[1] || "").toLowerCase();
+        const raw = (rawArgs[1] || "").toLowerCase();
         if (!raw) return message.reply("Usage: `levelconfig channel <#channel|off>`.");
         if (raw === "off") leveling.configure(message.guild.id, { announcement_channel_id: null });
         else {
@@ -45,8 +48,8 @@ class LevelConfigCommand extends Command {
           leveling.configure(message.guild.id, { announcement_channel_id: channel.id });
         }
       } else if (action === "message") {
-        if (!db.isGuildPremium(message.guild.id)) return message.reply("Custom level-up messages are a **Guild Premium** feature. Upgrade this server to use them.");
-        const text = args.slice(1).join(" ").trim();
+        if (!db.isGuildPremium(message.guild.id)) return message.reply(`${emoji.get("premium", "💎")} Custom level-up messages are a **Guild Premium** feature. Upgrade this server to use them.`);
+        const text = rawArgs.slice(1).join(" ").trim();
         if (!text) return message.reply("Usage: `levelconfig message <your message>` or `levelconfig message reset`. Placeholders: `{user}`, `{username}`, `{level}`, `{xp}`, `{server}`.");
         if (text.toLowerCase() === "reset") leveling.configure(message.guild.id, { announcement_text: null });
         else {
@@ -63,16 +66,16 @@ class LevelConfigCommand extends Command {
       const settings = leveling.getSettings(message.guild.id);
       const channel = settings.announcement_channel_id ? `<#${settings.announcement_channel_id}>` : "Current message channel";
       const panel = new ContainerBuilder().setAccentColor(0x5865f2)
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent("## ❄️ LIGHTCORE • LEVELING SETTINGS"))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${emoji.get("lightcore", "❄️")} LIGHTCORE • LEVELING SETTINGS`))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent([
-          `**Status:** ${settings.enabled ? "Enabled" : "Disabled"}`,
-          `**XP per message:** ${settings.min_xp}–${settings.max_xp}`,
-          `**XP cooldown:** ${Number(settings.cooldown_ms) / 1000}s`,
-          `**Level-up announcements:** ${channel}`,
-          `**Custom message:** ${settings.announcement_text ? "Configured (Guild Premium)" : "Default"}`,
+          `${settings.enabled ? emoji.get("enabled", "✅") : emoji.get("disabled", "❌")} **Status:** ${settings.enabled ? "Enabled" : "Disabled"}`,
+          `${emoji.get("trophy", "🏆")} **XP per message:** ${settings.min_xp}–${settings.max_xp}`,
+          `${emoji.get("timer", "⏱️")} **XP cooldown:** ${Number(settings.cooldown_ms) / 1000}s`,
+          `${emoji.get("megaphone", "📢")} **Level-up announcements:** ${channel}`,
+          `${emoji.get("edit", "✏️")} **Custom message:** ${settings.announcement_text ? "Configured (Guild Premium)" : "Default"}`,
           "",
-          "**Commands**",
+          `${emoji.get("list", "📋")} **Commands**`,
           "`levelconfig off` — disable leveling for this server",
           "`levelconfig on` — enable leveling for this server",
           "`levelconfig xp 15 25` — set XP range",
@@ -84,7 +87,7 @@ class LevelConfigCommand extends Command {
           "`levelconfig enabled on/off` — toggle leveling",
         ].join("\n")))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent("-# 🛡️ Manage Server permission required."));
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${emoji.get("lock", "🔒")} Manage Server permission required.`));
       return message.reply({ components: [panel], flags: MessageFlags.IsComponentsV2 });
     } catch (error) {
       message.client.logger?.error("LevelConfig", error);
