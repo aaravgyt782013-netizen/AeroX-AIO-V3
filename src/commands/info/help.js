@@ -116,15 +116,11 @@ class HelpCommand extends Command {
         }
       }
 
-      // Keep the legacy one-command-per-file wrappers callable by name (for
-      // example, ".play" and "help play"), but list only the current unified
-      // music entry points in the Music category.
-      const legacyMusicWrappers = new Set([
-        "play", "p", "search", "pause", "resume", "skip", "back", "stop",
-        "queue", "nowplaying", "np", "volume", "shuffle", "remove", "clear",
-        "seek", "loop", "autoplay"
-      ]);
-      const hideFromMusicIndex = helpCategory === "Music" && legacyMusicWrappers.has(name);
+      // Keep the unified ".music" dispatcher callable via "help music",
+      // but don't list it as a user-facing command. List each actual music
+      // command (play, queue, pause, playskip, playtop, etc.) individually,
+      // matching the other help categories.
+      const hideFromMusicIndex = helpCategory === "Music" && name === "music";
       if (!hideFromMusicIndex) {
         if (!categories.has(helpCategory)) categories.set(helpCategory, []);
         const list = categories.get(helpCategory);
