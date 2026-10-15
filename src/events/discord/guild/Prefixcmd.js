@@ -310,11 +310,17 @@ export default {
   async execute(message, client) {
     if (message.author.bot || !message.guild) return;
 
+    // Hard gate before perks, XP, mention responses, aliases, or command dispatch.
+    // A blacklisted user/server must be completely ignored by the bot.
+    if (db.isGuildBlacklisted(message.guild.id)) return;
+    const userBlacklist = db.isUserBlacklisted(message.author.id);
+    if (userBlacklist) return;
+
     await _handleExpiredGuildPerks(message.guild.id, message.channel);
     await _handleExpiredUserPerks(message.author.id, message.author);
 
-    const userBlacklist = db.isUserBlacklisted(message.author.id);
-    if (userBlacklist) {
+    const legacyUserBlacklist = db.isUserBlacklisted(message.author.id);
+    if (legacyUserBlacklist) {
       const premium = db.isUserPremium(message.author.id);
       const automatedCooldownBlacklist =
         typeof userBlacklist === "object" &&
@@ -330,8 +336,6 @@ export default {
         return;
       }
     }
-
-    if (db.isGuildBlacklisted(message.guild.id)) return;
 
     // Award XP for ordinary server messages and announce level-ups.
     if (message.content.trim()) {
