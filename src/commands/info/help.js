@@ -557,8 +557,102 @@ class HelpCommand extends Command {
     }
   }
 
+  _createPremiumTypeContainer() {
+    const container = new ContainerBuilder();
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `${emoji.get("premium")} **Premium Commands**\nChoose the Premium type to browse its commands and full command information.`,
+      ),
+    );
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+    );
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId("help_premium_type_select")
+      .setPlaceholder("Choose Premium type")
+      .addOptions(
+        {
+          label: "Premium Server",
+          value: "server",
+          description: "Server-level Premium commands and features",
+          emoji: "🌐",
+        },
+        {
+          label: "Premium User",
+          value: "user",
+          description: "Personal Premium commands and features",
+          emoji: "👤",
+        },
+      );
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(select));
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("help_back_main").setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("help_close").setLabel("Close").setStyle(ButtonStyle.Danger),
+      ),
+    );
+    return container;
+  }
+
+  _createPremiumCommandsContainer(type, commands) {
+    const isUser = type === "user";
+    const label = isUser ? "Premium User" : "Premium Server";
+    const premiumCommands = Array.from(commands.values())
+      .filter((cmd, index, all) => all.findIndex(other => other.name === cmd.name) === index)
+      .filter(cmd => isUser ? cmd.userPrem === true : cmd.guildPrem === true)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const container = new ContainerBuilder();
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `${emoji.get("premium")} **${label}**\nCommands and features available for this Premium type.`,
+      ),
+    );
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+    );
+
+    if (!premiumCommands.length) {
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent("No commands are currently registered with this Premium requirement."),
+      );
+    } else {
+      const lines = premiumCommands.map((cmd, index) =>
+        `${index === premiumCommands.length - 1 ? "└──" : "├──"} \`${cmd.name}\` — ${cmd.description || "No description provided"}`
+      );
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(lines.join("\\n")),
+      );
+      container.addSeparatorComponents(
+        new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small),
+      );
+      const select = new StringSelectMenuBuilder()
+        .setCustomId("help_premium_command_select")
+        .setPlaceholder("Select a command for details")
+        .addOptions(premiumCommands.slice(0, 25).map(cmd => ({
+          label: cmd.name.slice(0, 100),
+          value: `${type}:${cmd.name}`,
+          description: (cmd.description || "View command details").slice(0, 100),
+        })));
+      container.addActionRowComponents(new ActionRowBuilder().addComponents(select));
+    }
+
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("help_premium_back_types").setLabel("Change Premium type").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("help_back_main").setLabel("Home").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("help_close").setLabel("Close").setStyle(ButtonStyle.Danger),
+      ),
+    );
+    return container;
+  }
+
   _createCategoryContainer(category, categories, subcategories, page = 0) {
     try {
+      if (String(category).toLowerCase() === "premium") {
+        return this._createPremiumTypeContainer();
+      }
       const commands = [...(categories.get(category) || [])].sort((a, b) => a.name.localeCompare(b.name));
       const subcats = subcategories.get(category);
 
@@ -1064,6 +1158,31 @@ class HelpCommand extends Command {
               components: [
                 this._createMainContainer(commands, categories, subcategories),
               ],
+            });
+            return;
+          }
+
+          if (interaction.customId === "help_premium_type_select") {
+            await interaction.editReply({
+              components: [this._createPremiumCommandsContainer(interaction.values[0], commands)],
+            });
+            return;
+          }
+
+          if (interaction.customId === "help_premium_command_select") {
+            const [type, commandName] = interaction.values[0].split(":");
+            const command = commands.get(commandName);
+            if (command) {
+              await interaction.editReply({
+                components: [this._createCommandContainer(command, "Premium")],
+              });
+            }
+            return;
+          }
+
+          if (interaction.customId === "help_premium_back_types") {
+            await interaction.editReply({
+              components: [this._createPremiumTypeContainer()],
             });
             return;
           }
