@@ -100,7 +100,10 @@ export async function addTracks(player, tracks, maxQueue) {
   const accepted = candidates.slice(0, slots);
   for (const track of accepted) await player.queue.add(track);
 
-  if (accepted.length && !player.playing && !player.paused) {
+  // Lavalink can report playing=false briefly after trackEnd/skip. If no current
+  // track exists, explicitly kick off the queue instead of leaving it stranded.
+  const hasCurrent = Boolean(player.queue?.current);
+  if (accepted.length && !player.paused && (!player.playing || !hasCurrent)) {
     await player.play();
   }
 
