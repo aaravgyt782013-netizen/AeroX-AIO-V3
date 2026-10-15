@@ -110,22 +110,3 @@ export async function addTracks(player, tracks, maxQueue) {
     queueLimit: Math.max(1, Number(maxQueue) || 100)
   };
 }
-
-export async function ensurePlayer(manager, { guildId, voiceChannelId, textChannelId, volume }) {
-  if (!manager?.lavalink) throw new Error("The Lavalink music engine is not configured.");
-  let player = manager.getPlayer(guildId);
-  if (player?.voiceChannelId && player.voiceChannelId !== voiceChannelId) {
-    throw new Error("LightCore is already connected to another voice channel in this server.");
-  }
-  if (!player) {
-    player = manager.lavalink.createPlayer({
-      guildId,
-      voiceChannelId,
-      textChannelId,
-      selfDeaf: true,
-      volume
-    });
-  }
-  if (!player.connected) await player.connect();
-  return player;
-}
