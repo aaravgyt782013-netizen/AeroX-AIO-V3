@@ -229,6 +229,10 @@ export class MusicManager {
     if (!channel?.isTextBased()) return;
     const components = this.controls(player);
     const existing = this.panels.get(guildId);
+    if (existing?.channelId && existing.channelId !== channel.id) {
+      await existing.message?.delete().catch(() => {});
+      this.panels.delete(guildId);
+    }
     if (existing?.channelId === channel.id && existing.message) {
       try { await existing.message.edit({ embeds: [this.playerEmbed(player, track)], components }); return existing.message; }
       catch { this.panels.delete(guildId); }
