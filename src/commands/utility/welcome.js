@@ -47,8 +47,10 @@ function welcomePanel(current) {
   ));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   container.addActionRowComponents(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("lc_welcome_direct").setLabel("Direct").setStyle(current?.welcome_style === "direct" ? ButtonStyle.Success : ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("lc_welcome_embed").setLabel("Embed").setStyle(current?.welcome_style === "embed" || !current?.welcome_style ? ButtonStyle.Success : ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("lc_welcome_direct").setLabel("Text Message").setStyle(current?.welcome_style === "direct" ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("lc_welcome_embed").setLabel("Embed Card").setStyle(current?.welcome_style === "embed" || !current?.welcome_style ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("lc_welcome_test").setLabel("Send Preview").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("lc_welcome_off").setLabel("Disable").setStyle(ButtonStyle.Danger)
   ));
   return container;
 }
@@ -65,12 +67,42 @@ async function sendWelcomeSetup(message, userId) {
       return interaction.reply({ content: "Only the person who opened this setup panel can use it.", ephemeral: true });
     }
     const style = interaction.customId === "lc_welcome_direct" ? "direct" : interaction.customId === "lc_welcome_embed" ? "embed" : null;
-    if (!style) return;
     try {
-      db.setWelcomeStyle(message.guild.id, style);
-      await interaction.update({ components: [welcomePanel(db.getWelcome(message.guild.id))], flags: MessageFlags.IsComponentsV2 });
+      if (style) {
+        db.setWelcomeStyle(message.guild.id, style);
+        return interaction.update({ components: [welcomePanel(db.getWelcome(message.guild.id))], flags: MessageFlags.IsComponentsV2 });
+      }
+      if (interaction.customId === "lc_welcome_off") {
+        db.disableWelcome(message.guild.id);
+        return interaction.update({ components: [welcomePanel(db.getWelcome(message.guild.id))], flags: MessageFlags.IsComponentsV2 });
+      }
+      if (interaction.customId === "lc_welcome_test") {
+        const current = db.getWelcome(message.guild.id);
+        const channel = current?.channel_id ? message.guild.channels.cache.get(current.channel_id) : null;
+        if (!current?.enabled || !channel?.isTextBased()) {
+          return interaction.reply({ content: "Welcome messages are disabled or the configured channel is unavailable.", ephemeral: true });
+        }
+        const preview = renderAutomationMessage(current.message || DEFAULT_MESSAGE, { member: message.member, guild: message.guild, channel });
+        if (current.welcome_style === "direct") {
+          await channel.send({ content: preview, allowedMentions: { parse: ["users", "roles"] } });
+        } else {
+          await channel.send({ embeds: [{
+            color: 0x5865F2,
+            title: "👋 Welcome to " + message.guild.name,
+            description: String(preview || "").slice(0, 4000),
+            thumbnail: { url: message.author.displayAvatarURL({ size: 256 }) },
+            footer: { text: "LightCore • Welcome Preview" },
+            timestamp: new Date().toISOString(),
+          }], allowedMentions: { parse: ["users", "roles"] } });
+        }
+        return interaction.reply({ content: "Welcome preview sent to " + channel + ".", ephemeral: true });
+      }
     } catch (error) {
-      await interaction.reply({ content: "Could not update welcome style: " + (error?.message || "unknown error"), ephemeral: true }).catch(() => {});
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp({ content: "Could not update welcome settings: " + (error?.message || "unknown error"), ephemeral: true }).catch(() => {});
+      } else {
+        await interaction.reply({ content: "Could not update welcome settings: " + (error?.message || "unknown error"), ephemeral: true }).catch(() => {});
+      }
     }
   });
   return sent;
@@ -230,9 +262,25 @@ class WelcomeCommand extends Command {
     collector.on("collect", async (component) => {
       if (component.user.id !== interaction.user.id) return component.reply({ content: "Only the setup owner can use this panel.", ephemeral: true });
       const style = component.customId === "lc_welcome_direct" ? "direct" : component.customId === "lc_welcome_embed" ? "embed" : null;
-      if (!style) return;
-      db.setWelcomeStyle(interaction.guild.id, style);
-      await component.update({ components: [welcomePanel(db.getWelcome(interaction.guild.id))], flags: MessageFlags.IsComponentsV2 });
+      if (style) {
+        db.setWelcomeStyle(interaction.guild.id, style);
+        return component.update({ components: [welcomePanel(db.getWelcome(interaction.guild.id))], flags: MessageFlags.IsComponentsV2 });
+      }
+      if (component.customId === "lc_welcome_off") {
+        db.disableWelcome(interaction.guild.id);
+        return component.update({ components: [welcomePanel(db.getWelcome(interaction.guild.id))], flags: MessageFlags.IsComponentsV2 });
+      }
+      if (component.customId === "lc_welcome_test") {
+        const current = db.getWelcome(interaction.guild.id);
+        const target = current?.channel_id ? interaction.guild.channels.cache.get(current.channel_id) : null;
+        if (!current?.enabled || !target?.isTextBased()) {
+          return component.reply({ content: "Welcome messages are disabled or the configured channel is unavailable.", ephemeral: true });
+        }
+        const preview = renderAutomationMessage(current.message || DEFAULT_MESSAGE, { member: interaction.member, guild: interaction.guild, channel: target });
+        if (current.welcome_style === "direct") await target.send({ content: preview, allowedMentions: { parse: ["users", "roles"] } });
+        else await target.send({ embeds: [{ color: 0x5865F2, title: "👋 Welcome to " + interaction.guild.name, description: String(preview || "").slice(0, 4000), thumbnail: { url: interaction.user.displayAvatarURL({ size: 256 }) }, footer: { text: "LightCore • Welcome Preview" }, timestamp: new Date().toISOString() }], allowedMentions: { parse: ["users", "roles"] } });
+        return component.reply({ content: "Welcome preview sent to " + target + ".", ephemeral: true });
+      }
     });
   }
 }
