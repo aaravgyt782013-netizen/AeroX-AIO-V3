@@ -1,8 +1,9 @@
-name: Neon persistence migration checks
+name: Main branch syntax and regression checks
 
 on:
   push:
     branches:
+      - main
       - neon-persistence-migration
   pull_request:
 
