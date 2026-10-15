@@ -11,7 +11,6 @@ import {
   SeparatorSpacingSize,
 } from "discord.js";
 import { db } from "#database/DatabaseManager";
-import { db } from "#database/DatabaseManager";
 import emoji from "#config/emoji";
 import { automationPlaceholderHelp, renderAutomationMessage } from "#utils/AutomationUtils";
 
