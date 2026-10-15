@@ -12,12 +12,52 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const required = ["SESSION_SECRET", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_REDIRECT_URI", "DISCORD_BOT_TOKEN", "DATABASE_URL"];
 const missing = required.filter((key) => !process.env[key]);
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
+class NeonSessionStore extends session.Store {
+  constructor(database) {
+    super();
+    this.database = database;
+  }
+  async get(sid, callback) {
+    try {
+      const rows = await this.database`SELECT sess FROM dashboard_sessions WHERE sid = ${sid} AND expire > NOW() LIMIT 1`;
+      callback(null, rows[0]?.sess || null);
+    } catch (error) { callback(error); }
+  }
+  async set(sid, sess, callback = () => {}) {
+    try {
+      const expires = sess.cookie?.expires ? new Date(sess.cookie.expires) : new Date(Date.now() + 12 * 60 * 60 * 1000);
+      await this.database`INSERT INTO dashboard_sessions (sid, sess, expire) VALUES (${sid}, ${JSON.stringify(sess)}::jsonb, ${expires.toISOString()})
+        ON CONFLICT (sid) DO UPDATE SET sess = EXCLUDED.sess, expire = EXCLUDED.expire`;
+      callback(null);
+    } catch (error) { callback(error); }
+  }
+  async destroy(sid, callback = () => {}) {
+    try { await this.database`DELETE FROM dashboard_sessions WHERE sid = ${sid}`; callback(null); }
+    catch (error) { callback(error); }
+  }
+  async touch(sid, sess, callback = () => {}) {
+    try {
+      const expires = sess.cookie?.expires ? new Date(sess.cookie.expires) : new Date(Date.now() + 12 * 60 * 60 * 1000);
+      await this.database`UPDATE dashboard_sessions SET expire = ${expires.toISOString()} WHERE sid = ${sid}`;
+      callback(null);
+    } catch (error) { callback(error); }
+  }
+}
 const botGuildIds = new Set((process.env.BOT_GUILD_IDS || "").split(",").map((x) => x.trim()).filter(Boolean));
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "32kb" }));
+const schemaReady = sql ? ensureSchema() : Promise.resolve();
+app.use(async (_req, res, next) => {
+  try { await schemaReady; next(); }
+  catch (error) {
+    console.error("Database schema initialization failed:", error.message);
+    res.status(503).send("Dashboard database is unavailable. Check DATABASE_URL and Neon.");
+  }
+});
 app.use(session({
+  store: sql ? new NeonSessionStore(sql) : undefined,
   name: "lightcore.sid",
   secret: process.env.SESSION_SECRET || "development-only-change-this-secret",
   resave: false,
@@ -36,6 +76,12 @@ async function discord(pathname, options = {}) {
 }
 async function ensureSchema() {
   if (!sql) return;
+  await sql`CREATE TABLE IF NOT EXISTS dashboard_sessions (
+    sid TEXT PRIMARY KEY,
+    sess JSONB NOT NULL,
+    expire TIMESTAMPTZ NOT NULL
+  )`;
+  await sql`CREATE INDEX IF NOT EXISTS dashboard_sessions_expire_idx ON dashboard_sessions (expire)`;
   await sql`CREATE TABLE IF NOT EXISTS dashboard_guild_settings (
     guild_id TEXT PRIMARY KEY,
     settings JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -140,5 +186,4 @@ app.put("/api/guilds/:id/settings", requireAuth, async (req, res) => {
 app.get("/{*path}", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 if (missing.length) console.warn("Dashboard environment not fully configured:", missing.join(", "));
-if (sql) ensureSchema().catch((err) => console.error("Neon schema initialization failed:", err.message));
 app.listen(port, () => console.log(`LightCore dashboard listening on :${port}`));
