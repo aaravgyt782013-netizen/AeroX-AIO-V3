@@ -48,6 +48,7 @@ class PremiumProfileCommand extends Command {
       name: "premiumprofile",
       description: "Customize LightCore's Premium profile for this server",
       usage: "premiumprofile <view|name|avatar|banner|color|reset> [value]",
+      examples: ["premiumprofile view", "premiumprofile name My Server", "premiumprofile color #5865F2", "premiumprofile reset"],
       aliases: ["pprofile", "serverprofile"],
       category: "Premium",
       cooldown: 3,
