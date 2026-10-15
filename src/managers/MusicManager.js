@@ -1,47 +1,14 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, SectionBuilder, ThumbnailBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, PermissionFlagsBits } from "discord.js";
 import { LavalinkManager } from "lavalink-client";
-import fs from "fs-extra";
-import path from "node:path";
 import { config } from "#config/config";
 import { logger } from "#utils/logger";
-import { loadNeonJsonSnapshot } from "#database/neon/snapshots";
-import { neonQuery } from "#database/neon/connection";
-
-const SETTINGS_FILE = path.resolve("database/data/music-settings.json");
-function registeredEmoji(client, names, fallback) {
-  const wanted = (Array.isArray(names) ? names : [names]).map(name => String(name).toLowerCase());
-  const pools = [client?.application?.emojis?.cache, client?.emojis?.cache];
-  for (const guild of client?.guilds?.cache?.values?.() || []) pools.push(guild.emojis?.cache);
-  for (const pool of pools) {
-    if (!pool) continue;
-    const found = pool.find?.(emoji => wanted.some(name => emoji.name?.toLowerCase() === name || emoji.name?.toLowerCase().includes(name)));
-    if (found) return { id: found.id, name: found.name, animated: Boolean(found.animated) };
-  }
-  return fallback;
-}
-
-const DEFAULTS = {
-  defaultVolume: config.music.defaultVolume,
-  maxQueue: config.music.maxQueue,
-  djRoleId: null,
-  announceNowPlaying: true,
-  showRequester: true,
-  showArtwork: true,
-  announcementChannelId: null,
-  requestChannelId: null,
-  allowedVoiceChannelId: null,
-  defaultSource: "ytmsearch",
-  autoplay: false,
-  stay247: false,
-  stay247VoiceChannelId: null,
-  stay247TextChannelId: null,
-  loop: "off"
-};
+import { MusicSettingsStore, MUSIC_DEFAULTS } from "#managers/music/MusicSettingsStore";
 
 export class MusicManager {
   constructor(client) {
     this.client = client;
     this.settings = {};
+    this.settingsStore = new MusicSettingsStore();
     this.initialized = false;
     this.previousTracks = new Map();
     // Keep one live player panel per guild; update it as tracks change instead of
@@ -147,26 +114,7 @@ export class MusicManager {
   }
 
   async init() {
-    await fs.ensureDir(path.dirname(SETTINGS_FILE));
-    let localSettings = {};
-    try { localSettings = await fs.readJson(SETTINGS_FILE); } catch {}
-    await neonQuery("CREATE TABLE IF NOT EXISTS aerox_music_settings (guild_id TEXT PRIMARY KEY, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-    const storedSettings = await loadNeonJsonSnapshot("music-settings", null);
-    const legacySettings = storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)
-      ? storedSettings
-      : localSettings;
-    // One-time compatibility import: existing per-guild settings are copied without
-    // overwriting rows already migrated by another shard or deployment.
-    for (const [guildId, guildSettings] of Object.entries(legacySettings || {})) {
-      if (!guildId || !guildSettings || typeof guildSettings !== "object" || Array.isArray(guildSettings)) continue;
-      await neonQuery(
-        "INSERT INTO aerox_music_settings (guild_id, settings) VALUES ($1, $2::jsonb) ON CONFLICT (guild_id) DO NOTHING",
-        [guildId, JSON.stringify(guildSettings)]
-      );
-    }
-    const result = await neonQuery("SELECT guild_id, settings FROM aerox_music_settings");
-    this.settings = Object.fromEntries(result.rows.map(row => [row.guild_id, row.settings]));
-    await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
+    this.settings = await this.settingsStore.init();
 
     if (!config.music.enabled) {
       logger.warn("Music", "Music is disabled by MUSIC_ENABLED=false.");
@@ -196,7 +144,7 @@ export class MusicManager {
   getPlayer(guildId) { return this.lavalink?.getPlayer(guildId) || null; }
 
   getSettings(guildId) {
-    return { ...DEFAULTS, ...(this.settings[guildId] || {}) };
+    return this.settingsStore.get(guildId);
   }
 
   async ensure247Players() {
@@ -228,19 +176,10 @@ export class MusicManager {
   }
 
   async updateSettings(guildId, patch) {
-    if (!guildId) throw new Error("A guild ID is required to save music settings.");
-    // Merge only the changed keys in PostgreSQL so concurrent shards cannot
-    // overwrite unrelated settings for this or other guilds.
-    const result = await neonQuery(
-      "INSERT INTO aerox_music_settings (guild_id, settings, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (guild_id) DO UPDATE SET settings = aerox_music_settings.settings || EXCLUDED.settings, updated_at = NOW() RETURNING settings",
-      [guildId, JSON.stringify(patch)]
-    );
-    this.settings = { ...this.settings, [guildId]: result.rows[0]?.settings || { ...this.getSettings(guildId), ...patch } };
-    await fs.ensureDir(path.dirname(SETTINGS_FILE));
-    await fs.writeJson(SETTINGS_FILE, this.settings, { spaces: 2 });
-    return this.getSettings(guildId);
+    const settings = await this.settingsStore.update(guildId, patch);
+    this.settings = this.settingsStore.settings;
+    return settings;
   }
-
   trackControls(player) {
     const settings = this.getSettings(player.guildId);
     return [
