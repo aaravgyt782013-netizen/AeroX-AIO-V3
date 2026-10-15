@@ -74,21 +74,24 @@ export async function openMusicPanel({ client, message }) {
   if (!message?.guild || !message.member) return;
   const manager = client.music;
   if (!manager) return message.reply("The music engine is not ready yet.");
-  const player = manager.getPlayer(message.guild.id);
+  const guildId = message.guild.id;
+  const player = manager.getPlayer(guildId);
+  if (player) {
+    const published = await manager.publishPlayer(player);
+    if (published) return published;
+  }
   const sent = await message.reply({
-    embeds: [manager.playerEmbed(player || { guildId: message.guild.id, queue: { tracks: [] }, volume: manager.getSettings(message.guild.id).defaultVolume })],
-    components: player ? manager.controls(player) : [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("lightcore:dashboard").setLabel("Music settings").setEmoji("🎛️").setStyle(ButtonStyle.Success)
-      )
-    ]
+    embeds: [manager.playerEmbed({ guildId, queue: { tracks: [] }, volume: manager.getSettings(guildId).defaultVolume })],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("lightcore:dashboard").setLabel("Music settings").setEmoji("🎛️").setStyle(ButtonStyle.Success)
+    )]
   });
   const collector = sent.createMessageComponentCollector({ idle: 30 * 60 * 1000 });
   collector.on("collect", async interaction => {
     if (interaction.user.id !== message.author.id) {
-      return interaction.reply({ content: "Run the music panel command yourself to use these controls.", ephemeral: true }).catch(() => {});
+      return interaction.reply({ content: "Run the music panel command yourself to use this control.", ephemeral: true }).catch(() => {});
     }
-    await manager.handleControl(interaction, message.guild.id);
+    await manager.handleControl(interaction, guildId);
   });
   collector.on("end", () => sent.edit({ components: [] }).catch(() => {}));
   return sent;
