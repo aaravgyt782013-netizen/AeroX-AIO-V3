@@ -116,10 +116,21 @@ class HelpCommand extends Command {
         }
       }
 
-      if (!categories.has(helpCategory)) categories.set(helpCategory, []);
-      const list = categories.get(helpCategory);
-      if (!list.some(existing => existing.name === helpCommand.name)) {
-        list.push(helpCommand);
+      // Keep the legacy one-command-per-file wrappers callable by name (for
+      // example, ".play" and "help play"), but list only the current unified
+      // music entry points in the Music category.
+      const legacyMusicWrappers = new Set([
+        "play", "p", "search", "pause", "resume", "skip", "back", "stop",
+        "queue", "nowplaying", "np", "volume", "shuffle", "remove", "clear",
+        "seek", "loop", "autoplay"
+      ]);
+      const hideFromMusicIndex = helpCategory === "Music" && legacyMusicWrappers.has(name);
+      if (!hideFromMusicIndex) {
+        if (!categories.has(helpCategory)) categories.set(helpCategory, []);
+        const list = categories.get(helpCategory);
+        if (!list.some(existing => existing.name === helpCommand.name)) {
+          list.push(helpCommand);
+        }
       }
     }
 
