@@ -60,12 +60,16 @@ function settingsComponents(client, settings) {
       .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1),
     new ChannelSelectMenuBuilder().setCustomId("lightcore_settings:voice_channel")
       .setPlaceholder("Restrict music to voice channel (optional)")
-      .setChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice).setMinValues(1).setMaxValues(1)
+      .setChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice).setMinValues(1).setMaxValues(1),
+    new ChannelSelectMenuBuilder().setCustomId("lightcore_settings:announce_channel")
+      .setPlaceholder("Set now-playing announcement channel")
+      .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)
   );
   const actions = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("lightcore_settings:clear_dj").setLabel("Clear DJ role").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("lightcore_settings:clear_request").setLabel("Clear request restriction").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("lightcore_settings:clear_voice").setLabel("Clear voice restriction").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("lightcore_settings:clear_voice").setLabel("Clear voice restriction").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("lightcore_settings:clear_announce").setLabel("Clear announcement channel").setStyle(ButtonStyle.Secondary)
   );
   return [row, roles, channels, actions];
 }
@@ -177,10 +181,10 @@ export async function openMusicSettingsPanel({ client, message, interaction, mem
         else if (action === "set_loop") patch = { loop: selected, ...(selected !== "off" ? { autoplay: false } : {}) };
       } else if (control.isRoleSelectMenu() && action === "djrole") patch = { djRoleId: control.values[0] };
       else if (control.isChannelSelectMenu() && action === "request_channel") patch = { requestChannelId: control.values[0] };
-      else if (control.isChannelSelectMenu() && action === "voice_channel") patch = { allowedVoiceChannelId: control.values[0] };
+      else if (control.isChannelSelectMenu() && action === "voice_channel") patch = { allowedVoiceChannelId: control.values[0] };\n      else if (control.isChannelSelectMenu() && action === "announce_channel") patch = { announcementChannelId: control.values[0] };
       else if (action === "clear_dj") patch = { djRoleId: null };
       else if (action === "clear_request") patch = { requestChannelId: null };
-      else if (action === "clear_voice") patch = { allowedVoiceChannelId: null };
+      else if (action === "clear_voice") patch = { allowedVoiceChannelId: null };\n      else if (action === "clear_announce") patch = { announcementChannelId: null };
       else return control.reply({ content: "Unknown setting action.", ephemeral: true });
 
       if (Object.keys(patch).length) {
