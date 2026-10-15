@@ -25,6 +25,24 @@ const card = (title, description, color = COLORS.primary) => new EmbedBuilder()
   .setColor(color).setTitle(title).setDescription(String(description || "No details available.").slice(0, 3900))
   .setFooter({ text: "LightCore • Music" }).setTimestamp();
 
+const trackCard = (title, track, color = COLORS.success, prefix = "🎶 Added to queue") => {
+  const info = track?.info || {};
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(prefix)
+    .setDescription("**" + titleOf(track) + "**" +
+      (info.author ? "\nArtist: " + clean(info.author, 100) : "") +
+      "\nDuration: " + duration(info.duration) +
+      (info.uri && /^https?:\/\//i.test(info.uri) ? "\n[Open track](" + info.uri + ")" : ""))
+    .setFooter({ text: "LightCore • Music" })
+    .setTimestamp();
+  const artwork = info.artworkUrl || info.thumbnail || info.image ||
+    (info.identifier && /youtube|youtu\.be/i.test(String(info.uri || "")) ? "https://img.youtube.com/vi/" + info.identifier + "/hqdefault.jpg" : null);
+  if (artwork && /^https?:\/\//i.test(artwork)) embed.setThumbnail(artwork);
+  return embed;
+};
+
+
 function voiceError(message, player, settings) {
   const voice = message.member?.voice?.channel;
   if (!voice) return "Join a voice channel before using music commands.";
@@ -77,7 +95,7 @@ async function searchPicker({ message, tracks, query, manager, player }) {
       const result = await addTracks(freshPlayer, [selected], settings.maxQueue);
       if (!result.accepted) return interaction.reply({ content: "The queue is full.", ephemeral: true });
       await interaction.update({
-        embeds: [card("✅ Added to queue", "**" + titleOf(selected) + "** · " + duration(selected.info?.duration), COLORS.success)],
+        embeds: [trackCard(titleOf(selected), selected, COLORS.success, "✅ Added to queue")],
         components: []
       });
       collector.stop("selected");
@@ -185,10 +203,13 @@ export default {
         if (!queued.accepted) return fail("The queue is full (" + settings.maxQueue + " upcoming tracks).");
         if (!wasActive) return;
         const playlist = result.loadType === "playlist";
-        return reply(playlist ? "📚 Playlist queued" : "🎶 Added to queue",
-          (playlist ? "Added **" + queued.accepted + "** tracks from **" + clean(result.playlistInfo?.name || "playlist") + "**." : "Added **" + titleOf(tracks[0]) + "** · " + duration(tracks[0].info?.duration) + ".") +
+        if (playlist) return reply("📚 Playlist queued",
+          "Added **" + queued.accepted + "** tracks from **" + clean(result.playlistInfo?.name || "playlist") + "**." +
           (queued.rejected ? "\nSkipped " + queued.rejected + " track(s) because the queue limit was reached." : ""),
           COLORS.success);
+        const confirmation = trackCard(titleOf(tracks[0]), tracks[0], COLORS.success, "🎶 Added to queue");
+        if (queued.rejected) confirmation.setDescription(confirmation.data.description + "\n\nQueue limit reached; " + queued.rejected + " track(s) were not added.");
+        return message.reply({ embeds: [confirmation] });
       } catch (error) { return fail("Playback request failed: " + clean(error?.message || error, 220)); }
     }
 
