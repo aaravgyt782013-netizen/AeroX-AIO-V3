@@ -44,6 +44,8 @@ class NeonSessionStore extends session.Store {
   }
 }
 const botGuildIds = new Set((process.env.BOT_GUILD_IDS || "").split(",").map((x) => x.trim()).filter(Boolean));
+const premiumGuildIds = new Set((process.env.PREMIUM_GUILD_IDS || "").split(",").map((x) => x.trim()).filter(Boolean));
+const premiumOnlyModules = new Set(["tickets"]);
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -150,7 +152,7 @@ app.get("/api/guilds", requireAuth, async (req, res) => {
       if (botGuild && (!botGuildIds.size || botGuildIds.has(guild.id))) filtered.push(guild);
     } catch {}
   }
-  res.json({ guilds: filtered, botGuildIdsConfigured: botGuildIds.size > 0 });
+  res.json({ guilds: filtered.map((g) => ({ ...g, premium: premiumGuildIds.has(g.id) })), botGuildIdsConfigured: botGuildIds.size > 0 });
 });
 app.get("/api/guilds/:id/settings", requireAuth, async (req, res) => {
   const id = req.params.id;
@@ -170,6 +172,13 @@ app.put("/api/guilds/:id/settings", requireAuth, async (req, res) => {
   const allowed = ["welcome", "leveling", "logging", "tickets", "moderation"];
   const input = req.body?.settings;
   if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some((k) => !allowed.includes(k))) return res.status(400).json({ error: "Invalid settings payload." });
+  const isPremium = premiumGuildIds.has(id);
+  if (!isPremium && Object.keys(input).some((key) => premiumOnlyModules.has(key) && input[key]?.enabled)) {
+    return res.status(402).json({ error: "Tickets is a Premium module for this server. Upgrade this guild to unlock it." });
+  }
+  if (!isPremium && input.moderation && ["antiSpam", "antiLinks", "antiInvites"].some((key) => input.moderation[key])) {
+    return res.status(402).json({ error: "Advanced AutoMod options are Premium for this server. Disable them or upgrade this guild." });
+  }
   const json = JSON.stringify(input);
   if (json.length > 20000) return res.status(413).json({ error: "Settings payload is too large." });
   try {
