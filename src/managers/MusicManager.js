@@ -181,6 +181,11 @@ export class MusicManager {
         new ButtonBuilder().setCustomId("lightcore:loop").setEmoji(ICON.loop).setLabel("Repeat: " + settings.loop).setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("lightcore:shuffle").setEmoji(ICON.shuffle).setLabel("Shuffle").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("lightcore:dashboard").setEmoji(ICON.dashboard).setLabel("Settings").setStyle(ButtonStyle.Success)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("lightcore:seek_back").setLabel("−10 sec").setStyle(ButtonStyle.Secondary).setDisabled(!player.queue?.current || Boolean(player.queue.current.info?.isStream)),
+        new ButtonBuilder().setCustomId("lightcore:seek_forward").setLabel("+10 sec").setStyle(ButtonStyle.Secondary).setDisabled(!player.queue?.current || Boolean(player.queue.current.info?.isStream)),
+        new ButtonBuilder().setCustomId("lightcore:autoplay").setEmoji(ICON.autoplay).setLabel("Autoplay: " + (settings.autoplay ? "On" : "Off")).setStyle(settings.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
       )
     ];
   }
@@ -269,7 +274,18 @@ export class MusicManager {
       const { openMusicSettingsPanel } = await import("#commands/Music/panel");
       return openMusicSettingsPanel({ client: this.client, interaction, member });
     }
-    if (!player && action !== "dashboard") return interaction.reply({ content: "There is no active music session.", ephemeral: true }).catch(() => {});
+    if (action === "autoplay") {
+      if (!member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ content: "Manage Server permission is required to change autoplay.", ephemeral: true }).catch(() => {});
+      }
+      const enabled = !settings.autoplay;
+      const updated = await this.updateSettings(guildId, { autoplay: enabled, ...(enabled ? { loop: "off" } : {}) });
+      const active = this.getPlayer(guildId);
+      if (enabled && active) await active.setRepeatMode?.("off");
+      if (active) return interaction.update({ embeds: [this.playerEmbed(active)], components: this.controls(active) });
+      return interaction.reply({ content: "Autoplay is now " + (updated.autoplay ? "on" : "off") + ".", ephemeral: true });
+    }
+    if (!player) return interaction.reply({ content: "There is no active music session.", ephemeral: true }).catch(() => {});
     if (!member.voice.channel) return interaction.reply({ content: "Join the voice channel with LightCore first.", ephemeral: true }).catch(() => {});
     if (player.voiceChannelId && member.voice.channel.id !== player.voiceChannelId) return interaction.reply({ content: "Join the same voice channel as LightCore first.", ephemeral: true }).catch(() => {});
     if (settings.djRoleId && !privileged) return interaction.reply({ content: "You need the configured DJ role to control playback.", ephemeral: true }).catch(() => {});
@@ -292,6 +308,14 @@ export class MusicManager {
         return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle("LightCore • Queue").setDescription(page || "No upcoming tracks.")], ephemeral: true });
       } else if (action === "vol_down" || action === "vol_up") {
         await player.setVolume(Math.max(0, Math.min(100, Number(player.volume ?? settings.defaultVolume) + (action === "vol_up" ? 10 : -10))));
+      } else if (action === "seek_back" || action === "seek_forward") {
+        const current = player.queue?.current;
+        const total = Number(current?.info?.duration || 0);
+        if (!current || current.info?.isStream || !total || typeof player.seek !== "function") {
+          return interaction.reply({ content: "Seeking is unavailable for this track.", ephemeral: true });
+        }
+        const target = Math.max(0, Math.min(total - 1000, Number(player.position || 0) + (action === "seek_forward" ? 10000 : -10000)));
+        await player.seek(target);
       } else if (action === "loop") {
         const loop = settings.loop === "off" ? "track" : settings.loop === "track" ? "queue" : "off";
         await this.updateSettings(guildId, { loop, ...(loop !== "off" ? { autoplay: false } : {}) });
