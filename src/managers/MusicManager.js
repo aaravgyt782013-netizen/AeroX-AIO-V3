@@ -21,6 +21,7 @@ export class MusicManager {
     this.settingsStore = new MusicSettingsStore();
     this.settings = {};
     this.previousTracks = new Map();
+    this.currentTracks = new Map();
     this.panels = new Map();
     this.initialized = false;
     this.nodesConfig = [...(config.music.nodes || []), ...(config.music.node || [])];
@@ -49,6 +50,7 @@ export class MusicManager {
     }
 
     this.lavalink.on("trackStart", (player, track) => {
+      if (track) this.currentTracks.set(player.guildId, track);
       this.publishPlayer(player, track, { newTrack: true }).catch(error => logger.warn("Music", "Could not update player panel:", error));
     });
     this.lavalink.on("trackEnd", (player, track, payload) => {
@@ -271,7 +273,7 @@ export class MusicManager {
     ];
   }
 
-  playerEmbed(player, track = player?.queue?.current) {
+  playerEmbed(player, track = player?.queue?.current || this.currentTracks.get(player?.guildId)) {
     const info = track?.info || {};
     const settings = this.getSettings(player.guildId);
     const total = Number(info.duration || 0);
@@ -309,7 +311,7 @@ export class MusicManager {
     return "▰".repeat(active) + "▱".repeat(slots - active);
   }
 
-  async publishPlayer(player, track = player?.queue?.current, { newTrack = false } = {}) {
+  async publishPlayer(player, track = player?.queue?.current || this.currentTracks.get(player?.guildId), { newTrack = false } = {}) {
     const guildId = player.guildId;
     const settings = this.getSettings(guildId);
     const channelId = (settings.announceNowPlaying && settings.announcementChannelId) || player.textChannelId || settings.announcementChannelId;
