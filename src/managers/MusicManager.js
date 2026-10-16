@@ -65,9 +65,16 @@ export class MusicManager {
         // Give Lavalink's queue handler first chance to advance, then only
         // add autoplay if the player is still idle and no manual track arrived.
         await new Promise(resolve => setTimeout(resolve, 250));
-        if ((player.queue?.tracks?.length || 0) > 0 || player.queue?.current || player.playing || player.paused) return;
+        if (player.playing || player.paused) return;
+        // Recover a manually queued track if Lavalink emitted trackEnd but did
+        // not advance the queue itself. Do not let autoplay jump ahead of users.
+        if ((player.queue?.tracks?.length || 0) > 0) {
+          await player.play().catch(error => logger.warn("Music", "Queued-track recovery failed:", error));
+          return;
+        }
+        if (player.queue?.current) return;
         const next = await this.recommendNext(player, track);
-        if (next && !player.queue?.current && !player.playing && !player.paused) {
+        if (next && !player.playing && !player.paused) {
           await player.play().catch(error => logger.warn("Music", "Autoplay start failed:", error));
         }
       }).catch(error => logger.warn("Music", "Track-end recovery failed:", error));
