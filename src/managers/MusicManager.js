@@ -60,21 +60,18 @@ export class MusicManager {
       // only request autoplay after a genuine FINISHED event and an empty queue.
       const reason = String(payload?.reason || payload?.track?.reason || "").toUpperCase();
       if (reason && reason !== "FINISHED") return;
-      if ((player.queue?.tracks?.length || 0) > 0) return;
       const settings = this.getSettings(player.guildId);
-      if (!settings.autoplay || !track) return;
+      // Queue advancement is required regardless of autoplay. Autoplay is only
+      // consulted after the manual queue has been exhausted.
       Promise.resolve().then(async () => {
-        // Give Lavalink's queue handler first chance to advance, then only
-        // add autoplay if the player is still idle and no manual track arrived.
-        await new Promise(resolve => setTimeout(resolve, 250));
+        await new Promise(resolve => setTimeout(resolve, 300));
         if (player.playing || player.paused) return;
-        // Recover a manually queued track if Lavalink emitted trackEnd but did
-        // not advance the queue itself. Do not let autoplay jump ahead of users.
         if ((player.queue?.tracks?.length || 0) > 0) {
           await player.play().catch(error => logger.warn("Music", "Queued-track recovery failed:", error));
           return;
         }
         if (player.queue?.current) return;
+        if (!settings.autoplay || !track) return;
         const next = await this.recommendNext(player, track);
         if (next && !player.playing && !player.paused) {
           await player.play().catch(error => logger.warn("Music", "Autoplay start failed:", error));
