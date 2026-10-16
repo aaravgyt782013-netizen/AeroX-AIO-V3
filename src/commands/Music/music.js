@@ -228,9 +228,10 @@ export default {
     }
 
     if (["nowplaying", "np"].includes(sub)) {
-      if (!player?.queue?.current) return fail("Nothing is playing right now. Use `.play <song>` to start.");
-      const published = await manager.publishPlayer(player);
-      return published || reply("🎧 Now playing", manager.playerEmbed(player).data.description || "Player refreshed.");
+      const currentTrack = player?.queue?.current || manager.currentTracks?.get(guildId);
+      if (!player || !currentTrack) return fail("Nothing is playing right now. Use `.play <song>` to start.");
+      const published = await manager.publishPlayer(player, currentTrack);
+      return published || reply("🎧 Now playing", manager.playerEmbed(player, currentTrack).data.description || "Player refreshed.");
     }
 
     if (sub === "autoplay") {
