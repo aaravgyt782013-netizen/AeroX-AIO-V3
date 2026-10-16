@@ -49,7 +49,7 @@ export class MusicManager {
     }
 
     this.lavalink.on("trackStart", (player, track) => {
-      this.publishPlayer(player, track).catch(error => logger.warn("Music", "Could not update player panel:", error));
+      this.publishPlayer(player, track, { newTrack: true }).catch(error => logger.warn("Music", "Could not update player panel:", error));
     });
     this.lavalink.on("trackEnd", (player, track, payload) => {
       if (track) this.previousTracks.set(player.guildId, track);
@@ -302,7 +302,7 @@ export class MusicManager {
     return "▰".repeat(active) + "▱".repeat(slots - active);
   }
 
-  async publishPlayer(player, track = player?.queue?.current) {
+  async publishPlayer(player, track = player?.queue?.current, { newTrack = false } = {}) {
     const guildId = player.guildId;
     const settings = this.getSettings(guildId);
     const channelId = (settings.announceNowPlaying && settings.announcementChannelId) || player.textChannelId || settings.announcementChannelId;
@@ -314,7 +314,7 @@ export class MusicManager {
       await existing.message?.delete().catch(() => {});
       this.panels.delete(guildId);
     }
-    if (existing?.channelId === channel.id && existing.message) {
+    if (!newTrack && existing?.channelId === channel.id && existing.message) {
       try { await existing.message.edit({ embeds: [this.playerEmbed(player, track)], components }); return existing.message; }
       catch { this.panels.delete(guildId); }
     }
