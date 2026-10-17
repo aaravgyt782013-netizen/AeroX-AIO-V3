@@ -38,7 +38,9 @@ export class MusicManager {
         defaultSearchPlatform: "ytmsearch",
         onDisconnect: { autoReconnect: true, destroyPlayer: false },
         onEmptyQueue: {
-          destroyAfterMs: 60000,
+          // Keep the player alive for 24 hours between tracks; the short default timeout
+          // was destroying the player before autoplay could reliably fetch the next song.
+          destroyAfterMs: 24 * 60 * 60 * 1000,
           autoPlayFunction: async (player, lastTrack) => this.recommendNext(player, lastTrack)
         }
       }
