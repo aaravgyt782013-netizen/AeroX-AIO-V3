@@ -138,7 +138,10 @@ class StatsCommand extends Command {
     line(42, 686, 1158, 686);
     text("Activity tracked by LightCore • historical data starts when tracking was enabled", 42, 721, 14, "#aeb8d4", "500");
     text(member?.joinedTimestamp ? `JOINED ${new Date(member.joinedTimestamp).toLocaleDateString("en-US")}` : "MEMBER", 930, 721, 13, "#aeb8d4", "600");
-    return new AttachmentBuilder(await canvas.encode("png"), { name: "lightcore-member-stats.png" });
+    // toBuffer returns a complete PNG buffer that Discord can render as an image attachment.
+    const png = canvas.toBuffer("image/png");
+    if (!png || png.length < 1000) throw new Error("Stats canvas rendered an empty PNG buffer");
+    return new AttachmentBuilder(png, { name: "lightcore-member-stats.png", description: `Member statistics for ${user.username}` });
   }
 
   async sendStats(guild, user, reply) {
