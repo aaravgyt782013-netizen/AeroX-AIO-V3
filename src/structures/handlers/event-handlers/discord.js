@@ -15,7 +15,7 @@ export default class DiscordHandler {
 			// Multiple modules may legitimately listen to interactionCreate and
 			// messageCreate (music controls, honeypot, prefix commands, tickets, etc.).
 			// Skipping a second listener silently breaks the later feature.
-			if (this.registeredEvents.has(event.name) && !['interactionCreate', 'messageCreate'].includes(event.name)) {
+			if (this.registeredEvents.has(event.name) && !['interactionCreate', 'messageCreate', 'voiceStateUpdate'].includes(event.name)) {
 				logger.warn(
 					'DiscordEvent',
 					`Skipped duplicate Discord event registration: ${event.name}`,
