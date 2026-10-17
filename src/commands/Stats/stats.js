@@ -154,7 +154,7 @@ class StatsCommand extends Command {
       return await this.sendStats(message.guild, target, options => message.reply(options));
     } catch (error) {
       message.client.logger?.error("StatsCommand", `Could not render member stats image: ${error?.stack || error}`);
-      return message.reply("I couldn't generate the member stats image. Please try again shortly.");
+      return message.reply("I couldn't generate the member stats image. Check Render logs for the detailed StatsCommand error.");
     }
   }
 
@@ -167,7 +167,7 @@ class StatsCommand extends Command {
       return await interaction.editReply({ content: `📊 **${user.username} — Member Statistics**`, files: [image] });
     } catch (error) {
       interaction.client.logger?.error("StatsCommand", `Could not render member stats image: ${error?.stack || error}`);
-      return interaction.editReply({ content: "I couldn't generate the member stats image. Please try again shortly." });
+      return interaction.editReply({ content: "I couldn't generate the member stats image. Check Render logs for the detailed StatsCommand error." });
     }
   }
 }
