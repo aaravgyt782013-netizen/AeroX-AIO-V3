@@ -1,43 +1,22 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const parseLavalinkNodes = () => {
-  const explicit = (process.env.LAVALINK_NODES || "").trim();
-  if (explicit) {
-    return explicit.split(",").slice(0, 2).map((entry, index) => {
-      const parts = entry.trim().split(":");
-      if (parts.length < 5) return null;
-      const host = parts.shift();
-      const port = Number(parts.shift());
-      const id = parts.pop();
-      const secure = parts.pop();
-      const authorization = parts.join(":");
-      return host && Number.isInteger(port) && port > 0 && authorization
-        ? { id: id || `node-${index + 1}`, host, port, authorization, secure: secure === "true" }
-        : null;
-    }).filter(Boolean);
+const parseLavalinkNodes = () => [
+  {
+    id: "millohost-primary",
+    host: "lava-v4.millohost.my.id",
+    port: 443,
+    authorization: "https://discord.gg/mjS5J2K3ep",
+    secure: true
+  },
+  {
+    id: "millohost-secondary",
+    host: "lava4.millohost.my.id",
+    port: 443,
+    authorization: "https://discord.gg/mjS5J2K3ep",
+    secure: true
   }
-
-  // The two Millohost nodes are defaults; credentials remain environment-only.
-  const sharedPassword = process.env.LAVALINK_PASSWORD;
-  const definitions = [
-    {
-      id: process.env.LAVALINK_NODE_1_ID || "millohost-primary",
-      host: process.env.LAVALINK_NODE_1_HOST || "lava-v4.millohost.my.id",
-      port: Number(process.env.LAVALINK_NODE_1_PORT || "443"),
-      authorization: process.env.LAVALINK_NODE_1_PASSWORD || sharedPassword,
-      secure: (process.env.LAVALINK_NODE_1_SECURE || "true") === "true"
-    },
-    {
-      id: process.env.LAVALINK_NODE_2_ID || "millohost-secondary",
-      host: process.env.LAVALINK_NODE_2_HOST || "lava4.millohost.my.id",
-      port: Number(process.env.LAVALINK_NODE_2_PORT || "443"),
-      authorization: process.env.LAVALINK_NODE_2_PASSWORD || sharedPassword,
-      secure: (process.env.LAVALINK_NODE_2_SECURE || "true") === "true"
-    }
-  ];
-  return definitions.filter(node => node.authorization && Number.isInteger(node.port) && node.port > 0);
-};
+];
 
 const lavalinkNodes = parseLavalinkNodes();
 
@@ -58,7 +37,7 @@ export const config = {
     node: lavalinkNodes.length ? [] : (process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : []),
   },
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/4waqdE9AVZ" },
-  status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: "CUSTOM" },
+  status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: process.env.STATUS_ACTIVITY_TYPE || "WATCHING" },
   colors: { info: "#3498db", success: "#2ecc71", warning: "#f39c12", error: "#e74c3c" },
   assets: { defaultThumbnail: process.env.DEFAULT_THUMBNAIL || null, helpThumbnail: process.env.HELP_THUMBNAIL || null, bannerUrl: process.env.BANNER_URL || null },
   getThumbnailUrl: url => url || null,
