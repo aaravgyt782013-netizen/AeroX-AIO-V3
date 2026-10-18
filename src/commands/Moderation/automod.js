@@ -4,7 +4,7 @@ import { db } from "#database/DatabaseManager";
 export default {
   name: "automod",
   description: "Configure automatic moderation for this server.",
-  usage: "automod <on|off|status|spam <count>|mentions <count>|links <on|off>|wordadd <word>|wordremove <word>",
+  usage: "automod <on|off|status|spam <count>|mentions <count>|links|invites|caps|nsfw|emoji <value>|log #channel|wordadd|wordremove>",
   aliases: ["auto-mod", "am"],
   category: "Moderation",
   cooldown: 3,
@@ -38,6 +38,19 @@ export default {
       const value = (args[0] || "").toLowerCase();
       if (!["on", "off"].includes(value)) return message.reply("Use `automod links <on|off>`.");
       db.setAutoMod(guildId, "block_links", value === "on" ? 1 : 0);
+    } else if (["invites", "caps", "nsfw"].includes(action)) {
+      const value = (args[0] || "").toLowerCase();
+      if (!["on", "off"].includes(value)) return message.reply("Use `automod " + action + " <on|off>`.");
+      const key = action === "invites" ? "block_invites" : action === "caps" ? "anti_caps" : "block_nsfw_links";
+      db.setAutoMod(guildId, key, value === "on" ? 1 : 0);
+    } else if (action === "emoji") {
+      const n = Number(args[0]);
+      if (!Number.isInteger(n) || n < 3 || n > 50) return message.reply("Use `automod emoji <3-50>`.");
+      db.setAutoMod(guildId, "emoji_limit", n);
+    } else if (action === "log") {
+      const channel = message.mentions.channels.first() || message.guild.channels.cache.get(args[0]?.replace(/[<#>]/g, ""));
+      if (!channel?.isTextBased?.()) return message.reply("Use `automod log #channel`.");
+      db.setAutoMod(guildId, "log_channel", channel.id);
     } else if (action === "wordadd") {
       const word = args.join(" ").trim().toLowerCase();
       if (!word || word.length > 60) return message.reply("Use `automod wordadd <word or phrase>` (max 60 characters).");
@@ -47,7 +60,7 @@ export default {
       const word = args.join(" ").trim().toLowerCase();
       if (!word) return message.reply("Use `automod wordremove <word or phrase>`.");
       db.setAutoMod(guildId, "bad_words", JSON.stringify(words.filter(w => w !== word)));
-    } else return message.reply("Commands: `automod on/off/status`, `automod spam <3-15>`, `automod mentions <2-15>`, `automod links on/off`, `automod wordadd <word>`, `automod wordremove <word>`.");
+    } else return message.reply("Commands: `automod on/off/status`, `automod spam <3-15>`, `automod mentions <2-15>`, `automod links on/off`, `automod invites on/off`, `automod caps on/off`, `automod nsfw on/off`, `automod emoji <3-50>`, `automod log #channel`, `automod wordadd <word>`, `automod wordremove <word>`.");
     return message.reply(`✅ AutoMod setting updated. Run ` + "`automod status`" + ` to review the configuration.`);
   }
 };
