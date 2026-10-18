@@ -156,8 +156,13 @@ class MemberStatsManager extends Database {
     const members = guild.members.cache;
     switch (metric) {
       case "members": return guild.memberCount;
-      case "humans": return members.filter(member => !member.user.bot).size;
-      case "bots": return members.filter(member => member.user.bot).size;
+      case "humans":
+      case "bots": {
+        // Fetch the full member list so counts are not based on a partial cache.
+        const fetched = await guild.members.fetch().catch(() => null);
+        const source = fetched || members;
+        return source.filter(member => metric === "bots" ? member.user.bot : !member.user.bot).size;
+      }
       case "channels": return guild.channels.cache.filter(channel => channel.isTextBased() || channel.isVoiceBased()).size;
       case "roles": return guild.roles.cache.size;
       case "boosts": return guild.premiumSubscriptionCount || 0;
@@ -168,7 +173,7 @@ class MemberStatsManager extends Database {
   }
   async refreshGuild(guild, force = false) {
     const now = Date.now();
-    if (!force && now - (this.counterRefreshAt.get(guild.id) || 0) < 600000) return;
+    if (!force && now - (this.counterRefreshAt.get(guild.id) || 0) < 60000) return;
     this.counterRefreshAt.set(guild.id, now);
     for (const counter of this.getCounters(guild.id)) {
       try {
