@@ -35,12 +35,29 @@ export class Automation extends Database {
       "UNIQUE(guild_id, trigger_text))"
     );
     this.exec(
+      "CREATE TABLE IF NOT EXISTS automod_settings (guild_id TEXT PRIMARY KEY, enabled INTEGER DEFAULT 0, spam_limit INTEGER DEFAULT 5, mention_limit INTEGER DEFAULT 5, bad_words TEXT DEFAULT \"[]\", block_links INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)"
+    );
+    this.exec(
       "CREATE TABLE IF NOT EXISTS bot_guild_contacts (" +
       "guild_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, guild_name TEXT NOT NULL, " +
       "guild_icon TEXT DEFAULT NULL, joined_at INTEGER DEFAULT (strftime('%s', 'now') * 1000), " +
       "updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000))"
     );
     logger.success("AutomationDatabase", "Automation tables initialized");
+  }
+
+  getAutoMod(guildId) {
+    const row = this.get("SELECT * FROM automod_settings WHERE guild_id = ?", [guildId]);
+    if (!row) return { guild_id: guildId, enabled: 0, spam_limit: 5, mention_limit: 5, bad_words: "[]", block_links: 0 };
+    return row;
+  }
+
+  setAutoMod(guildId, key, value) {
+    const allowed = new Set(["enabled", "spam_limit", "mention_limit", "bad_words", "block_links"]);
+    if (!allowed.has(key)) throw new Error("Unsupported AutoMod setting");
+    const current = this.getAutoMod(guildId);
+    const next = { ...current, [key]: value };
+    return this.exec("INSERT INTO automod_settings (guild_id, enabled, spam_limit, mention_limit, bad_words, block_links, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(guild_id) DO UPDATE SET enabled=excluded.enabled, spam_limit=excluded.spam_limit, mention_limit=excluded.mention_limit, bad_words=excluded.bad_words, block_links=excluded.block_links, updated_at=excluded.updated_at", [guildId, next.enabled, next.spam_limit, next.mention_limit, next.bad_words, next.block_links, Date.now()]);
   }
 
   saveBotGuildContact(guildId, ownerId, guildName, guildIcon = null) {
