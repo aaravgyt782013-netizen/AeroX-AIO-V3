@@ -33,15 +33,48 @@ export default {
       }, 10000);
     }
 
-    const updateStatus = () => {
-      user.setActivity({
-        name: config.status.name,
-        type: getStatusType(config.status.type),
+    // Keep the Watching presence focused on live network totals. In clustered
+    // deployments, aggregate every cluster instead of reporting only this cluster.
+    const getNetworkTotals = async () => {
+      const local = () => ({
+        guilds: client.guilds.cache.size,
+        members: client.guilds.cache.reduce((total, guild) => total + (guild.memberCount || 0), 0),
       });
+      try {
+        if (client.cluster && typeof client.cluster.broadcastEval === "function") {
+          const totals = await client.cluster.broadcastEval(c => ({
+            guilds: c.guilds.cache.size,
+            members: c.guilds.cache.reduce((total, guild) => total + (guild.memberCount || 0), 0),
+          }));
+          if (Array.isArray(totals) && totals.length) {
+            return totals.reduce((sum, value) => ({
+              guilds: sum.guilds + Number(value?.guilds || 0),
+              members: sum.members + Number(value?.members || 0),
+            }), { guilds: 0, members: 0 });
+          }
+        }
+      } catch (error) {
+        logger.warn("Bot", "Could not aggregate network presence across clusters; using local totals: " + (error?.message || error));
+      }
+      return local();
     };
 
-    updateStatus();
-    setInterval(updateStatus, 10 * 60 * 1000);
+    const updateStatus = async () => {
+      try {
+        const totals = await getNetworkTotals();
+        const format = value => Number(value || 0).toLocaleString("en-US");
+        user.setActivity(
+          ` ${format(totals.guilds)} servers | ${format(totals.members)} members`,
+          { type: ActivityType.Watching },
+        );
+      } catch (error) {
+        logger.warn("Bot", "Could not update network presence: " + (error?.message || error));
+        user.setActivity(config.status.name, { type: getStatusType(config.status.type) });
+      }
+    };
+
+    await updateStatus();
+    setInterval(() => { void updateStatus(); }, 5 * 60 * 1000);
     user.setStatus(config.status.status || "dnd");
 
     logger.info("Bot", "Starting expired mutes checker (every 60 seconds)");
