@@ -74,6 +74,9 @@ export class DatabaseManager {
   deleteAutoresponder(guildId, id) { return this.automation.deleteAutoresponder(guildId, id); }
   clearAutoresponders(guildId) { return this.automation.clearAutoresponders(guildId); }
 
+  getAutoMod(guildId) { return this.automation.getAutoMod(guildId); }
+  setAutoMod(guildId, key, value) { return this.automation.setAutoMod(guildId, key, value); }
+
   // ─── User ────────────────────────────────────────────────────────────────────
   hasNoPrefix(userId) { return this.user.hasNoPrefix(userId); }
   setNoPrefix(userId, enabled, expiryTimestamp = null) { return this.user.setNoPrefix(userId, enabled, expiryTimestamp); }
