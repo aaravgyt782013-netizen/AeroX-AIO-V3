@@ -3,6 +3,7 @@ import { logger } from "#utils/logger";
 import { config } from "#config/config";
 import { db } from "#database/DatabaseManager";
 import { antiAbuse } from "#utils/AntiAbuse";
+import { memberStats } from "#managers/MemberStatsManager";
 import fs from "fs";
 import path from "path";
 import { AttachmentBuilder } from "discord.js";
@@ -17,6 +18,19 @@ export default {
     const { user, guilds } = client;
     logger.success("Bot", `Logged in as ${user.tag}`);
     logger.info("Bot", `Serving ${guilds.cache.size} guilds`);
+
+    // Restore persisted counters after every restart and refresh them periodically.
+    const refreshAllMemberCounters = async () => {
+      for (const guild of client.guilds.cache.values()) {
+        try {
+          await memberStats.refreshGuild(guild, true);
+        } catch (error) {
+          logger.warn("MemberStats", `Counter refresh failed for guild ${guild.id}: ${error?.message || error}`);
+        }
+      }
+    };
+    await refreshAllMemberCounters();
+    setInterval(() => { void refreshAllMemberCounters(); }, 5 * 60 * 1000);
 
     if (false) { // Legacy 24/7 music mode was removed; standard bot startup continues normally.
       logger.info(
