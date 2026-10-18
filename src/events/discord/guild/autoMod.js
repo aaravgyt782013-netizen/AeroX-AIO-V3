@@ -21,7 +21,7 @@ export default {
       let reason = "";
       const mentions = message.mentions.users.size + message.mentions.roles.size;
       if (mentions >= Number(settings.mention_limit || 5)) reason = "Excessive mentions";
-      else if (settings.block_links && LINK_REGEX.test(content)) reason = "Links are disabled in this server";
+      else if (settings.block_links && LINK_REGEX.test(content)) reason = "Links are disabled in this server";\n      else if (settings.block_invites && INVITE_REGEX.test(content)) reason = "Discord invites are disabled";\n      else if (settings.block_nsfw_links && NSFW_DOMAINS.test(content)) reason = "NSFW links are disabled";\n      else if (settings.anti_caps && message.content.length >= 10 && (message.content.replace(/[^A-Z]/g, "").length / Math.max(1, message.content.replace(/[^A-Za-z]/g, "").length)) >= 0.75) reason = "Excessive capital letters";\n      else if ((message.content.match(/<a?:\\w+:\\d+>/g) || []).length + (message.content.match(/[😀-🙏🌀-🗿]/gu) || []).length >= Number(settings.emoji_limit || 12)) reason = "Emoji spam";
       else if (words.some(word => word && content.includes(String(word).toLowerCase()))) reason = "Filtered word/phrase";
 
       const key = message.guild.id + ":" + message.author.id;
@@ -36,7 +36,7 @@ export default {
       const warningKey = key;
       if (now - (warnedAt.get(warningKey) || 0) < 4000) return;
       warnedAt.set(warningKey, now);
-      const warning = await message.channel.send({ content: `⚠️ <@${message.author.id}>, your message was removed: **${reason}**.`, allowedMentions: { users: [message.author.id] } }).catch(() => null);
+      if (settings.log_channel) {\n        const log = message.guild.channels.cache.get(settings.log_channel);\n        if (log?.isTextBased?.()) await log.send({ content: `🛡️ AutoMod removed a message from <@${message.author.id}> in <#${message.channel.id}>: **${reason}**` }).catch(() => {});\n      }\n      const warning = await message.channel.send({ content: `⚠️ <@${message.author.id}>, your message was removed: **${reason}**.`, allowedMentions: { users: [message.author.id] } }).catch(() => null);
       if (warning) setTimeout(() => warning.delete().catch(() => {}), 6000);
     } catch (error) {
       logger.error("AutoMod", "Failed to process message", error);
