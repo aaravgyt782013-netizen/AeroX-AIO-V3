@@ -109,9 +109,11 @@ class HelpCommand extends Command {
       const name = command.name.toLowerCase();
       const helpCategory = ["channel", "categorydelete"].includes(name)
         ? "Channel"
-        : name === "welcome"
-          ? "Welcome"
-          : this._canonicalCategoryName(command.category || "Utility");
+        : ["automod", "antinuke", "anti-nuke", "an"].includes(name)
+          ? "Moderation"
+          : name === "welcome"
+            ? "Welcome"
+            : this._canonicalCategoryName(command.category || "Utility");
 
       const helpCommand = { ...command, category: helpCategory };
       commands.set(name, helpCommand);
