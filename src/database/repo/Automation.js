@@ -37,6 +37,18 @@ export class Automation extends Database {
     this.exec(
       "CREATE TABLE IF NOT EXISTS automod_settings (guild_id TEXT PRIMARY KEY, enabled INTEGER DEFAULT 0, spam_limit INTEGER DEFAULT 5, mention_limit INTEGER DEFAULT 5, bad_words TEXT DEFAULT \"[]\", block_links INTEGER DEFAULT 0, anti_caps INTEGER DEFAULT 0, block_invites INTEGER DEFAULT 0, emoji_limit INTEGER DEFAULT 12, block_nsfw_links INTEGER DEFAULT 0, log_channel TEXT DEFAULT NULL, updated_at INTEGER DEFAULT 0)"
     );
+    // Upgrade existing databases created before the expanded AutoMod options.
+    for (const column of [
+      "anti_caps INTEGER DEFAULT 0",
+      "block_invites INTEGER DEFAULT 0",
+      "emoji_limit INTEGER DEFAULT 12",
+      "block_nsfw_links INTEGER DEFAULT 0",
+      "log_channel TEXT DEFAULT NULL",
+    ]) {
+      try { this.exec("ALTER TABLE automod_settings ADD COLUMN " + column); } catch {}
+    }
+    this.exec("UPDATE automod_settings SET bad_words = '[]' WHERE bad_words IS NULL OR bad_words = ''");
+
     this.exec(
       "CREATE TABLE IF NOT EXISTS bot_guild_contacts (" +
       "guild_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, guild_name TEXT NOT NULL, " +
