@@ -35,7 +35,7 @@ export class Automation extends Database {
       "UNIQUE(guild_id, trigger_text))"
     );
     this.exec(
-      "CREATE TABLE IF NOT EXISTS automod_settings (guild_id TEXT PRIMARY KEY, enabled INTEGER DEFAULT 0, spam_limit INTEGER DEFAULT 5, mention_limit INTEGER DEFAULT 5, bad_words TEXT DEFAULT \"[]\", block_links INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)"
+      "CREATE TABLE IF NOT EXISTS automod_settings (guild_id TEXT PRIMARY KEY, enabled INTEGER DEFAULT 0, spam_limit INTEGER DEFAULT 5, mention_limit INTEGER DEFAULT 5, bad_words TEXT DEFAULT \"[]\", block_links INTEGER DEFAULT 0, anti_caps INTEGER DEFAULT 0, block_invites INTEGER DEFAULT 0, emoji_limit INTEGER DEFAULT 12, block_nsfw_links INTEGER DEFAULT 0, log_channel TEXT DEFAULT NULL, updated_at INTEGER DEFAULT 0)"
     );
     this.exec(
       "CREATE TABLE IF NOT EXISTS bot_guild_contacts (" +
@@ -48,16 +48,16 @@ export class Automation extends Database {
 
   getAutoMod(guildId) {
     const row = this.get("SELECT * FROM automod_settings WHERE guild_id = ?", [guildId]);
-    if (!row) return { guild_id: guildId, enabled: 0, spam_limit: 5, mention_limit: 5, bad_words: "[]", block_links: 0 };
+    if (!row) return { guild_id: guildId, enabled: 0, spam_limit: 5, mention_limit: 5, bad_words: "[]", block_links: 0, anti_caps: 0, block_invites: 0, emoji_limit: 12, block_nsfw_links: 0, log_channel: null };
     return row;
   }
 
   setAutoMod(guildId, key, value) {
-    const allowed = new Set(["enabled", "spam_limit", "mention_limit", "bad_words", "block_links"]);
+    const allowed = new Set(["enabled", "spam_limit", "mention_limit", "bad_words", "block_links", "anti_caps", "block_invites", "emoji_limit", "block_nsfw_links", "log_channel"]);
     if (!allowed.has(key)) throw new Error("Unsupported AutoMod setting");
     const current = this.getAutoMod(guildId);
     const next = { ...current, [key]: value };
-    return this.exec("INSERT INTO automod_settings (guild_id, enabled, spam_limit, mention_limit, bad_words, block_links, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(guild_id) DO UPDATE SET enabled=excluded.enabled, spam_limit=excluded.spam_limit, mention_limit=excluded.mention_limit, bad_words=excluded.bad_words, block_links=excluded.block_links, updated_at=excluded.updated_at", [guildId, next.enabled, next.spam_limit, next.mention_limit, next.bad_words, next.block_links, Date.now()]);
+    return this.exec("INSERT INTO automod_settings (guild_id, enabled, spam_limit, mention_limit, bad_words, block_links, anti_caps, block_invites, emoji_limit, block_nsfw_links, log_channel, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(guild_id) DO UPDATE SET enabled=excluded.enabled, spam_limit=excluded.spam_limit, mention_limit=excluded.mention_limit, bad_words=excluded.bad_words, block_links=excluded.block_links, anti_caps=excluded.anti_caps, block_invites=excluded.block_invites, emoji_limit=excluded.emoji_limit, block_nsfw_links=excluded.block_nsfw_links, log_channel=excluded.log_channel, updated_at=excluded.updated_at", [guildId, next.enabled, next.spam_limit, next.mention_limit, next.bad_words, next.block_links, next.anti_caps || 0, next.block_invites || 0, next.emoji_limit || 12, next.block_nsfw_links || 0, next.log_channel || null, Date.now()]);
   }
 
   saveBotGuildContact(guildId, ownerId, guildName, guildIcon = null) {
