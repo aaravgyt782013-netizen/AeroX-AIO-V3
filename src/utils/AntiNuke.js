@@ -21,7 +21,7 @@ const ACTION_MAP = {
   RoleDelete: "roleDelete", RoleCreate: "roleCreate",
   MemberBanAdd: "memberBan", MemberKick: "memberKick",
   WebhookCreate: "webhook", WebhookDelete: "webhook", WebhookUpdate: "webhook",
-  BotAdd: "botAdd", EmojiDelete: "emojiDelete", StickerDelete: "stickerDelete",
+  BotAdd: "botAdd", EmojiCreate: "emojiCreate", EmojiUpdate: "emojiUpdate", EmojiDelete: "emojiDelete", StickerCreate: "stickerCreate", StickerUpdate: "stickerUpdate", StickerDelete: "stickerDelete",
   IntegrationCreate: "integration", IntegrationDelete: "integration", IntegrationUpdate: "integration",
   GuildUpdate: "guildUpdate", MemberRoleUpdate: "memberRoleUpdate",
   AutoModerationRuleCreate: "guildUpdate", AutoModerationRuleDelete: "guildUpdate",
