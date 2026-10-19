@@ -6,7 +6,7 @@ const parseLavalinkNodes = () => [
     id: "millohost-primary",
     host: "lava-v4.millohost.my.id",
     port: 443,
-    authorization: "https://discord.gg/mjS5J2K3ep",
+    authorization: process.env.LAVALINK_PASSWORD || "",
     secure: true
   },
   {
@@ -18,7 +18,7 @@ const parseLavalinkNodes = () => [
   }
 ];
 
-const lavalinkNodes = parseLavalinkNodes();
+const lavalinkNodes = parseLavalinkNodes().filter(node => node.authorization);
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
