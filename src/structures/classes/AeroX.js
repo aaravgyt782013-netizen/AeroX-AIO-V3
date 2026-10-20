@@ -30,6 +30,9 @@ export class LightCore extends Client {
                         intents: [
                                 GatewayIntentBits.Guilds,
                                 GatewayIntentBits.GuildInvites,
+                                GatewayIntentBits.GuildModeration,
+                                GatewayIntentBits.GuildExpressions,
+                                GatewayIntentBits.GuildWebhooks,
                                 GatewayIntentBits.GuildMembers,
                                 GatewayIntentBits.GuildMessages,
                                 GatewayIntentBits.GuildVoiceStates,
