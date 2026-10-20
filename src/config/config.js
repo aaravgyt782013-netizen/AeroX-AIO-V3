@@ -1,24 +1,22 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const parseLavalinkNodes = () => [
-  {
-    id: "millohost-primary",
-    host: "lava-v4.millohost.my.id",
-    port: 443,
-    authorization: process.env.LAVALINK_PASSWORD || "",
-    secure: true
-  },
-  {
-    id: "millohost-secondary",
-    host: "lava4.millohost.my.id",
-    port: 443,
-    authorization: "https://discord.gg/mjS5J2K3ep",
-    secure: true
-  }
-];
+const parseLavalinkNodes = () => {
+  const host = process.env.LAVALINK_HOST || "lava-v4.millohost.my.id";
+  const port = Number.parseInt(process.env.LAVALINK_PORT || "443", 10);
+  const password = process.env.LAVALINK_PASSWORD || "";
+  const secure = (process.env.LAVALINK_SECURE || "true").toLowerCase() === "true";
+  if (!password || !host || !Number.isInteger(port) || port < 1 || port > 65535) return [];
+  return [{
+    id: process.env.LAVALINK_ID || "main-node",
+    host,
+    port,
+    authorization: password,
+    secure
+  }];
+};
 
-const lavalinkNodes = parseLavalinkNodes().filter(node => node.authorization);
+const lavalinkNodes = parseLavalinkNodes();
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
@@ -34,7 +32,7 @@ export const config = {
     defaultVolume: Math.min(100, Math.max(1, Number.parseInt(process.env.MUSIC_DEFAULT_VOLUME || "70", 10) || 70)),
     maxQueue: Math.min(500, Math.max(10, Number.parseInt(process.env.MUSIC_MAX_QUEUE || "100", 10) || 100)),
     nodes: lavalinkNodes,
-    node: lavalinkNodes.length ? [] : (process.env.LAVALINK_HOST && process.env.LAVALINK_PORT && process.env.LAVALINK_PASSWORD ? [{ id: process.env.LAVALINK_ID || "main-node", host: process.env.LAVALINK_HOST, port: Number(process.env.LAVALINK_PORT), authorization: process.env.LAVALINK_PASSWORD, secure: process.env.LAVALINK_SECURE === "true" }] : []),
+    node: [],
   },
   links: { supportServer: process.env.SUPPORT_SERVER_URL || "https://discord.gg/4waqdE9AVZ" },
   status: { name: process.env.STATUS_TEXT || ".help | LightCore", status: process.env.STATUS_TYPE || "dnd", type: process.env.STATUS_ACTIVITY_TYPE || "WATCHING" },
