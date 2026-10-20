@@ -6,17 +6,17 @@ const commonPassword = process.env.LAVALINK_PASSWORD || "";
 const lavalinkNodes = [
   {
     id: process.env.LAVALINK_NODE_1_ID || "millohost-primary",
-    host: process.env.LAVALINK_NODE_1_HOST || "lava-v4.millohost.my.id",
-    port: Number.parseInt(process.env.LAVALINK_NODE_1_PORT || "443", 10),
+    host: "lava-v4.millohost.my.id",
+    port: 443,
     authorization: process.env.LAVALINK_NODE_1_PASSWORD || commonPassword,
-    secure: envBool(process.env.LAVALINK_NODE_1_SECURE, true),
+    secure: true,
   },
   {
     id: process.env.LAVALINK_NODE_2_ID || "millohost-secondary",
-    host: process.env.LAVALINK_NODE_2_HOST || "lava4.millohost.my.id",
-    port: Number.parseInt(process.env.LAVALINK_NODE_2_PORT || "443", 10),
+    host: "lava4.millohost.my.id",
+    port: 443,
     authorization: process.env.LAVALINK_NODE_2_PASSWORD || commonPassword,
-    secure: envBool(process.env.LAVALINK_NODE_2_SECURE, true),
+    secure: true,
   },
 ].filter(node => node.host && Number.isInteger(node.port) && node.port > 0 && node.authorization);
 
