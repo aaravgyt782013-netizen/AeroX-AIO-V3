@@ -69,6 +69,15 @@ export class LoggingManager {
           reason: "LightCore automatic logging setup",
         });
       }
+      // Repair permissions on pre-existing log channels too. Previously only newly
+      // created channels received explicit bot/@everyone overwrites.
+      await ch.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false }).catch(() => null);
+      await ch.permissionOverwrites.edit(me, {
+        ViewChannel: true,
+        SendMessages: true,
+        EmbedLinks: true,
+        ReadMessageHistory: true,
+      }).catch(() => null);
       channels[type] = ch.id;
     }
     db.guild.setLogging(guild.id, channels, true);
