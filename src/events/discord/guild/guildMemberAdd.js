@@ -61,6 +61,7 @@ export default {
         }
 
         db.invites.setInviterData(guildId, member.id, inviter.id, usedInvite.code);
+        await LoggingManager.send(member.guild, "invite", { title: "Invite Used", emoji: "🔗", description: `<@${member.id}> joined using an invite created by <@${inviter.id}>.`, fields: [{ name: "Invite code", value: String(usedInvite.code), inline: true }, { name: "Uses", value: String(usedInvite.uses ?? "Unknown"), inline: true }, { name: "Inviter", value: `<@${inviter.id}>`, inline: true }] });
 
         logger.debug("InviteTracker", `${member.user.tag} was invited by ${inviter.tag} using code ${usedInvite.code}`);
 
