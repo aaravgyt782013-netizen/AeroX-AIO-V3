@@ -23,6 +23,7 @@ import {
 } from "#utils/permissionUtil";
 import { config } from "#config/config";
 import { leveling } from "#managers/LevelingManager";
+import { LoggingManager } from "#managers/LoggingManager";
 
 async function _sendError(message, title, description) {
   const button = new ButtonBuilder()
@@ -552,6 +553,7 @@ if (command.userPrem && !db.isUserPremium(message.author.id))
       const executionContext = { client, message, args, prefix };
 antiAbuse.setCooldown(message.author.id, command);
       await command.execute(executionContext);
+      await LoggingManager.send(message.guild, "command", { title: "Prefix Command Used", description: `<@${message.author.id}> ran \\`${prefix}${command.name}\\` in <#${message.channel.id}>.`, fields: [{ name: "User", value: `<@${message.author.id}>`, inline: true }, { name: "Command", value: String(command.name), inline: true }, { name: "Channel", value: `<#${message.channel.id}>`, inline: true }] });
     } catch (error) {
       logger.error(
         "MessageCreate",
