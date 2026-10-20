@@ -1,22 +1,22 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const parseLavalinkNodes = () => {
-  const host = process.env.LAVALINK_HOST || "lava-v4.millohost.my.id";
-  const port = Number.parseInt(process.env.LAVALINK_PORT || "443", 10);
-  const password = process.env.LAVALINK_PASSWORD || "";
-  const secure = (process.env.LAVALINK_SECURE || "true").toLowerCase() === "true";
-  if (!password || !host || !Number.isInteger(port) || port < 1 || port > 65535) return [];
-  return [{
-    id: process.env.LAVALINK_ID || "main-node",
-    host,
-    port,
-    authorization: password,
-    secure
-  }];
-};
-
-const lavalinkNodes = parseLavalinkNodes();
+const lavalinkNodes = [
+  {
+    id: "millohost-v4-primary",
+    host: "lava-v4.millohost.my.id",
+    port: 443,
+    authorization: "https://discord.gg/mjS5J2K3ep",
+    secure: true,
+  },
+  {
+    id: "millohost-v4-secondary",
+    host: "lava4.millohost.my.id",
+    port: 443,
+    authorization: "https://discord.gg/mjS5J2K3ep",
+    secure: true,
+  },
+];
 
 export const config = {
   token: process.env.DISCORD_TOKEN,
