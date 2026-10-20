@@ -29,6 +29,7 @@ export class LightCore extends Client {
                 const clientOptions = {
                         intents: [
                                 GatewayIntentBits.Guilds,
+                                GatewayIntentBits.GuildInvites,
                                 GatewayIntentBits.GuildMembers,
                                 GatewayIntentBits.GuildMessages,
                                 GatewayIntentBits.GuildVoiceStates,
