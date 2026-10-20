@@ -1,5 +1,6 @@
 import { ChannelType, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "#database/DatabaseManager";
+import { logger } from "#utils/logger";
 
 export const LOG_TYPES = {
   member: "member-logs",
@@ -83,10 +84,18 @@ export class LoggingManager {
 
   static async send(guild, type, data = {}) {
     try {
-      const channel = data.channelId
-        ? guild.channels.cache.get(data.channelId)
-        : this.getChannel(guild, type);
-      if (!channel?.isTextBased()) return false;
+      const channelId = data.channelId || (() => {
+        const cfg = db.guild.getLogging(guild.id);
+        if (!cfg.enabled) return null;
+        return cfg.channels[type] || cfg.channels.server || null;
+      })();
+      const channel = channelId
+        ? (guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null))
+        : null;
+      if (!channel?.isTextBased()) {
+        logger.warn("Logging", "No usable log channel for type " + type + " in guild " + guild.id);
+        return false;
+      }
 
       const style = LOG_STYLE[type] || LOG_STYLE.server;
       const title = data.title || style.label;
@@ -119,7 +128,8 @@ export class LoggingManager {
 
       await channel.send({ embeds: [e] });
       return true;
-    } catch {
+    } catch (error) {
+      logger.error("Logging", "Failed to send " + type + " log in guild " + guild.id, error);
       return false;
     }
   }
