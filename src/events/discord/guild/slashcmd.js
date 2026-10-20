@@ -12,6 +12,7 @@ import {
 } from "discord.js";
 
 import { config } from "#config/config";
+import { LoggingManager } from "#managers/LoggingManager";
 import { db } from "#database/DatabaseManager";
 import { antiAbuse } from "#utils/AntiAbuse";
 import { logger } from "#utils/logger";
@@ -325,6 +326,7 @@ async function handleChatInputCommand(interaction, client) {
     const executionContext = { interaction, client };
     antiAbuse.setCooldown(interaction.user.id, commandToExecute);
     await commandToExecute.slashExecute(executionContext);
+    await LoggingManager.send(interaction.guild, "command", { title: "Slash Command Used", description: `<@${interaction.user.id}> ran \\`/${interaction.commandName}\\` in <#${interaction.channelId}>.`, fields: [{ name: "User", value: `<@${interaction.user.id}>`, inline: true }, { name: "Command", value: "/" + interaction.commandName, inline: true }, { name: "Channel", value: `<#${interaction.channelId}>`, inline: true }] });
   } catch (error) {
     logger.error(
       "InteractionCreate",
